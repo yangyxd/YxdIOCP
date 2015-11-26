@@ -1,0 +1,44 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{2d7833bb-9885-4ac3-80ba-4567130873b1}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="IocpUdpSvr.D2007.dproj" />
+    <Projects Include="IocUdpClientTest.dproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+  <BorlandProject xmlns=""> <Default.Personality> </Default.Personality> </BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="IocpUdpSvr_D2007">
+    <MSBuild Projects="IocpUdpSvr.D2007.dproj" Targets="" />
+  </Target>
+  <Target Name="IocpUdpSvr_D2007:Clean">
+    <MSBuild Projects="IocpUdpSvr.D2007.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="IocpUdpSvr_D2007:Make">
+    <MSBuild Projects="IocpUdpSvr.D2007.dproj" Targets="Make" />
+  </Target>
+  <Target Name="IocUdpClientTest">
+    <MSBuild Projects="IocUdpClientTest.dproj" Targets="" />
+  </Target>
+  <Target Name="IocUdpClientTest:Clean">
+    <MSBuild Projects="IocUdpClientTest.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="IocUdpClientTest:Make">
+    <MSBuild Projects="IocUdpClientTest.dproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="IocpUdpSvr_D2007;IocUdpClientTest" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="IocpUdpSvr_D2007:Clean;IocUdpClientTest:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="IocpUdpSvr_D2007:Make;IocUdpClientTest:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>
