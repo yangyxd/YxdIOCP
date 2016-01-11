@@ -2462,7 +2462,7 @@ end;
 
 constructor TFileOnlyStream.Create(const AFileName: string);
 begin
-  inherited Create(_lopen(PAnsiChar(AFileName), OF_READ));
+  inherited Create(_lopen(PAnsiChar(AnsiString(AFileName)), OF_READ));
 end;
 
 destructor TFileOnlyStream.Destroy;
