@@ -95,6 +95,8 @@ function CreateTcpOverlappedSocket: THandle;
 function lock_cmp_exchange(cmp_val, new_val: Boolean; var target: Boolean):
     Boolean;
 function ipToInt(const strIP : AnsiString): Cardinal;
+function IPToStr(const Addr: Cardinal): string;
+
 
 function PCharToInt64Def(const S: PAnsichar; Len: Integer; def: int64 = 0): int64;
 function PCharToIntDef(const S: PAnsichar; Len: Integer; def: Integer = 0): Integer;
@@ -236,6 +238,15 @@ begin
   Result := i + PCharToInt64Def(p, p1-p) shl 8;
   Inc(p1);
   Result := Result + PCharToInt64Def(p1, Length(p1));
+end;
+
+function IPToStr(const Addr: Cardinal): string;
+begin
+  Result := Format('%d.%d.%d.%d', [
+    (Addr shr $18) and $FF,
+    (Addr shr $10) and $FF,
+    (Addr shr $8) and $FF,
+    Addr and $FF]);
 end;
 
 /// compare target, cmp_val same set target = new_val

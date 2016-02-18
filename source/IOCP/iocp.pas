@@ -247,6 +247,7 @@ type
   private
     FPool: TIocpTcpSocketPool;
     FMemPool: TMemPool;
+    FHostSelect: TStringHash;
     FList: PIocpTcpProxyData;
     FLast: PIocpTcpProxyData;
     FWorker: array of TIocpTcpProxyWorkerThread;
@@ -266,13 +267,27 @@ type
     function ItemEmpty: Boolean;
     function DoCallBack(Socket: TIocpTcpSocket;
       CallBack: TIocpTcpProxyCallBack; const Tag: Integer): Boolean;
+
   public
     constructor Create(AMaxWorker: Integer = 1);
     destructor Destroy; override;
     procedure Clear; virtual;
 
+    // 根据一个以","分隔的IP字符串列表，自动更换IP地址功能
+
+    // 根据一个以","分隔的IP字符串列表，返回当前使用的IP地址
+    function HostSelect(const Host: string): string; virtual;
+    // 根据一个以","分隔的IP字符串列表，切换当前使用的IP地址，切换成功返回True
+    // 切换失败可能是变更速度太快，或者Host为空
+    function HostChange(const Host: string): Boolean; virtual;
+    // HostChange到可用IP时，调用此方法来中止其它线程的切换操作
+    procedure HostUpdate(const Host: string); overload;
+    // HostChange到可用IP时，调用此方法来中止其它线程的切换操作
+    procedure HostUpdate(const Host, IPAddr: string); overload;
+
     function GetSocket(const Host: string; const Port: Word): TIocpTcpSocket;
     procedure ReleaseSocket(V: TIocpTcpSocket); inline;
+    
     function Pop(const RemoteAddr: string; RemotePort: Word): TIocpTcpSocket;
     procedure Push(const Socket: TIocpTcpSocket);
 
@@ -747,6 +762,12 @@ end;
 
 { TIocpTcpClientProxy }
 
+const
+  IPIndexHeader = 'ipi_';
+  IPLastHeader = 'ipl_';
+  IPLastTimeHeader = 'ipt_';
+  IPChangeOK = 9999999;
+
 procedure TIocpTcpClientProxy.AddItem(const Socket: TIocpTcpSocket;
   const CallBack: TIocpTcpProxyCallBack; const Tag: Integer);
 var
@@ -770,6 +791,82 @@ begin
   end;
   FLast := Item;
   FLocker.Leave; 
+end;
+
+function TIocpTcpClientProxy.HostChange(const Host: string): Boolean;
+var
+  I: Integer;
+  T: Cardinal;
+  List: TStrings;
+begin
+  Result := False;
+  List := TStringList.Create;
+  try
+    List.Delimiter := ',';
+    List.DelimitedText := Host;
+    if List.Count < 2 then Exit;
+    T := FHostSelect.ValueOf(IPLastTimeHeader + Host);
+    if Abs(GetTickCount - T) > 300000 then begin   // 30秒内没有更改过地址，则从第一个开始
+      I := 0;
+    end else begin
+      I := FHostSelect.ValueOf(IPLastHeader + Host);
+      if I < 0 then I := 0;
+    end;
+
+    // 在其它线程已经切换成功了
+    if I = IPChangeOK then begin
+      Result := True;
+      Exit;
+    end;
+    
+    if I >= List.Count then Exit;
+    Inc(I);
+    FHostSelect.Add(IPLastTimeHeader + Host, GetTickCount);
+    FHostSelect.Add(IPLastHeader + Host, I);
+
+    I := FHostSelect.ValueOf(IPIndexHeader + Host) + 1;
+    if (I < 0) or (I >= List.Count) then
+      I := 0;
+    FHostSelect.Add(Host, ipToInt(List[I]));
+    FHostSelect.Add(IPIndexHeader + Host, I);
+    Result := True;
+  finally
+    List.Free;
+  end;
+end;
+
+function TIocpTcpClientProxy.HostSelect(const Host: string): string;
+var
+  I: Cardinal;
+  L: Integer;
+begin
+  // 从多个IP中选中一个可用的
+  if Length(Host) = 0 then
+    Result := ''
+  else begin
+    I := FHostSelect.ValueOf(Host);
+    if I <> 0 then
+      Result := IPToStr(I)
+    else begin
+      L := Pos(',', Host);
+      if L = 0 then
+        Result := Host
+      else
+        Result := Copy(Host, 1, L - 1);
+      FHostSelect.Add(Host, ipToInt(Result));
+    end;
+  end;
+end;
+
+procedure TIocpTcpClientProxy.HostUpdate(const Host: string);
+begin
+  FHostSelect.Add(IPLastHeader + Host, IPChangeOK);
+end;
+
+procedure TIocpTcpClientProxy.HostUpdate(const Host, IPAddr: string);
+begin
+  FHostSelect.Add(Host, ipToInt(IPAddr));
+  HostUpdate(Host);
 end;
 
 function TIocpTcpClientProxy.CheckHost(const Host: string;
@@ -805,6 +902,7 @@ var
   I: Integer;
 begin
   FTimeOut := 30000;
+  FHostSelect := TStringHash.Create();
   FPool := TIocpTcpSocketPool.Create(64);
   FMemPool := TMemPool.Create(SizeOf(TIocpTcpProxyData));
   FLocker := TCriticalSection.Create;
@@ -833,6 +931,7 @@ begin
     FreeAndNil(FPool);
     FreeAndNil(FMemPool);
     FreeAndNil(FLocker);
+    FreeAndNil(FHostSelect);
     for I := 0 to High(FWorker) do
       FreeAndNil(FWorker[I]);
     inherited Destroy;
@@ -938,11 +1037,25 @@ function TIocpTcpClientProxy.GetSocket(const Host: string;
   const Port: Word): TIocpTcpSocket;
 begin
   if CheckHost(Host, Port) then begin
-    Result := FPool.Pop(Host, Port);
+    Result := FPool.Pop(HostSelect(Host), Port);
     if Assigned(Result) then begin
       if not Result.Connect(False) then begin
-        FPool.Push(Result);
-        Result := nil;
+        // 连接失败，自动切换IP线路
+        while HostChange(Host) do begin
+          Result := FPool.Pop(HostSelect(Host), Port);
+          if Assigned(Result) then begin
+            if Result.Connect(False) then begin
+              HostUpdate(Host);
+              DoStateMsg(Self, iocp_mt_Debug, Format('切换服务器：%s, %s',
+                [Host, Result.RemoteHost]));
+              Break;
+            end else begin
+              FPool.Push(Result);
+              Result := nil;
+            end;
+          end else
+            Break;
+        end;
       end;
     end;
   end else
