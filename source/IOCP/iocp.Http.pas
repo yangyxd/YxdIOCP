@@ -275,6 +275,7 @@ type
     procedure CheckCookieSession;
     function GetCookieItem(const Name: AnsiString): AnsiString;
     function GetSessionID: string;
+    function GetAcceptGzip: Boolean;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
     function DecodeHttpHeader(): Boolean;
@@ -364,6 +365,7 @@ type
     property Accept: AnsiString read GetAccept;
     property AcceptEncoding: AnsiString read GetAcceptEncoding;
     property AcceptLanguage: AnsiString read GetAcceptLanguage;
+    property AcceptGzip: Boolean read GetAcceptGzip;
     property Host: AnsiString read GetHost;
     property Referer: AnsiString read GetReferer;
     property Session: Pointer read GetSession;
@@ -864,6 +866,11 @@ end;
 function TIocpHttpRequest.GetAcceptEncoding: AnsiString;
 begin
   Result := GetHeader('Accept-Encoding');
+end;
+
+function TIocpHttpRequest.GetAcceptGzip: Boolean;
+begin
+  Result := Pos('gzip', GetAcceptEncoding()) > 0;
 end;
 
 function TIocpHttpRequest.GetAcceptLanguage: AnsiString;
@@ -1568,9 +1575,14 @@ begin
 end;
 
 procedure TIocpHttpServer.DoFreeHashItem(Item: PHashItem);
+var
+  P: Pointer;
 begin
-  if Assigned(FOnHttpFreeSession) then
-    FOnHttpFreeSession(Self, Item.Key, Pointer(Item.Value));
+  if Assigned(FOnHttpFreeSession) then begin
+    P := Pointer(Item.Value);
+    FOnHttpFreeSession(Self, Item.Key, P);
+    Item.Value := Integer(P);
+  end;
 end;
 
 procedure TIocpHttpServer.DoRequest(ARequest: TIocpHttpRequest);
@@ -2338,14 +2350,14 @@ begin
   {$ENDIF}
   begin
     if (Length(Data)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data))));
+      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)));
       FRequest.FConn.Send(Data);
     end else begin
       {$IFDEF UNICODE}
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data))));
+      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)));
       FRequest.FConn.Send(Data);
       {$ELSE}
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data))) + Data);
+      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)) + Data);
       {$ENDIF}
     end;
   end;

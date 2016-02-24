@@ -36,7 +36,7 @@ const
 type
   MAddrList = array of Pointer;
   PMAddrList = ^MAddrList;
-  Number = Cardinal;
+  Number = NativeUInt;
 
 type
   /// <summary>
@@ -47,26 +47,26 @@ type
     FMemory: Pointer;
     FDataBuf: MAddrList;
     FDataBufSize: Integer;
-    FBufSize, FPosition: Cardinal;
-    FBlockSize: Cardinal;
+    FBufSize, FPosition: Number;
+    FBlockSize: Number;
     FDebrisList: MAddrList;
-    FDebrisCapacity: Cardinal;
-    function GetBufferPageCount: Cardinal;
-    procedure SetDebrisCapacity(NewCapacity: Cardinal);
-    function GetBufferSize: Cardinal;
+    FDebrisCapacity: Number;
+    function GetBufferPageCount: Number;
+    procedure SetDebrisCapacity(NewCapacity: Number);
+    function GetBufferSize: Number;
   protected
-    FDebrisCount: Cardinal;
+    FDebrisCount: Number;
     procedure ClearDebris();
     procedure GrowDebris; virtual;
   public
-    constructor Create(BlockSize: Cardinal; PageSize: Cardinal = MemoryDelta); virtual;
+    constructor Create(BlockSize: Number; PageSize: Number = MemoryDelta); virtual;
     destructor Destroy; override;
     procedure Clear;
     function Pop: Pointer;
     procedure Push(const V: Pointer);
-    property Size: Cardinal read GetBufferSize;
-    property BlockSize: Cardinal read FBlockSize;
-    property PageCount: Cardinal read GetBufferPageCount;
+    property Size: Number read GetBufferSize;
+    property BlockSize: Number read FBlockSize;
+    property PageCount: Number read GetBufferPageCount;
   end;
 
 type
@@ -84,7 +84,7 @@ type
     FPool: MAddrList;
     FCount: Integer;
     FMaxSize: Integer;
-    FBlockSize: Cardinal;
+    FBlockSize: Number;
     FLocker: TCriticalSection;
     FOnFree: TIocpMemPoolNotify;
     FOnNew: TIocpMemPoolNew;
@@ -94,14 +94,14 @@ type
     procedure DoReset(const AData: Pointer); inline;
     procedure DoNew(var AData: Pointer); inline;
   public
-    constructor Create(BlockSize: Cardinal; MaxSize: Integer = 64);
+    constructor Create(BlockSize: Number; MaxSize: Integer = 64);
     destructor Destroy; override;
     procedure Clear;
     procedure Lock; {$IFDEF HAVE_INLINE} inline;{$ENDIF}
     procedure Unlock; {$IFDEF HAVE_INLINE} inline;{$ENDIF}
     function Pop(): Pointer;
     procedure Push(const V: Pointer);
-    property BlockSize: Cardinal read FBlockSize;
+    property BlockSize: Number read FBlockSize;
     property MaxSize: Integer read FMaxSize;
     property Count: Integer read FCount;
     property OnFree: TIocpMemPoolNotify read FOnFree write FOnFree;
@@ -126,7 +126,7 @@ type
   /// </summary>
   TIocpStream = class(TStream)
   private
-    FHandle: Cardinal;
+    FHandle: Number;
     FWritePos: Pointer;
     FReadPos: PAnsiChar;
     FFirst: PIocpLink;
@@ -167,7 +167,7 @@ type
     // 未读数据大小
     property UnReadSize: Cardinal read GetUnReadSize;
     // 自定义句柄
-    property Handle: Cardinal read FHandle write FHandle; 
+    property Handle: Number read FHandle write FHandle;
     property OnPopMem: TOnPopMem read FOnGetMem write FOnGetMem;
     property OnPushMem: TOnPushMem read FOnPushMem write FOnPushMem;
   end;
@@ -203,7 +203,7 @@ begin
   FDebrisCount := 0;
 end;
 
-constructor TYxdMemPool.Create(BlockSize, PageSize: Cardinal);
+constructor TYxdMemPool.Create(BlockSize, PageSize: Number);
 begin
   FBlockSize := BlockSize;
   if FBlockSize < 1 then
@@ -229,21 +229,21 @@ begin
   inherited Destroy;
 end;
 
-function TYxdMemPool.GetBufferPageCount: Cardinal;
+function TYxdMemPool.GetBufferPageCount: Number;
 begin
   Result := Length(FDataBuf);
 end;
 
-function TYxdMemPool.GetBufferSize: Cardinal;
+function TYxdMemPool.GetBufferSize: Number;
 begin
   if High(FDataBuf) < 0 then
     Result := 0
-  else Result := DWORD(GetBufferPageCount) * FBufSize;
+  else Result := Number(GetBufferPageCount) * FBufSize;
 end;
 
 procedure TYxdMemPool.GrowDebris;
 var
-  Delta: Cardinal;
+  Delta: Number;
 begin
   if FDebrisCapacity > 64 then begin
     Delta := FDebrisCapacity shr 2;
@@ -272,7 +272,7 @@ begin
       Result := FMemory;
       FPosition := FBlockSize;
     end else begin
-      Result := Pointer(DWORD(FMemory) + FPosition);
+      Result := Pointer(Number(FMemory) + FPosition);
       Inc(FPosition, FBlockSize);
     end;
   end;
@@ -288,7 +288,7 @@ begin
   end;
 end;
 
-procedure TYxdMemPool.SetDebrisCapacity(NewCapacity: Cardinal);
+procedure TYxdMemPool.SetDebrisCapacity(NewCapacity: Number);
 begin
   if (NewCapacity < FDebrisCount) or (NewCapacity > MaxListSize) then
     Exit;
@@ -316,7 +316,7 @@ begin
   end;
 end;
 
-constructor TIocpMemPool.Create(BlockSize: Cardinal; MaxSize: Integer);
+constructor TIocpMemPool.Create(BlockSize: Number; MaxSize: Integer);
 begin
   FLocker := TCriticalSection.Create;
   FCount := 0;

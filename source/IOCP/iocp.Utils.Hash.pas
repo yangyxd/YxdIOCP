@@ -33,11 +33,15 @@ uses
   SysUtils, Classes, Types, SyncObjs;
 
 type
-  Number = Cardinal;
+  {$if CompilerVersion < 23}
+  NativeUInt = Cardinal;
+  {$ifend}
+  Number = NativeUInt;
+  PNumber = ^Number;
 
 type
   /// 桶内元素的哈希值列表
-  THashType = Cardinal;
+  THashType = Number;
   PPHashList = ^PHashList;
   PHashList = ^THashList;
   THashList = packed record
@@ -381,9 +385,6 @@ const
     1850009969, 2147483647
   );
 
-const
-  HASHITEMSize = SizeOf(THashMapList) + SizeOf(THashMapValue);
-
 function HashOf(const Key: Pointer; KeyLen: Cardinal): THashType; overload;
 var
   ps: PCardinal;
@@ -415,7 +416,7 @@ begin
   Result := HashOf(PChar(Key), Length(Key){$IFDEF UNICODE} shl 1{$ENDIF});
 end;
 
-function CalcBucketSize(dataSize: Cardinal): Cardinal;
+function CalcBucketSize(dataSize: Cardinal): THashType;
 var
   i: Integer;
 begin
@@ -1098,7 +1099,7 @@ begin
   ABucket := Pointer(FListPool.Pop);
   ABucket.Hash := AIndex;
   AIndex := AIndex mod Cardinal(Length(FBuckets));
-  ABucket.Data := Pointer(DWORD(ABucket) + SizeOf(THashMapList));
+  ABucket.Data := Pointer(NativeUInt(ABucket) + SizeOf(THashMapList));
   Initialize(ABucket.Data.Key);
   if AData <> nil then   
     ABucket.Data.Value := AData^
@@ -1124,13 +1125,13 @@ begin
   ABucket := Pointer(FListPool.Pop);
   ABucket.Hash := THashType(Key);
   AIndex := THashType(Key) mod Cardinal(Length(FBuckets));
-  ABucket.Data := Pointer(DWORD(ABucket) + SizeOf(THashMapList));
+  ABucket.Data := Pointer(NativeUInt(ABucket) + SizeOf(THashMapList));
   if AData <> nil then   
     ABucket.Data.Value := AData^
   else
     ABucket.Data.Value.Clear;
   ABucket.Data.IsStrKey := False;
-  PDWORD(@ABucket.Data.Key)^ := THashType(Key);
+  PNumber(@ABucket.Data.Key)^ := THashType(Key);
   ABucket.Next := FBuckets[AIndex];
   FBuckets[AIndex] := Pointer(ABucket);
   Inc(FCount);
@@ -1150,7 +1151,7 @@ begin
   ABucket := Pointer(FListPool.Pop);
   ABucket.Hash := AIndex;
   AIndex := AIndex mod Cardinal(Length(FBuckets));
-  ABucket.Data := Pointer(DWORD(ABucket) + SizeOf(THashMapList));
+  ABucket.Data := Pointer(NativeUInt(ABucket) + SizeOf(THashMapList));
   Initialize(ABucket.Data.Key);
   ABucket.Data.Value.Data := Pointer(AData);
   ABucket.Data.Value.Size := 0;
@@ -1174,7 +1175,7 @@ begin
   ABucket := Pointer(FListPool.Pop);
   ABucket.Hash := THashType(Key);
   AIndex := THashType(Key) mod Cardinal(Length(FBuckets));
-  ABucket.Data := Pointer(DWORD(ABucket) + SizeOf(THashMapList));
+  ABucket.Data := Pointer(NativeUInt(ABucket) + SizeOf(THashMapList));
   ABucket.Data.Value.Data := Pointer(AData);
   ABucket.Data.Value.Size := 0;
   ABucket.Data.IsStrKey := False;
@@ -1210,8 +1211,11 @@ begin
 end;
 
 constructor TYXDHashMapTable.Create(ASize: Integer);
+var
+  HASHITEMSize: Integer;
 begin
   inherited;
+  HASHITEMSize := SizeOf(THashMapList) + SizeOf(THashMapValue);
   FListPool := TYxdMemPool.Create(HASHITEMSize, HASHITEMSize shl $D);
 end;
 
@@ -1526,10 +1530,10 @@ begin
   FLast.Next := nil;
   
   // 添加到Hash表中
-  AIndex := Cardinal(ABucket.Data) mod Cardinal(Length(ListBuckets));
+  AIndex := NativeUInt(ABucket.Data) mod Cardinal(Length(ListBuckets));
   AItem := ListBuckets[AIndex];
   while AItem <> nil do begin
-    if AItem.Hash = Cardinal(ABucket.Data) then begin
+    if AItem.Hash = NativeUInt(ABucket.Data) then begin
       AItem.Data := FLast;
       Exit
     end else
