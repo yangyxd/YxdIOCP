@@ -364,7 +364,8 @@ function CalcBucketSize(dataSize: Cardinal): THashType;
 // 为与D2007兼容, 原子操作函数
 function AtomicCmpExchange(var Target: Integer; Value, Comparand: Integer): Integer; inline;
 function AtomicExchange(var Target: Integer; Value: Integer): Integer; inline;
-function AtomicIncrement(var Target: Integer): Integer; inline;
+function AtomicIncrement(var Target: Integer): Integer; overload; inline;
+function AtomicIncrement(var Target: Integer; const Value: Integer): Integer; overload; inline;
 function AtomicDecrement(var Target: Integer): Integer; inline;
 {$IFEND}
 // 原子操作函数
@@ -439,6 +440,25 @@ end;
 function AtomicIncrement(var Target: Integer): Integer; inline;
 begin
   Result := InterlockedIncrement(Target);
+end;
+
+function AtomicIncrement(var Target: Integer; const Value: Integer): Integer; inline;
+begin
+  {$IFDEF MSWINDOWS}
+  if Value = 1 then
+    Result := InterlockedIncrement(Target)
+  else if Value = -1 then
+    Result := InterlockedDecrement(Target)
+  else
+    Result := InterlockedExchangeAdd(Target, Value);
+  {$ELSE}
+  if Value = 1 then
+    Result := TInterlocked.Increment(Target)
+  else if Value = -1 then
+    Result := TInterlocked.Decrement(Target)
+  else
+    Result := TInterlocked.Add(Target, Value);
+  {$ENDIF}
 end;
 
 function AtomicDecrement(var Target: Integer): Integer; inline;

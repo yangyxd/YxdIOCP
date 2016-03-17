@@ -78,7 +78,7 @@ implementation
 {$R *.dfm}
 
 uses
-  uFMMonitor, utils.buffer;
+  uFMMonitor;
 
 
 procedure TForm1.btnDisconectAllClick(Sender: TObject);

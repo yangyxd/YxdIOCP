@@ -69,12 +69,12 @@ type
   end;
 
 const
-  IOCP_WORKER_ISBUSY = $01;      // 工作者忙碌
-  IOCP_WORKER_ISWATING = $02;    // 工作者正在等待任务
-  IOCP_WORKER_RESERVED = $04;    // 工作者空闲保留
-  IOCP_WORKER_OVER = $08;        // 工作者被清理
-  IOCP_WORKER_COM = $10;         // 工作者已初始化为支持COM的状态(仅限Windows)
-  IOCP_WORKER_TIMEOUT = 30000;   // 临时工作线程超时时间
+  IOCP_WORKER_ISBUSY = $0001;      // 工作者忙碌
+  IOCP_WORKER_ISWATING = $0002;    // 工作者正在等待任务
+  IOCP_WORKER_RESERVED = $0004;    // 工作者空闲保留
+  IOCP_WORKER_OVER = $0008;        // 工作者被清理
+  IOCP_WORKER_COM = $0010;         // 工作者已初始化为支持COM的状态(仅限Windows)
+  IOCP_WORKER_TIMEOUT = 30000;     // 临时工作线程超时时间
 
 type
   TIocpEngine = class;
@@ -391,7 +391,7 @@ begin
   {$ELSE}
   Result := _Watch.Elapsed.Ticks div 10000;
   {$ENDIF}
-end;
+end; 
 
 function TimestampToDatetime(const v: Int64): TDateTime;
 const
@@ -735,7 +735,7 @@ end;
 destructor TIocpEngine.Destroy;
 begin
   Stop();
-  Sleep(20);
+  Sleep(50);
   FreeAndNil(FIocpCore);
   FreeAndNil(FWorkerList);
   FreeAndNil(FWorkerLocker);
