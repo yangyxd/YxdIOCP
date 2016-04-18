@@ -556,6 +556,7 @@ end;
 procedure TStaticThread.Execute;
 var
   ATimeout: Cardinal;
+  ACPUUsage: Integer;
 
   // 计算末1秒的CPU占用率，如果低于60%且有未处理的作业，则启动更多的工作者来完成作业
   function LastCpuUsage: Integer;
@@ -581,6 +582,7 @@ var
     {$ELSE}
     Result := TThread.GetCPUUsage(FLastTimes);
     {$ENDIF}
+    FCPUUsage := Result;
   end;
 
 begin
@@ -597,13 +599,14 @@ begin
   {$ENDIF}
   try
     while not Terminated do begin
+      ACPUUsage := LastCpuUsage;
       case FEvent.WaitFor(ATimeout) of
         wrSignaled:
           if Assigned(FOwner) and (not FOwner.Terminating) and (FOwner.IdleWorkerCount = 0) then
             FOwner.LookupIdleWorker(False);
         wrTimeout:
           if Assigned(FOwner) and (not FOwner.Terminating) and (Assigned(FOwner.FSimpleJobs)) and
-            (FOwner.FSimpleJobs.Count > 0) and (LastCpuUsage < 60) and
+            (FOwner.FSimpleJobs.Count > 0) and (ACPUUsage < 60) and
             (FOwner.IdleWorkerCount = 0) then
             FOwner.LookupIdleWorker;
       end;
