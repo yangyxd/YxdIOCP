@@ -762,6 +762,7 @@ procedure TIocpHttpRequest.DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: B
 var
   P1: PAnsiChar;
   Key, Value: string;
+  ReadValue: Boolean;
 begin
   if Len = 0 then Exit;
   while (Len > 0) and ((P^ = #13) or (P^ = #10) or (P^ = #32)) do begin
@@ -769,10 +770,12 @@ begin
     Dec(Len);
   end;
   P1 := P;
+  ReadValue := False;
   while (P <> nil) do begin
-    if P^ = '=' then begin
+    if (P^ = '=') and (not ReadValue) then begin
       SetString(Key, P1, P - P1);
       P1 := P + 1;
+      ReadValue := True;
     end else if (P^ = '&') or (P^ = #0) or (Len = 0) then begin
       if Length(Key) > 0 then begin
         SetString(Value, P1, P - P1);
@@ -790,6 +793,7 @@ begin
         P1 := P + 1;
       end else if P^ = #0 then
         Break;
+      ReadValue := False;
     end;
     Dec(Len);
     Inc(P);
