@@ -41,6 +41,14 @@
       
       
       
+      
+      
+      
+      
+      
+      
+      
+      
       <Excluded_Packages Name="$(BDS)\bin\bcboffice2k100.bpl">CodeGear C++Builder Office 2000 Servers Package</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\bcbofficexp100.bpl">CodeGear C++Builder Office XP Servers Package</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\dcloffice2k100.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
@@ -52,8 +60,9 @@
     <DelphiCompile Include="YxdIocp.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="E:\SoftTool\rtl.dcp" />
+    <DCCReference Include="..\..\Demo\Iocp\httpClient\rtl.dcp" />
     <DCCReference Include="iocp.Core.Engine.pas" />
+    <DCCReference Include="iocp.Http.Client.pas" />
     <DCCReference Include="iocp.Http.pas" />
     <DCCReference Include="iocp.pas" />
     <DCCReference Include="iocp.Sockets.pas" />

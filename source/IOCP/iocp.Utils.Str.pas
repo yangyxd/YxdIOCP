@@ -37,7 +37,7 @@ uses
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
   {$IFDEF POSIX}Posix.String_, {$ENDIF}
   {$IFDEF USE_URLFUNC}StrUtils, Math, {$ENDIF}
-  SysUtils, SysConst, Classes, Variants;
+  SysUtils, SysConst, Classes, Variants, DateUtils, SyncObjs;
 
 type
   {$IFDEF NEXTGEN}
@@ -83,6 +83,51 @@ type
   NativeUInt = Cardinal;
   IntPtr = NativeInt;
   {$ifend}
+  CharWS = array of CharW;
+  CharAS = array of CharA;
+
+type
+  TBytesCatHelper = class
+  private
+    FValue: TBytes;
+    FStart, FDest: PByte;
+    FBlockSize: Integer;
+    FSize: Integer;
+    function GetValue: TBytes;
+    function GetPosition: Integer;
+    function GetBytes(AIndex:Integer): Byte;
+    procedure SetPosition(const Value: Integer);
+    procedure NeedSize(ASize: Integer);
+    procedure SetCapacity(const Value: Integer);
+  public
+    constructor Create; overload;
+    constructor Create(ASize: Integer); overload;
+    destructor Destroy; override;
+    function Cat(V: Byte): TBytesCatHelper; overload;
+    function Cat(V: CharA): TBytesCatHelper; overload;
+    function Cat(p: Pointer; len: Integer): TBytesCatHelper; overload;
+    function Cat(const V: Shortint): TBytesCatHelper; overload;
+    function Cat(const V: Word): TBytesCatHelper; overload;
+    function Cat(const V: Smallint): TBytesCatHelper; overload;
+    function Cat(const V: Cardinal): TBytesCatHelper; overload;
+    function Cat(const V: Integer): TBytesCatHelper; overload;
+    function Cat(const V: Int64): TBytesCatHelper; overload;
+    function Cat(const V: Currency): TBytesCatHelper;overload;
+    function Cat(const V: Double): TBytesCatHelper; overload;
+    function Cat(const s: StringA): TBytesCatHelper; overload;
+    function Cat(const s: StringW): TBytesCatHelper; overload;
+    function Cat(const V:Boolean): TBytesCatHelper;overload;
+    function Skip(Count: Integer): TBytesCatHelper;
+    function Replicate(const ABytes: TBytes; ACount: Integer): TBytesCatHelper;
+    function Back(ALen: Integer): TBytesCatHelper;
+    procedure Reset;
+    property Value: TBytes read GetValue;
+    property Bytes[Index: Integer]: Byte read GetBytes;
+    property Start: PByte read FStart;
+    property Current: PByte read FDest;
+    property Position: Integer read GetPosition write SetPosition;
+    property Capacity: Integer read FSize write SetCapacity;
+  end;
 
 type
   TStringCatHelperA = class
@@ -118,10 +163,53 @@ type
     property Position: Integer read GetPosition write SetPosition;
   end;
 
+type
+  TStringCatHelperW = class
+  private
+    FValue: array of CharW;
+    FStart, FDest, FLast: PCharW;
+    FBlockSize: Integer;
+    FSize: Integer;
+    function GetValue: StringW;
+    function GetPosition: Integer;
+    function GetChars(AIndex:Integer): CharW;
+    procedure SetPosition(const Value: Integer);
+    procedure NeedSize(ASize: Integer);
+    function GetIsEmpty: Boolean;
+    procedure SetDest(const Value: PCharW);
+  public
+    constructor Create; overload;
+    constructor Create(ASize: Integer); overload;
+    destructor Destroy; override;
+    function Cat(p: PCharW; len: Integer): TStringCatHelperW; overload;
+    function Cat(const s: StringW): TStringCatHelperW; overload;
+    function Cat(c: CharW): TStringCatHelperW; overload;
+    function Cat(const V: Int64): TStringCatHelperW;overload;
+    function Cat(const V: Double): TStringCatHelperW;overload;
+    function Cat(const V: Boolean): TStringCatHelperW;overload;
+    function Cat(const V: Currency): TStringCatHelperW; overload;
+    function Cat(const V: Variant): TStringCatHelperW; overload;
+    function Replicate(const S: StringW; count: Integer): TStringCatHelperW;
+    function Space(count: Integer): TStringCatHelperW;
+    function Back(ALen: Integer): TStringCatHelperW;
+    procedure IncSize(ADelta: Integer);
+    procedure TrimRight;
+    procedure Reset;
+    property Value: StringW read GetValue;
+    property Chars[Index: Integer]: CharW read GetChars;
+    property Start: PCharW read FStart;
+    property Current: PCharW read FDest write SetDest;
+    property Last: PCharW read FLast;
+    property Position: Integer read GetPosition write SetPosition;
+    property IsEmpty: Boolean read GetIsEmpty;
+  end;
+
+type
+  TStringCatHelper = {$IFDEF UNICODE} TStringCatHelperW; {$ELSE}  TStringCatHelperA; {$ENDIF}
+
 // --------------------------------------------------------------------------
 //  基本字符串处理函数，类型转换
 // --------------------------------------------------------------------------
-
 function StrDupX(const s: PChar; ACount:Integer): String;
 function StrDupXA(const s: PCharA; ACount:Integer): StringA;
 function StrDupXW(const s: PCharW; ACount:Integer): StringW;
@@ -155,20 +243,29 @@ function StrIStrW(src, sub: PWideChar): PWideChar;
 function PosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; inline;
 function PosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; inline;
 function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; Offset: Integer): Integer; overload; inline;
-function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload; 
+function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload;
+function PosStr(const sub, src: StringW; Offset: Integer = 0): Integer; overload; inline;
+function PosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer; overload;
 // 查找字符串，从右到左
 function RPosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; inline;
 function RPosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; inline;
-function RPosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload; 
+function RPosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload;
+function RPosStr(sub, src: StringW; Offset: Integer = 0): Integer; overload; inline;
+function RPosStr(sub: PCharW; src: PCharW; Offset: Integer = 0): Integer; overload; inline;
+function RPosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer; overload;
 // 计算一个以 #0 为结束标志的Wide字符串长度
 function WideStrLen(S: PWideChar): Integer; inline;
 // 计算一个以 #0 为结束标志的Ansi字符串长度
 function AnsiStrLen(s: PAnsiChar): Integer; inline;
 // 从一个字符串取出以ADelim为结束标志的字子符串，并且在ADelete为True时，删除源字符串的内容（包括Delim)
-function Fetch(var AInput: string; const ADelim: string = ' ';
-  const ADelete: Boolean = True): string; inline;
+function Fetch(var AInput: StringA; const ADelim: StringA = ' ';
+  const ADelete: Boolean = True): StringA; overload; inline;
+function Fetch(var AInput: StringW; const ADelim: StringW = ' ';
+  const ADelete: Boolean = True; const ACaseSensitive: Boolean = True): StringW; overload; inline;
 // 计算一个整数转为16进制字符串的长度
 function LengthAsDWordToHex(const Value: Cardinal): Integer;
+// 比较字符串
+function TextIsSame(const A1, A2: string): Boolean; inline;
 {$IFDEF USE_URLFUNC}
 // URL编码
 function UrlEncode(const AUrl: StringA): StringA; overload;
@@ -187,6 +284,7 @@ function RightStr(const AText: AnsiString; const ACount: Integer): AnsiString; o
 function RightStr(const AText: WideString; const ACount: Integer): WideString; overload; inline;
 function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; inline;
 function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; inline;
+function PCharToString(const P: PChar; Len: Integer): string;
 //编码转换
 function IsHexChar(c: Char): Boolean; inline;
 function HexValue(c: Char): Integer;
@@ -250,6 +348,8 @@ function SkipUntilW(var p: PWideChar; AExpects: PWideChar; AQuoter: WideChar = #
 //判断是否是以指定的字符串开始
 function StartWith(s, startby: PChar; AIgnoreCase: Boolean): Boolean;
 function StartWithIgnoreCase(s, startby: PChar): Boolean;
+//字符串转数字
+function PCharToFloat(const S: PChar; Len: Integer): Double;
 
 var
   // 系统 ACP
@@ -281,6 +381,67 @@ var
   VCMemCmp: TMSVCMemCmp;
 {$ENDIF}
 
+const
+  ConvertInt: array[0..255] of Integer =
+    (
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,
+     -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+     );
+
+function PCharToInt64Def(const S: PAnsichar; Len: Integer; def: int64 = 0): int64;
+var
+  I: Integer;
+  v: Integer;
+begin
+  if Len = 0 then
+    Result := def
+  else begin
+    Result := 0;
+    for I := 0 to len-1 do begin
+      V := ConvertInt[ord(s[i])];
+      if V<0 then begin
+        Result := def;
+        Exit;
+      end;
+      result := (result * 10) + V;
+    end;
+  end;
+end;
+
+function PCharToIntDef(const S: PAnsichar; Len: Integer; def: Integer = 0): Integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  if Len = 0 then
+    Result := Def
+  else begin
+    Result := 0;
+    for I := 0 to len-1 do begin
+      V := ConvertInt[ord(s[i])];
+      if V<0 then begin
+        Result := def;
+        Exit;
+      end;
+      result := (result * 10) + V;
+    end;
+  end;
+end;
+
 function WideStrLen(S: PWideChar): Integer; inline;
 begin
   Result := 0;
@@ -305,8 +466,8 @@ begin
     end;
 end;
 
-function Fetch(var AInput: string; const ADelim: string = ' ';
-  const ADelete: Boolean = True): string;
+function Fetch(var AInput: StringA; const ADelim: StringA = ' ';
+  const ADelete: Boolean = True): StringA;
 var
   LPos: Integer;
 begin
@@ -317,6 +478,33 @@ begin
   if LPos = 0 then begin
     Result := AInput;
     if ADelete then AInput := '';
+  end else begin
+    Result := Copy(AInput, 1, LPos - 1);
+    if ADelete then
+      AInput := Copy(AInput, LPos + Length(ADelim), MaxInt);
+  end;
+end;
+
+function Fetch(var AInput: StringW; const ADelim: StringW;
+  const ADelete, ACaseSensitive: Boolean): StringW;
+var
+  LPos: Integer;
+begin
+  if ACaseSensitive then begin
+    if ADelim = #0 then
+      LPos := Pos(ADelim, AInput)
+    else
+      LPos := Pos(ADelim, AInput);
+  end else begin
+    if ADelim = #0 then
+      LPos := Pos(LowerCase(ADelim), LowerCase(AInput))
+    else
+      LPos := Pos(LowerCase(ADelim), LowerCase(AInput));
+  end;
+  if LPos = 0 then begin
+    Result := AInput;
+    if ADelete then
+      AInput := '';    {Do not Localize}
   end else begin
     Result := Copy(AInput, 1, LPos - 1);
     if ADelete then
@@ -821,6 +1009,45 @@ begin
   end;
 end;
 
+function PosStr(const sub, src: StringW; Offset: Integer): Integer;
+begin
+  Result := PosStr(PCharW(sub), Length(sub), PCharW(src), Length(src), Offset);
+  if Result <> -1 then
+    Inc(Result);
+end;
+
+function PosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer;
+var
+  p: PCharW;
+  j: Integer;
+begin
+  Result := -1;
+  if (sub = nil) or (src = nil) then
+    Exit;
+  if (Offset > 0) then Dec(srcLen, Offset);
+  if (subLen <= srcLen) and (subLen > 0) then begin
+    p := src;
+    Inc(p, Offset);
+    Dec(subLen);
+    Dec(srcLen, subLen);
+    while srcLen > 0 do begin
+      if p^ = sub^ then begin
+        if subLen > 0 then begin
+          for j := 1 to subLen do
+            if p[j] <> sub[j] then Break;
+        end else
+          j := 1;
+        if j > subLen then begin
+          Result := p - src;
+          Exit;
+        end;
+      end;
+      Inc(p);
+      Dec(srcLen);
+    end;
+  end;
+end;
+
 function RPosStr(sub, src: AnsiString; Offset: Integer = 0): Integer;
 begin
   Result := RPosStr(PAnsiChar(sub), Length(sub), PAnsiChar(src), Length(src), Offset);
@@ -866,6 +1093,52 @@ begin
           {$ELSE}
           Result := p - src + 1;
           {$ENDIF}
+          Exit;
+        end;
+      end;
+      Dec(p);
+      Dec(srcLen);
+    end;
+  end;
+end;
+
+function RPosStr(sub, src: StringW; Offset: Integer = 0): Integer;
+begin
+  Result := RPosStr(PCharW(sub), Length(sub), PCharW(src), Length(src), Offset);
+  if Result <> -1 then
+    Inc(Result);
+end;
+
+function RPosStr(sub: PCharW; src: PCharW; Offset: Integer = 0): Integer;
+begin
+  Result := RPosStr(sub, WideStrLen(sub), src, WideStrLen(src), Offset);
+end;
+
+function RPosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer;
+var
+  p: PCharW;
+  j: Integer;
+begin
+  Result := -1;
+  if (sub = nil) or (src = nil) then
+    Exit;
+  p := src;
+  Inc(p, srcLen);
+  if (Offset > 0) then begin
+    Dec(p, Offset + 1);
+    Dec(srcLen, Offset);
+  end else
+    Dec(p);
+  if (subLen <= srcLen) and (subLen > 0) then begin
+    while srcLen > 0 do begin
+      if p^ = sub^ then begin
+        if (subLen > 1) then begin
+          for j := 1 to subLen do
+            if p[j] <> sub[j] then Break;
+        end else
+          j := 1;
+        if j = subLen then begin
+          Result := p - src + 1;
           Exit;
         end;
       end;
@@ -1448,6 +1721,14 @@ end;
 function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString;
 begin
   Result := Copy(AText, AStart, ACount);
+end;
+
+function PCharToString(const P: PChar; Len: Integer): string;
+begin
+  if Len > 0 then   
+    SetString(Result, P, Len)
+  else
+    Result := '';
 end;
 
 {$IFDEF USE_STRENCODEFUNC}
@@ -2321,6 +2602,15 @@ begin
   Result := startby^ = #0;
 end;
 
+function TextIsSame(const A1, A2: string): Boolean; inline;
+begin
+  {$IFDEF DOTNET}
+  Result := System.String.Compare(A1, A2, True) = 0;
+  {$ELSE}
+  Result := AnsiCompareText(A1, A2) = 0;
+  {$ENDIF}
+end;
+
 { TStringCatHelperA }
 
 function TStringCatHelperA.Back(ALen: Integer): TStringCatHelperA;
@@ -2387,7 +2677,7 @@ function TStringCatHelperA.Cat(const s: StringW): TStringCatHelperA;
 var
   V: StringA;
 begin
-  V := S;
+  V := StringA(S);
   Result := Cat(PCharA(V), Length(V));
 end;
 
@@ -2470,6 +2760,396 @@ begin
       Dec(Count);
     end;
   end;
+end;
+
+{ TBytesCatHelper }
+
+function TBytesCatHelper.Back(ALen: Integer): TBytesCatHelper;
+begin
+  Result := Self;
+  Dec(FDest, ALen);
+  if IntPtr(FDest) < IntPtr(FStart) then
+    FDest := FStart;
+end;
+
+function TBytesCatHelper.Cat(const V: Cardinal): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Smallint): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Integer): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Currency): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Int64): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(V: CharA): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(V: Byte): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(p: Pointer; len: Integer): TBytesCatHelper;
+begin
+  Result := Self;
+  NeedSize(-len);
+  Move(p^, FDest^, len);
+  Inc(FDest, len);
+end;
+
+function TBytesCatHelper.Cat(const V: Word): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Shortint): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Double): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const V: Boolean): TBytesCatHelper;
+begin
+  Result := Cat(@V, SizeOf(V));
+end;
+
+function TBytesCatHelper.Cat(const s: StringW): TBytesCatHelper;
+begin
+  Result := Cat(PCharW(S), System.Length(S) shl 1);
+end;
+
+function TBytesCatHelper.Cat(const s: StringA): TBytesCatHelper;
+begin
+  Result := Cat(PCharA(s), Length(s));
+end;
+
+constructor TBytesCatHelper.Create;
+begin
+  inherited Create;
+  FBlockSize := 8192;
+  NeedSize(FBlockSize);
+end;
+
+constructor TBytesCatHelper.Create(ASize: Integer);
+begin
+  inherited Create;
+  FBlockSize := ASize;
+  NeedSize(FBlockSize);
+end;
+
+destructor TBytesCatHelper.Destroy;
+begin
+  SetLength(FValue, 0);
+  inherited;
+end;
+
+function TBytesCatHelper.GetBytes(AIndex: Integer): Byte;
+begin
+  Result := FValue[AIndex];
+end;
+
+function TBytesCatHelper.GetPosition: Integer;
+begin
+  Result := IntPtr(FDest) - IntPtr(FStart);
+end;
+
+function TBytesCatHelper.GetValue: TBytes;
+var
+  ALen: Integer;
+begin
+  ALen := Position;
+  SetLength(Result, ALen);
+  if ALen > 0 then
+    Move(FValue[0], Result[0], ALen);
+end;
+
+procedure TBytesCatHelper.NeedSize(ASize: Integer);
+var
+  Offset: Integer;
+begin
+  Offset := IntPtr(FDest) - IntPtr(FStart);
+  if ASize < 0 then
+    ASize := Offset - ASize;
+  if ASize > FSize then begin
+    FSize := ((ASize + FBlockSize) div FBlockSize) * FBlockSize;
+    SetLength(FValue, FSize);
+    FStart := @FValue[0];
+    FDest := PByte(IntPtr(FStart) + Offset);
+  end;
+end;
+
+function TBytesCatHelper.Replicate(const ABytes: TBytes;
+  ACount: Integer): TBytesCatHelper;
+var
+  l: Integer;
+begin
+  Result := Self;
+  l := Length(ABytes);
+  if l > 0 then begin
+    NeedSize(-l * ACount);
+    while ACount > 0 do begin
+      Move(ABytes[0], FDest^, l);
+      Inc(FDest, l);
+      Dec(ACount);
+    end;
+  end;
+end;
+
+procedure TBytesCatHelper.Reset;
+begin
+  FDest := FStart;
+end;
+
+procedure TBytesCatHelper.SetCapacity(const Value: Integer);
+begin
+  if FSize <> Value then
+    NeedSize(Value);
+end;
+
+procedure TBytesCatHelper.SetPosition(const Value: Integer);
+begin
+  if Value <= 0 then
+    FDest := FStart
+  else if Value > Length(FValue) then begin
+    NeedSize(Value);
+    FDest := Pointer(IntPtr(FStart) + Value);
+  end else
+    FDest := Pointer(IntPtr(FStart) + Value);
+end;
+
+function TBytesCatHelper.Skip(Count: Integer): TBytesCatHelper;
+begin
+  Result := Self;
+  if Count > 0 then begin
+    while Count>0 do begin
+      Cat(Byte(0));
+      Dec(Count);
+    end;
+  end;
+end;
+
+{ TStringCatHelperW }
+
+function TStringCatHelperW.Back(ALen: Integer): TStringCatHelperW;
+begin
+  Result := Self;
+  Dec(FDest, ALen);
+  if FDest < FStart then
+    FDest := FStart;
+end;
+
+function TStringCatHelperW.Cat(const V: Double): TStringCatHelperW;
+begin
+  Result := Cat(FloatToStr(V));
+end;
+
+function TStringCatHelperW.Cat(const V: Int64): TStringCatHelperW;
+begin
+  Result := Cat(IntToStr(V));
+end;
+
+function TStringCatHelperW.Cat(const V: Currency): TStringCatHelperW;
+begin
+  Result := Cat(CurrToStr(V));
+end;
+
+function TStringCatHelperW.Cat(const V: Boolean): TStringCatHelperW;
+begin
+   Result := Cat(BoolToStr(V, True));
+end;
+
+function TStringCatHelperW.Cat(p: PCharW; len: Integer): TStringCatHelperW;
+begin
+  Result := Self;
+  if len < 0 then begin
+    while p^ <> #0 do begin
+      if Position >= FSize then
+        NeedSize(FSize + FBlockSize);
+      FDest^ := p^;
+      Inc(p);
+      Inc(FDest);
+    end;
+  end else begin
+    NeedSize(-len);
+    Move(p^, FDest^, len shl 1);
+    Inc(FDest, len);
+  end;
+end;
+
+function TStringCatHelperW.Cat(c: CharW): TStringCatHelperW;
+begin
+  if Position >= FSize then
+    NeedSize(-1);
+  FDest^ := c;
+  Inc(FDest);
+  Result := Self;
+end;
+
+function TStringCatHelperW.Cat(const s: StringW): TStringCatHelperW;
+begin
+  Result := Cat(PCharW(S), Length(S));
+end;
+
+function TStringCatHelperW.Cat(const V: Variant): TStringCatHelperW;
+begin
+  Result := Cat(VarToStr(V));
+end;
+
+constructor TStringCatHelperW.Create;
+begin
+  inherited Create;
+  FBlockSize := 8192;
+  NeedSize(FBlockSize);
+end;
+
+constructor TStringCatHelperW.Create(ASize: Integer);
+begin
+  inherited Create;
+  if ASize < 8192 then
+    ASize := 8192
+  else if (ASize and $3FF) <> 0 then
+    ASize := ((ASize shr 10) + 1) shr 1;
+  FBlockSize := ASize;
+  NeedSize(FBlockSize);
+end;
+
+destructor TStringCatHelperW.Destroy;
+begin
+  SetLength(FValue, 0);
+  inherited;
+end;
+
+function TStringCatHelperW.GetChars(AIndex: Integer): CharW;
+begin
+  Result := FStart[AIndex];
+end;
+
+function TStringCatHelperW.GetIsEmpty: Boolean;
+begin
+  Result := FDest <> FStart;
+end;
+
+function TStringCatHelperW.GetPosition: Integer;
+begin
+  Result := FDest - FStart;
+end;
+
+function TStringCatHelperW.GetValue: StringW;
+var
+  l: Integer;
+begin
+  l := Position;
+  SetLength(Result, l);
+  Move(FStart^, PCharW(Result)^, l shl 1);
+end;
+
+procedure TStringCatHelperW.IncSize(ADelta: Integer);
+begin
+  NeedSize(-ADelta);
+end;
+
+procedure TStringCatHelperW.NeedSize(ASize: Integer);
+var
+  Offset: Integer;
+begin
+  Offset := FDest - FStart;
+  if ASize < 0 then
+    ASize := Offset - ASize;
+  if ASize > FSize then begin
+    FSize := ((ASize + FBlockSize) div FBlockSize) * FBlockSize;
+    SetLength(FValue, FSize);
+    FStart := PCharW(@FValue[0]);
+    FDest := FStart + Offset;
+    FLast := FStart + FSize;
+  end;
+end;
+
+function TStringCatHelperW.Replicate(const S: StringW;
+  count: Integer): TStringCatHelperW;
+var
+  ps: PCharW;
+  l: Integer;
+begin
+  Result := Self;
+  if count > 0 then begin
+    ps := PCharW(S);
+    l := Length(S);
+    while count > 0 do begin
+      Cat(ps, l);
+      Dec(count);
+    end;
+  end;
+end;
+
+procedure TStringCatHelperW.Reset;
+begin
+  FDest := FStart;
+end;
+
+procedure TStringCatHelperW.SetDest(const Value: PCharW);
+begin
+  if (Value >= FStart) and (Value < FLast) then
+    FDest := Value;
+end;
+
+procedure TStringCatHelperW.SetPosition(const Value: Integer);
+begin
+  if Value <= 0 then
+    FDest := FStart
+  else if Value > Length(FValue) then begin
+    NeedSize(Value);
+    FDest := FStart + Value;
+  end else
+    FDest := FStart + Value;
+end;
+
+function TStringCatHelperW.Space(count: Integer): TStringCatHelperW;
+begin
+  Result := Self;
+  if Count > 0 then begin
+    while Count>0 do begin
+      Cat(#32);
+      Dec(Count);
+    end;
+  end;
+end;
+
+procedure TStringCatHelperW.TrimRight;
+var
+  pd: PCharW;
+begin
+  pd := FDest;
+  Dec(pd);
+  while FStart < pd do begin
+    if IsSpaceW(pd) then
+      Dec(pd)
+    else
+      Break;
+  end;
+  Inc(pd);
+  FDest := pd;
 end;
 
 initialization

@@ -250,8 +250,8 @@ type
     destructor Destroy; override;
     procedure Add(const Key: string; AData: PHashValue); overload;
     procedure Add(const Key: Number; AData: PHashValue); overload;
-    procedure Add(const Key: string; AData: Integer); overload;
-    procedure Add(const Key: Number; AData: Integer); overload;
+    procedure Add(const Key: string; AData: NativeInt); overload;
+    procedure Add(const Key: Number; AData: NativeInt); overload;
     procedure Clear; override;
     function Exists(const Key: string): Boolean; overload; inline;
     function Exists(const Key: Number): Boolean; overload; inline;
@@ -667,7 +667,7 @@ end;
 
 procedure TIntHash.Add(const Key: THashType; Value: Integer);
 var
-  Hash: Integer;
+  Hash: THashType;
   Bucket: PIntHashItem;
 begin
   Hash := Key mod Cardinal(Length(Buckets));
@@ -800,12 +800,12 @@ end;
 
 function THashMapValue.GetNumKey: Number;
 begin
-  Result := PDWORD(@Key)^;
+  Result := PNumber(@Key)^;
 end;
 
 procedure THashMapValue.SetNumKey(const Value: Number);
 begin
-  PDWORD(@Key)^ := THashType(Value);
+  PNumber(@Key)^ := THashType(Value);
 end;
 
 { TYXDHashTable }
@@ -1162,7 +1162,7 @@ begin
   DoAdd(ABucket);
 end;
 
-procedure TYXDHashMapTable.Add(const Key: string; AData: Integer);
+procedure TYXDHashMapTable.Add(const Key: string; AData: NativeInt);
 var
   AIndex: THashType;
   ABucket: PHashMapList;
@@ -1187,7 +1187,7 @@ begin
   DoAdd(ABucket);
 end;
 
-procedure TYXDHashMapTable.Add(const Key: Number; AData: Integer);
+procedure TYXDHashMapTable.Add(const Key: Number; AData: NativeInt);
 var
   AIndex: THashType;
   ABucket: PHashMapList;

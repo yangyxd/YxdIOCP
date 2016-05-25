@@ -38,7 +38,7 @@ uses
   iocp.Sockets.Utils, iocp.Core.Engine, iocp.Res, iocp.RawSockets,
   iocp.Utils.Queues, iocp.Utils.ObjectPool,
   WinSock, iocp.Winapi.WinSock,
-  {$IFDEF UNICODE}Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
+  {$IFDEF UNICODE}System.Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
   SyncObjs, Windows, Classes, SysUtils;
 
 const
@@ -274,14 +274,14 @@ type
     FIsDestroying: Boolean;
     FWSARecvBufferSize: Cardinal;
     FWSASendBufferSize: Cardinal;
-    FBindAddr: string;
+    FBindAddr: AnsiString;
 
     FOnSendRequestResponse: TOnSendRequestResponse;
     FOnStateMsg: TOnStateMsgEvent;
 
     function GetWorkerCount: Integer;
     function GetMaxWorkerCount: Integer;
-    procedure SetBindAddr(const Value: string);
+    procedure SetBindAddr(const Value: AnsiString);
     procedure SetMaxWorkerCount(const Value: Integer);
     procedure SetWorkerCount(const Value: Integer);
     procedure SetWSARecvBufferSize(const Value: Cardinal);
@@ -364,7 +364,7 @@ type
     /// <summary>
     /// 绑定地址
     /// </summary>
-    property BindAddr: string read FBindAddr write SetBindAddr;
+    property BindAddr: AnsiString read FBindAddr write SetBindAddr;
     /// <summary>
     /// 当一个异步发送请求响应时触发
     /// </summary>
@@ -559,7 +559,7 @@ type
   public
     constructor Create(const AContext: TIocpCustomContext); reintroduce;
     destructor Destroy; override;
-    function PostRequest(const Host: string; Port: Word): Boolean;
+    function PostRequest(const Host: AnsiString; Port: Word): Boolean;
     property Context: TIocpCustomContext read FContext;
   end;
 
@@ -634,7 +634,7 @@ type
     FReadTimeOut: Integer;
     FConnectTimeOut: Integer;
     FErrorCode: Integer;
-    FHost: string;
+    FHost: AnsiString;
     FPort: Word;
     FStream: TIocpBlockSocketStream;
     FBuffer: TMemoryStream;
@@ -655,13 +655,13 @@ type
     destructor Destroy; override;
     function Connect(RaiseError: Boolean = True): Boolean; overload; inline;
     function Connect(ATimeOut: Integer; RaiseError: Boolean = True): Boolean; overload;
-    function Connect(const RemoteHost: string; RemotePort: Word; ATimeOut: Integer = 0): Boolean; overload;
+    function Connect(const RemoteHost: AnsiString; RemotePort: Word; ATimeOut: Integer = 0): Boolean; overload;
     procedure Disconnect;
     procedure Open;
     procedure Close;
     function SetKeepAlive(pvKeepAliveTime: Integer = 5000): Boolean;
     class function IsIP(v: PAnsiChar): Longint;
-    function DomainNameToAddr(const host: string): string;
+    function DomainNameToAddr(const host: AnsiString): AnsiString;
     function Recv(Len: Integer = -1): AnsiString; overload;
     function Recv(buf: Pointer; len: Cardinal): Cardinal; overload;
     function Seek(Len: Integer = -1): Boolean;
@@ -678,7 +678,7 @@ type
     function ReadDouble: Double;
     function ReadInt64: Int64;
     function ReadSmallInt: SmallInt;
-    function ReadString(const ABytes: Integer = -1): string;
+    function ReadString(const ABytes: Integer = -1): AnsiString;
     /// <summary>
     /// 接收数据到流中
     /// <param name="WaitRecvLen">等待接收指定长度的数据直接连接断开(Len大于1时有效）</param>
@@ -695,7 +695,7 @@ type
     property RecvBufferSize: Cardinal read GetRecvBufferSize;
     property RecvBufferIsEmpty: Boolean read GetRecvBufferIsEmpty;
   published
-    property RemoteHost: string read FHost write FHost;
+    property RemoteHost: AnsiString read FHost write FHost;
     property RemotePort: Word read FPort write FPort;
     property ReadTimeOut: Integer read FReadTimeOut write SetReadTimeOut;
     property ConnectTimeOut: Integer read FConnectTimeOut write FConnectTimeOut default -1;
@@ -708,12 +708,12 @@ type
   protected
     procedure CreateSocket; override;
   public
-    function Send(buf: Pointer; len: Cardinal; const Addr: string; Port: Word): Cardinal; overload;
+    function Send(buf: Pointer; len: Cardinal; const Addr: AnsiString; Port: Word): Cardinal; overload;
     {$IFDEF UNICODE}
-    function Send(const Data: UnicodeString; const Addr: string; Port: Word): Cardinal; overload;
+    function Send(const Data: UnicodeString; const Addr: AnsiString; Port: Word): Cardinal; overload;
     {$ENDIF}
-    function Send(const Data: WideString; const Addr: string; Port: Word): Cardinal; overload;
-    function Send(const Data: AnsiString; const Addr: string; Port: Word): Cardinal; overload;
+    function Send(const Data: WideString; const Addr: AnsiString; Port: Word): Cardinal; overload;
+    function Send(const Data: AnsiString; const Addr: AnsiString; Port: Word): Cardinal; overload;
   end;
   
   /// <summary>
@@ -980,7 +980,7 @@ type
     FFrom: TSockAddrIn;
     FFromLen: Integer;
     function GetPeerAddr: Cardinal;
-    function GetRemoteAddr: string;
+    function GetRemoteAddr: AnsiString;
     function GetRemotePort: Word;
   protected
     procedure HandleResponse; override;
@@ -999,7 +999,7 @@ type
     procedure Send(const Data: AnsiString); overload;
 
     property Owner: TIocpUdpServer read FOwner;
-    property RemoteAddr: string read GetRemoteAddr;
+    property RemoteAddr: AnsiString read GetRemoteAddr;
     property RemotePort: Word read GetRemotePort;
     property PeerPort: Word read GetRemotePort;
     property PeerAddr: Cardinal read GetPeerAddr;
@@ -1116,7 +1116,7 @@ type
     FAutoReConnect: Boolean;
     FConnectExRequest: TIocpConnectExRequest;
     FLastDisconnectTime: Int64;
-    FHost: string;
+    FHost: AnsiString;
     FPort: Word;
     function CanAutoReConnect: Boolean;
     procedure ReCreateSocket;
@@ -1137,12 +1137,12 @@ type
     /// <summary>
     /// 建立连接（Async 是否使用异步）
     /// </summary>
-    procedure Connect(const AHost: string; APort: Word; ASync: Boolean = False); overload;
+    procedure Connect(const AHost: AnsiString; APort: Word; ASync: Boolean = False); overload;
     /// <summary>
     /// 设置该连接对象的自动重连属性
     /// </summary>
     property AutoReConnect: Boolean read FAutoReConnect write FAutoReConnect;
-    property Host: String read FHost write FHost;
+    property Host: AnsiString read FHost write FHost;
     property Port: Word read FPort write FPort;
   end;
 
@@ -1189,7 +1189,7 @@ type
     /// <summary>
     /// 建立一个新连接
     /// </summary>
-    function Connect(const Host: string; Port: Word;
+    function Connect(const Host: AnsiString; Port: Word;
       AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext;
 
     /// <summary>
@@ -2140,7 +2140,7 @@ begin
     Close;
 end;
 
-procedure TIocpBase.SetBindAddr(const Value: string);
+procedure TIocpBase.SetBindAddr(const Value: AnsiString);
 begin
   if FBindAddr <> Value then
     FBindAddr := Value;
@@ -2860,7 +2860,7 @@ begin
   inherited Destroy;
 end;
 
-function TIocpConnectExRequest.PostRequest(const Host: string; Port: Word): Boolean;
+function TIocpConnectExRequest.PostRequest(const Host: AnsiString; Port: Word): Boolean;
 var
   lvSockAddrIn: TSockAddrIn;
   lvRet: BOOL;
@@ -2874,7 +2874,7 @@ begin
   try
     lvRemoteIP := FContext.Socket.DomainNameToAddr(Host);
   except
-    lvRemoteIP := Host;
+    lvRemoteIP := AnsiString(Host);
   end;
   FContext.SetSocketState(ssConnecting);
   lvSockAddrIn := GetSocketAddr(lvRemoteIP, Port);
@@ -3159,7 +3159,7 @@ end;
 
 function TIocpCustomBlockTcpSocket.Connect(ATimeOut: Integer; RaiseError: Boolean): Boolean;
 var
-  lvIpAddr: string;
+  lvIpAddr: AnsiString;
 begin
   Result := FActive;
   if Result then Exit;
@@ -3190,10 +3190,10 @@ begin
   Disconnect;
 end;
 
-function TIocpCustomBlockTcpSocket.Connect(const RemoteHost: string;
+function TIocpCustomBlockTcpSocket.Connect(const RemoteHost: AnsiString;
   RemotePort: Word; ATimeOut: Integer): Boolean;
 var
-  lvIpAddr: string;
+  lvIpAddr: AnsiString;
 begin
   Result := FActive;
   if Result then begin
@@ -3253,7 +3253,7 @@ begin
   FActive := False;
 end;
 
-function TIocpCustomBlockTcpSocket.DomainNameToAddr(const host: string): string;
+function TIocpCustomBlockTcpSocket.DomainNameToAddr(const host: AnsiString): AnsiString;
 begin
   Result := FRawSocket.DomainNameToAddr(host);
 end;
@@ -3422,7 +3422,7 @@ begin
   end;
 end;
 
-function TIocpCustomBlockTcpSocket.ReadString(const ABytes: Integer): string;
+function TIocpCustomBlockTcpSocket.ReadString(const ABytes: Integer): AnsiString;
 const
   MaxRecvSize = 1024 * 1024 * 8;
 var
@@ -3606,7 +3606,7 @@ begin
 end;
 
 function TIocpCustomBlockUdpSocket.Send(buf: Pointer; len: Cardinal;
-  const Addr: string; Port: Word): Cardinal;
+  const Addr: AnsiString; Port: Word): Cardinal;
 begin
   if Connect(Addr, Port) then begin
     Result := SendBuffer(buf, len);
@@ -3615,7 +3615,7 @@ begin
 end;
 
 function TIocpCustomBlockUdpSocket.Send(const Data: WideString;
-  const Addr: string; Port: Word): Cardinal;
+  const Addr: AnsiString; Port: Word): Cardinal;
 begin
   if Connect(Addr, Port) then
     Result := Send(Data)
@@ -3624,7 +3624,7 @@ begin
 end;
 
 function TIocpCustomBlockUdpSocket.Send(const Data: AnsiString;
-  const Addr: string; Port: Word): Cardinal;
+  const Addr: AnsiString; Port: Word): Cardinal;
 begin
   if Connect(Addr, Port) then
     Result := Send(Data)
@@ -3634,7 +3634,7 @@ end;
 
 {$IFDEF UNICODE}
 function TIocpCustomBlockUdpSocket.Send(const Data: UnicodeString;
-  const Addr: string; Port: Word): Cardinal;
+  const Addr: AnsiString; Port: Word): Cardinal;
 begin
   if Connect(Addr, Port) then
     Result := Send(Data)
@@ -4045,7 +4045,11 @@ begin
     FreeAndNil(FTimeOutClearThd);
     FTimeOutClearThd := TTimeOutClearThread.Create(True);
     TTimeOutClearThread(FTimeOutClearThd).FOwner := Self;
+    {$IFDEF UNICODE}
+    FTimeOutClearThd.Start;
+    {$ELSE}
     FTimeOutClearThd.Resume;
+    {$ENDIF}
     FTimeOutClearThd.Suspended := False;
   except
     FActive := False;
@@ -4154,7 +4158,7 @@ end;
 function TIocpClientContext.GetPeerAddr: Cardinal;
 begin
   if (Length(FRemoteAddr) > 0) then
-    Result := ipToInt(FRemoteAddr)
+    Result := ipToInt(AnsiString(FRemoteAddr))
   else
     Result := 0;
 end;
@@ -4195,7 +4199,7 @@ end;
 
 procedure TIocpRemoteContext.Connect(ASync: Boolean);
 var
-  lvRemoteIP: string;
+  lvRemoteIP: AnsiString;
 begin
   if Length(FHost) = 0 then
     Exit;
@@ -4217,7 +4221,7 @@ begin
   end;
 end;
 
-procedure TIocpRemoteContext.Connect(const AHost: string; APort: Word;
+procedure TIocpRemoteContext.Connect(const AHost: AnsiString; APort: Word;
   ASync: Boolean);
 begin
   FHost := AHost;
@@ -4323,7 +4327,7 @@ begin
   FList.Add(Result);
 end;
 
-function TIocpCustomTcpClient.Connect(const Host: string; Port: Word;
+function TIocpCustomTcpClient.Connect(const Host: AnsiString; Port: Word;
   AutoReConnect, ASync: Boolean): TIocpRemoteContext;
 begin
   Result := nil;
@@ -4537,7 +4541,7 @@ var
 begin
   FListenSocket.CreateUdpSocket(True);
   // 绑定侦听端口
-  AAddr := GetSocketAddr(FBindAddr, FPort);
+  AAddr := GetSocketAddr(AnsiString(FBindAddr), FPort);
   if not FListenSocket.Bind(TSockAddr(AAddr)) then
     RaiseLastOSError;
   // 将侦听套接字绑定到IOCP句柄
@@ -4781,7 +4785,7 @@ begin
   Result := inet_addr(inet_ntoa(FFrom.sin_addr));
 end;
 
-function TIocpUdpRecvRequest.GetRemoteAddr: string;
+function TIocpUdpRecvRequest.GetRemoteAddr: AnsiString;
 begin
   Result := inet_ntoa(FFrom.sin_addr);
 end;

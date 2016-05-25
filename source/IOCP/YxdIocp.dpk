@@ -32,6 +32,7 @@ contains
   iocp in 'iocp.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
   iocp.Http in 'iocp.Http.pas',
-  iocp.Core.Engine in 'iocp.Core.Engine.pas';
+  iocp.Core.Engine in 'iocp.Core.Engine.pas',
+  iocp.Http.Client in 'iocp.Http.Client.pas';
 
 end.

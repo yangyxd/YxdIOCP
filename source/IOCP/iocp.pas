@@ -740,7 +740,7 @@ begin
     Result := TIocpTcpSocket(Que.DeQueue);
     if not Assigned(Result) then begin
       Result := TIocpTcpSocket.Create(nil);
-      Result.RemoteHost := RemoteAddr;
+      Result.RemoteHost := AnsiString(RemoteAddr);
       Result.RemotePort := RemotePort;
       Result.ConnectTimeOut := 3000;
     end;
@@ -753,7 +753,7 @@ var
   Que: TBaseQueue;
 begin
   if (not Assigned(Socket)) or (not Assigned(Self)) then Exit;
-  Que := GetQueues(Socket.RemoteHost, Socket.RemotePort);
+  Que := GetQueues(string(Socket.RemoteHost), Socket.RemotePort);
   if Assigned(Que) and ((FMax < 1) or (Que.Size < FMax)) then begin
     Que.EnQueue(Socket);
   end else
@@ -827,7 +827,7 @@ begin
     I := FHostSelect.ValueOf(IPIndexHeader + Host) + 1;
     if (I < 0) or (I >= List.Count) then
       I := 0;
-    FHostSelect.Add(Host, ipToInt(List[I]));
+    FHostSelect.Add(Host, ipToInt(AnsiString(List[I])));
     FHostSelect.Add(IPIndexHeader + Host, I);
     Result := True;
   finally
@@ -853,7 +853,7 @@ begin
         Result := Host
       else
         Result := Copy(Host, 1, L - 1);
-      FHostSelect.Add(Host, ipToInt(Result));
+      FHostSelect.Add(Host, ipToInt(AnsiString(Result)));
     end;
   end;
 end;
@@ -865,7 +865,7 @@ end;
 
 procedure TIocpTcpClientProxy.HostUpdate(const Host, IPAddr: string);
 begin
-  FHostSelect.Add(Host, ipToInt(IPAddr));
+  FHostSelect.Add(Host, ipToInt(AnsiString(IPAddr)));
   HostUpdate(Host);
 end;
 

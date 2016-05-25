@@ -68,7 +68,7 @@ resourcestring
   strConnectError      = '建立连接失败, 错误代码: %d';
   strStreamReadTimeOut = '流读取错误';
 
-
+  
 implementation
 
 end.

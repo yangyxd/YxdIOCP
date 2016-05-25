@@ -64,7 +64,7 @@ type
     procedure CreateTcpSocket(IsOverlapped: Boolean = False); inline;
     procedure CreateUdpSocket(IsOverlapped: Boolean = False); inline;
 
-    function Bind(const pvAddr: string; pvPort: Word): Boolean; overload;
+    function Bind(const pvAddr: AnsiString; pvPort: Word): Boolean; overload;
     function Bind(var pvAddr: TSockAddr): Boolean; overload;
     /// <summary>
     /// 开始监听，backlog 为后备日志数量，默认为5
@@ -74,12 +74,12 @@ type
     /// <summary>
     /// 域名解析到IP地址
     /// </summary>
-    function DomainNameToAddr(const host:string): string;
+    function DomainNameToAddr(const host: AnsiString): AnsiString;
 
     function RecvBuf(var data; const len: Integer): Integer;
     function SendBuf(const data; const len: Integer): Integer;
 
-    function Connect(const pvAddr: string; pvPort: Word; pvTimeOut: Integer = -1): Boolean;
+    function Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer = -1): Boolean;
 
     /// <summary>
     /// 没有状况发生返回0, 有错误返回 SOCKET_ERROR, 有事做了返回大于0的数
@@ -131,11 +131,11 @@ implementation
 
 { TRawSocket }
 
-function TRawSocket.Bind(const pvAddr: string; pvPort: Word): Boolean;
+function TRawSocket.Bind(const pvAddr: AnsiString; pvPort: Word): Boolean;
 var
   sockaddr: TSockAddrIn;
 begin
-  sockaddr := GetSocketAddr(pvAddr, pvPort);
+  sockaddr := GetSocketAddr(AnsiString(pvAddr), pvPort);
   Result := iocp.Winapi.WinSock.Bind(FSocketHandle, TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
 end;
 
@@ -163,7 +163,7 @@ begin
   end;
 end;
 
-function TRawSocket.Connect(const pvAddr: string; pvPort: Word; pvTimeOut: Integer): Boolean;
+function TRawSocket.Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer): Boolean;
 var
   sockaddr: TSockAddrIn;
   lvFlags: Cardinal;
@@ -172,7 +172,7 @@ var
   tv: timeval;
   Timeptr: PTimeval;
 begin
-  sockaddr := GetSocketAddr(pvAddr, pvPort);
+  sockaddr := GetSocketAddr(AnsiString(pvAddr), pvPort);
   if pvTimeOut <= 0 then begin
     Result := iocp.Winapi.WinSock.Connect(FSocketHandle, TSockAddr(sockaddr),
       sizeof(sockaddr)) = 0;
@@ -249,11 +249,11 @@ begin
   inherited;
 end;
 
-function TRawSocket.DomainNameToAddr(const host: string): string;
+function TRawSocket.DomainNameToAddr(const host: AnsiString): AnsiString;
 var
   lvhostInfo: PHostEnt;
 begin
-  lvhostInfo := gethostbyname(PAnsiChar(AnsiString(host)));
+  lvhostInfo := gethostbyname(PAnsiChar(host));
   if lvhostInfo = nil then
     RaiseLastOSError;
   Result := inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^);

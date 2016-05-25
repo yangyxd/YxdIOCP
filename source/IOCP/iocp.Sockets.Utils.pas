@@ -99,7 +99,7 @@ function IPToStr(const Addr: Cardinal): string;
 
 
 function PCharToInt64Def(const S: PAnsichar; Len: Integer; def: int64 = 0): int64;
-function PCharToIntDef(const S: PAnsichar; Len: Integer; def: Integer = 0): Integer;
+function PCharToIntDef(const S: PAnsichar; Len: Integer; def: Integer = 0): Integer; overload;
 
 function GetFileLastWriteTime(const fName: AnsiString): TDateTime;
 
@@ -189,14 +189,18 @@ var
   I: Integer;
   v: Integer;
 begin
-  Result := 0;
-  for I := 0 to len-1 do begin
-    V := Convert[ord(s[i])];
-    if V<0 then begin
-      Result := def;
-      Exit;
+  if Len = 0 then
+    Result := def
+  else begin
+    Result := 0;
+    for I := 0 to len-1 do begin
+      V := Convert[ord(s[i])];
+      if V<0 then begin
+        Result := def;
+        Exit;
+      end;
+      result := (result * 10) + V;
     end;
-    result := (result * 10) + V;
   end;
 end;
 
@@ -205,14 +209,18 @@ var
   I: Integer;
   v: Integer;
 begin
-  Result := 0;
-  for I := 0 to len-1 do begin
-    V := Convert[ord(s[i])];
-    if V<0 then begin
-      Result := def;
-      Exit;
+  if Len = 0 then
+    Result := Def
+  else begin
+    Result := 0;
+    for I := 0 to len-1 do begin
+      V := Convert[ord(s[i])];
+      if V<0 then begin
+        Result := def;
+        Exit;
+      end;
+      result := (result * 10) + V;
     end;
-    result := (result * 10) + V;
   end;
 end;
 
@@ -442,8 +450,7 @@ begin
   begin
     RaiseLastOSError;
   end;
-end;
-
+end;  
 
 initialization
   WSAStart;

@@ -33,7 +33,7 @@ interface
 
 uses
   iocp.Utils.Hash, iocp.Utils.Str, {$IFDEF UseGZip}ZLibExGZ, {$ENDIF}
-  iocp.Sockets, iocp.Task, iocp.core.Engine,
+  iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime,
   iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues,
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
   SyncObjs, Windows, Classes, SysUtils, DateUtils;
@@ -159,7 +159,11 @@ type
     /// <summary>
     /// 编码成一个String
     /// </summary>
+    {$IFDEF UNICODE}
+    function ToString: string; override;
+    {$ELSE}
     function ToString: AnsiString;
+    {$ENDIF}
     // 指定了coolie的生存期
     property Expires: TDateTime read FExpires write FExpires;
     property Name: AnsiString read FName write FName;
@@ -244,7 +248,7 @@ type
     FURL: AnsiString;
     FFormDataBoundary: TIocpPointerStr;
     FCookies: TIocpPointerStr;
-    FSessionID : string;
+    FSessionID : AnsiString;
     FTag: Integer;
     function GetAccept: AnsiString;
     function GetAcceptEncoding: AnsiString;
@@ -255,7 +259,7 @@ type
     function GetReferer: AnsiString;
     function GetParamsCount: Integer;
     function GetRequestVersionStr: AnsiString;
-    function DecodeStr(const S: AnsiString): AnsiString;
+    function DecodeStr(const S: StringA): string;
     procedure DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean = False);
     procedure DecodeParams();
     function GetDataString: AnsiString;
@@ -274,7 +278,7 @@ type
     procedure InnerGetCookie;
     procedure CheckCookieSession;
     function GetCookieItem(const Name: AnsiString): AnsiString;
-    function GetSessionID: string;
+    function GetSessionID: AnsiString;
     function GetAcceptGzip: Boolean;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
@@ -369,7 +373,7 @@ type
     property Host: AnsiString read GetHost;
     property Referer: AnsiString read GetReferer;
     property Session: Pointer read GetSession;
-    property SessionID: string read GetSessionID;
+    property SessionID: AnsiString read GetSessionID;
     property Cookies: AnsiString read GetCookies;
     property Cookie[const Name: AnsiString]: AnsiString read GetCookieItem;
     property ParamsCount: Integer read GetParamsCount;
@@ -535,8 +539,6 @@ type
     property FileName: string read FFileName;
   end;
 
-function DateTimeToGMTRFC822(Const DateTime: TDateTime): string;
-function GMTRFC822ToDateTime(const pSour: AnsiString): TDateTime;
 function NewSessionID(): string;
 
 implementation
@@ -554,133 +556,6 @@ begin
   Result := AnsiStrings.StrScan(Str, Chr);
 end;
 {$ENDIF}
-
-function LocalTimeZoneBias: Integer;
-{$IFDEF LINUX}
-var
-  TV: TTimeval;
-  TZ: TTimezone;
-begin
-  gettimeofday(TV, TZ);
-  Result := TZ.tz_minuteswest;
-end;
-{$ELSE}
-var
-  TimeZoneInformation: TTimeZoneInformation;
-  Bias: Longint;
-begin
-  case GetTimeZoneInformation(TimeZoneInformation) of
-    TIME_ZONE_ID_STANDARD: Bias := TimeZoneInformation.Bias + TimeZoneInformation.StandardBias;
-    TIME_ZONE_ID_DAYLIGHT: Bias := TimeZoneInformation.Bias + ((TimeZoneInformation.DaylightBias div 60) * -100);
-  else
-    Bias := TimeZoneInformation.Bias;
-  end;
-  Result := Bias;
-end;
-{$ENDIF}
-
-var
-  DLocalTimeZoneBias: Double = 0;
-
-function DateTimeToGMT(const DT: TDateTime): TDateTime; inline;
-begin
-  Result := DT + DLocalTimeZoneBias;
-end;
-
-function GMTToDateTime(const DT: TDateTime): TDateTime; inline;
-begin
-  Result := DT - DLocalTimeZoneBias;
-end;
-
-function DateTimeToGMTRFC822(const DateTime: TDateTime): string;
-const
-  WEEK: array[1..7] of string = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
-  STR_ENGLISH_M: array[1..12] of string = ('Jan', 'Feb', 'Mar', 'Apr', 'May',
-    'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
-var
-  wWeek, wYear, wMonth, wDay, wHour, wMin, wSec, wMilliSec: Word;
-begin
-  DecodeDateTime(DateTimeToGMT(DateTime), wYear, wMonth, wDay, wHour, wMin, wSec, wMilliSec);
-  wWeek := DayOfWeek(DateTimeToGMT(DateTime));
-  Result := Format('%s, %.2d %s %.4d %.2d:%.2d:%.2d GMT',
-    [WEEK[wWeek], wDay, STR_ENGLISH_M[wMonth], wYear, wHour, wMin, wSec]);
-end;
-
-function GMTRFC822ToDateTime(const pSour: AnsiString): TDateTime;
-  function GetMonthDig(const Value: PAnsiChar): Integer;
-  const
-    STR_ENGLISH_M: array[1..12] of PAnsiChar = ('Jan', 'Feb', 'Mar', 'Apr', 'May',
-      'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
-  begin
-    for Result := Low(STR_ENGLISH_M) to High(STR_ENGLISH_M) do begin
-      if StrLIComp(Value, STR_ENGLISH_M[Result], 3) = 0 then
-        Exit;
-    end;
-    Result := 0;
-  end;
-var
-  P1, P2, PMax: PAnsiChar;
-  wDay, wMonth, wYear, wHour, wMinute, wSec: SmallInt;
-begin
-  Result := 0;
-  if Length(pSour) < 25 then Exit;
-  P1 := Pointer(pSour);
-  P2 := P1;
-  PMax := P1 + Length(pSour);
-  while (P1 < PMax) and (P1^ <> ',') do Inc(P1); Inc(P1);
-  if (P1^ <> #32) and (P1 - P2 < 4) then Exit;
-  Inc(P1); P2 := P1;
-  while (P1 < PMax) and (P1^ <> #32) do Inc(P1);
-  if (P1^ <> #32) then Exit;
-  wDay := PCharToIntDef(P2, P1 - P2);
-  if wDay = 0 then Exit;  
-  Inc(P1); P2 := P1;
-
-  while (P1 < PMax) and (P1^ <> #32) do Inc(P1);
-  if (P1^ <> #32) and (P1 - P2 < 3) then Exit;
-  wMonth := GetMonthDig(P2);
-  Inc(P1); P2 := P1;
-
-  while (P1 < PMax) and (P1^ <> #32) do Inc(P1);
-  if (P1^ <> #32) then Exit;
-  wYear := PCharToIntDef(P2, P1 - P2);
-  if wYear = 0 then Exit;
-  Inc(P1); P2 := P1;
-
-  while (P1 < PMax) and (P1^ <> ':') do Inc(P1);
-  if (P1^ <> ':') then Exit;
-  wHour := PCharToIntDef(P2, P1 - P2);
-  if wHour = 0 then Exit;
-  Inc(P1); P2 := P1;
-
-  while (P1 < PMax) and (P1^ <> ':') do Inc(P1);
-  if (P1^ <> ':') then Exit;
-  wMinute := PCharToIntDef(P2, P1 - P2);
-  if wMinute = 0 then Exit;
-  Inc(P1); P2 := P1;
-
-  while (P1 < PMax) and (P1^ <> #32) do Inc(P1);
-  if (P1^ <> #32) then Exit;
-  wSec := PCharToIntDef(P2, P1 - P2);
-  if wSec = 0 then Exit;
-
-  Result := GMTToDateTime(EnCodeDateTime(wYear, wMonth, wDay, wHour, wMinute, wSec, 0));
-end;
-
-var
-  LastUpdate: Cardinal = 0;
-  LastGMTTime: string = '';
-  FGMTLocker: TCriticalSection;
-
-function GetNowGMTRFC822: string;
-begin
-  if GetTickCount - LastUpdate > 250 then begin
-    FGMTLocker.Enter;
-    LastGMTTime := DateTimeToGMTRFC822(Now);
-    FGMTLocker.Leave;
-  end;
-  Result := LastGMTTime;
-end;
 
 function FixHeader(const Header: AnsiString): AnsiString;
 begin
@@ -701,7 +576,7 @@ var
 begin
   CreateGUID(V);
   SetLength(Result, 32);
-  StrLFmt(PChar(Result), 32,'%.8x%.4x%.4x%.2x%.2x%.2x%.2x%.2x%.2x%.2x%.2x',
+  StrLFmt(PChar(Result), 32, '%.8x%.4x%.4x%.2x%.2x%.2x%.2x%.2x%.2x%.2x%.2x',
     [V.D1, V.D2, V.D3, V.D4[0], V.D4[1], V.D4[2], V.D4[3],
     V.D4[4], V.D4[5], V.D4[6], V.D4[7]]);
 end;
@@ -710,7 +585,7 @@ procedure TIocpHttpRequest.CheckCookieSession;
 begin
   FSessionID := GetCookieItem(HTTPSESSIONID);
   if (FSessionID = '') and (Assigned(FResponse)) then begin
-    FSessionID := HTTPSESSIONID + '_' + NewSessionID();
+    FSessionID := HTTPSESSIONID + '_' + AnsiString(NewSessionID());
     FResponse.AddCookie(HTTPSESSIONID, FSessionID);
   end;
 end;
@@ -784,7 +659,7 @@ begin
             FParams := TStringList.Create;
           FParamHash.Add(LowerCase(Key), FParams.Count);
           if DecodeURL then 
-            Value := DecodeStr(Value);
+            Value := string(DecodeStr(StringA(Value)));
           FParams.Add(Value);
         end;
         if (P^ = #0) or (Len = 0) then
@@ -829,21 +704,22 @@ begin
   FRequestData.Write(P^, Len);
 end;
 
-function TIocpHttpRequest.DecodeStr(const S: AnsiString): AnsiString;
+function TIocpHttpRequest.DecodeStr(const S: StringA): string;
 var
-  tmp: AnsiString;
+  tmp: string;
+  AStr: StringA;
 begin
-  if Pos('%', S) > 0 then begin
+  if Pos(PCharA('%'), S) > 0 then begin
     try
-      Result := URLDecode(S, False);
-      tmp := Utf8ToAnsi(Result);
+      AStr := URLDecode(S, False);
+      tmp := Utf8ToAnsi(AStr);
       if Length(tmp) > 0 then
         Result := tmp;
     except
       Result := '';
     end;
   end else
-    Result := S;
+    Result := string(S);
 end;
 
 destructor TIocpHttpRequest.Destroy;
@@ -859,7 +735,7 @@ function TIocpHttpRequest.ExistParam(const Key: AnsiString): Boolean;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
-  Result := FParamHash.Exists(Key);
+  Result := FParamHash.Exists(string(Key));
 end;
 
 function TIocpHttpRequest.GetAccept: AnsiString;
@@ -874,7 +750,7 @@ end;
 
 function TIocpHttpRequest.GetAcceptGzip: Boolean;
 begin
-  Result := Pos('gzip', GetAcceptEncoding()) > 0;
+  Result := Pos(PCharA('gzip'), GetAcceptEncoding()) > 0;
 end;
 
 function TIocpHttpRequest.GetAcceptLanguage: AnsiString;
@@ -1022,10 +898,10 @@ begin
       FIsFormData := 1;
       FFormDataBoundary := InnerGetHeader('Content-Type', FRequestData.Memory, FHeaderSize);
       S := FFormDataBoundary.ToString;      
-      I := Pos('multipart/form-data;', LowerCase(S));
+      I := Pos(StringA('multipart/form-data;'), LowerCase(S));
       Result := I > 0;
       if Result then begin
-        I := Pos('boundary=', LowerCase(S));
+        I := Pos(StringA('boundary='), LowerCase(S));
         if I > 0 then begin
           FFormDataBoundary.P := FFormDataBoundary.P + I + 8;
           FFormDataBoundary.Len := FFormDataBoundary.Len - (I + 8);
@@ -1064,7 +940,7 @@ function TIocpHttpRequest.GetParam(const Key: AnsiString): string;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
-  Result := GetParamItem(FParamHash.ValueOf(LowerCase(Key)));
+  Result := string(GetParamItem(FParamHash.ValueOf(LowerCase(string(Key)))));
 end;
 
 function TIocpHttpRequest.GetParamIndex(Index: Integer): AnsiString;
@@ -1079,7 +955,7 @@ begin
   if (not Assigned(FParams)) or (Index < 0) or (Index >= FParams.Count) then
     Result := ''
   else
-    Result := FParams[index];  
+    Result := StringA(FParams[index]);
 end;
 
 function TIocpHttpRequest.GetParamsCount: Integer;
@@ -1118,10 +994,10 @@ function TIocpHttpRequest.GetSession: Pointer;
 begin
   if Length(FSessionID) = 0 then
     CheckCookieSession;
-  Result := FOwner.GetSession(FSessionID);
+  Result := FOwner.GetSession(string(FSessionID));
 end;
 
-function TIocpHttpRequest.GetSessionID: string;
+function TIocpHttpRequest.GetSessionID: AnsiString;
 begin
   if Length(FSessionID) = 0 then
     CheckCookieSession;
@@ -1203,7 +1079,7 @@ begin
   if P1^ <> ' ' then Exit;
   FRawURL.P := P;
   FRawURL.Len := P1 - P;
-  FURL := DecodeStr(FRawURL.ToString);
+  FURL := StringA(DecodeStr(FRawURL.ToString));
   if Length(FURL) = 0 then Exit;  
   J := Integer(Pointer(FURL));
   P := StrScan(PAnsiChar(J), '?');
@@ -1228,7 +1104,7 @@ begin
     
   // 读取内容长度
   if (FMethod = http_POST) or (FMethod = http_PUT) then begin   
-    FDataSize := StrToIntDef(GetHeader('Content-Length'), 0);
+    FDataSize := StrToIntDef(string(GetHeader('Content-Length')), 0);
     if FDataSize > FOwner.FUploadMaxDataSize then
       Exit;
   end else
@@ -1353,7 +1229,7 @@ begin
         //OutputDebugString(PChar(Obj.FURL));
         TIocpHttpServer(Owner).DoRequest(Obj);
       except
-        Obj.FResponse.ServerError(Exception(ExceptObject).Message);
+        Obj.FResponse.ServerError(StringA(Exception(ExceptObject).Message));
       end;
       LastActivity := GetTimestamp;
     finally
@@ -1770,7 +1646,7 @@ procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
 begin
   if (not Active) or (ErrorCode < 400) then Exit;
   FRequest.FConn.Send(
-    FixHeader(MakeHeader(0, IntToStr(ErrorCode) + ' ' +
+    FixHeader(MakeHeader(0, StringA(IntToStr(ErrorCode)) + ' ' +
     GetResponseCodeNote(ErrorCode))));
   FRequest.FConn.CloseConnection;
 end;
@@ -1807,7 +1683,7 @@ end;
 class function TIocpHttpResponse.GetFileLastModified(
   const AFileName: string): TDateTime;
 begin
-  Result := GetFileLastWriteTime(AFileName);
+  Result := GetFileLastWriteTime(StringA(AFileName));
 end;
 
 {$IFDEF UseGZip}
@@ -1921,7 +1797,7 @@ procedure TIocpHttpResponse.ResponeCode(Code: Word; const Data: AnsiString);
 begin
   if (not Active) or (Code < 100) then Exit;
   FRequest.FConn.Send(
-    FixHeader(MakeHeader(Length(Data), IntToStr(Code) + ' ' +
+    FixHeader(MakeHeader(Length(Data), StringA(IntToStr(Code)) + ' ' +
     GetResponseCodeNote(Code))) + Data);
 end;
 
@@ -2091,7 +1967,7 @@ begin
     ErrorRequest(404);
     Exit;
   end;
-  Last := GetFileLastWriteTime(FileName);
+  Last := GetFileLastWriteTime(StringA(FileName));
   // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
   if not CheckFileUpdate(Last) then
     Exit;
@@ -2100,9 +1976,9 @@ begin
     FGZip := False;
     S.Position := 0;
     if Length(AContentType) = 0 then
-      SendStream(S, True, FileName, HTTPCTTypeStream, Last)
+      SendStream(S, True, StringA(FileName), HTTPCTTypeStream, Last)
     else
-      SendStream(S, True, FileName, AContentType, Last);
+      SendStream(S, True, StringA(FileName), StringA(AContentType), Last);
   finally
     S.Free;
   end;
@@ -2260,8 +2136,8 @@ begin
         Exit;
       if FRequest.FRangeEnd = 0 then
         FRequest.FRangeEnd := L - 1;
-      Header := Format('Content-Range: bytes %d-%d/%d', [
-          FRequest.FRangeStart, FRequest.FRangeEnd, L]);
+      Header := StringA(Format('Content-Range: bytes %d-%d/%d', [
+          FRequest.FRangeStart, FRequest.FRangeEnd, L]));
       L := FRequest.FRangeEnd - FRequest.FRangeStart + 1;
       Header := FixHeader(MakeHeader(L, '', IsDownloadFile, ExtractFileName(AFileName), LastModified) + Header);
       if FRequest.FRangeStart > 0 then
@@ -2483,7 +2359,7 @@ end;
 
 destructor TFileOnlyStream.Destroy;
 begin
-  if FHandle >= 0 then _lclose(FHandle);
+  if FHandle > 0 then _lclose(FHandle);
   inherited Destroy;
 end;
 
@@ -2495,25 +2371,22 @@ begin
   FPath := '/';
 end;
 
-function TIocpHttpCookie.ToString: AnsiString;
+function TIocpHttpCookie.ToString: {$IFDEF UNICODE}string{$ELSE}AnsiString{$ENDIF};
 begin
-  Result := Format('%s=%s; path=%s', [FName, FValue, FPath]);   
+  Result := Format('%s=%s; path=%s', [FName, FValue, FPath]);
   if FExpires > 0 then   
     Result := Result + '; expires=' + DateTimeToGMTRFC822(FExpires);
   if FMaxAge > 0 then
     Result := Result + '; max-age=' + IntToStr(FMaxAge);
   if Length(FDoMain) > 0 then
-    Result := Result + '; domain=' + FDoMain;
+    Result := Result + '; domain=' + string(FDoMain);
 end;
 
 initialization
-  DLocalTimeZoneBias := LocalTimeZoneBias / 1440;
-  FGMTLocker := TCriticalSection.Create;
   Workers := TIocpTask.GetInstance;
 
 finalization
   Workers := nil;
-  FreeAndNil(FGMTLocker);
 
 end.
 
