@@ -709,7 +709,7 @@ var
   tmp: string;
   AStr: StringA;
 begin
-  if Pos(PCharA('%'), S) > 0 then begin
+  if Pos(StringA('%'), S) > 0 then begin
     try
       AStr := URLDecode(S, False);
       tmp := Utf8ToAnsi(AStr);
@@ -750,7 +750,7 @@ end;
 
 function TIocpHttpRequest.GetAcceptGzip: Boolean;
 begin
-  Result := Pos(PCharA('gzip'), GetAcceptEncoding()) > 0;
+  Result := Pos(StringA('gzip'), GetAcceptEncoding()) > 0;
 end;
 
 function TIocpHttpRequest.GetAcceptLanguage: AnsiString;
