@@ -441,8 +441,11 @@ type
     /// <summary>
     /// 获取一个条目的数据
     /// </summary>
-    function GetValue(const Key: MapKey): PMapValue;
-    
+    function GetValue(const Key: MapKey): PMapValue; overload;
+    function GetValue(const Key: Number): PMapValue; overload;
+    function GetValue(const Key: Double): PMapValue; overload;
+    function GetValue(const Key: MString): PMapValue; overload;
+
     /// <summary>
     /// 添加一个条目, 如果已经存在，则替换其 Value
     /// </summary>
@@ -1811,7 +1814,7 @@ begin
   if (Item = nil) then
     Result := nil
   else
-    Result := @Item.Value; 
+    Result := @Item.Value;
 end;
 
 function Dictionary.GetValueItem(const Key: MapKey): PMapValue;
@@ -1845,6 +1848,39 @@ begin
     Result := @NULLMapValue
   else
     Result := @Item.Value; 
+end;
+
+function Dictionary.GetValue(const Key: Number): PMapValue;
+var
+  Item: PMapEntry;
+begin
+  Item := FItems.ValueOf(Key);
+  if (Item = nil) then
+    Result := nil
+  else
+    Result := @Item.Value;
+end;
+
+function Dictionary.GetValue(const Key: Double): PMapValue;
+var
+  Item: PMapEntry;
+begin
+  Item := FItems.ValueOf(Key);
+  if (Item = nil) then
+    Result := nil
+  else
+    Result := @Item.Value;
+end;
+
+function Dictionary.GetValue(const Key: MString): PMapValue;
+var
+  Item: PMapEntry;
+begin
+  Item := FItems.ValueOf(Key);
+  if (Item = nil) then
+    Result := nil
+  else
+    Result := @Item.Value;
 end;
 
 function Dictionary.GetValueItem(const Key: Double): PMapValue;
