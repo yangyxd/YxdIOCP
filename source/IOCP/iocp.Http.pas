@@ -184,6 +184,7 @@ type
     FSessionList: TStringHash;
     FHttpRequestPool: TBaseQueue;
     FUploadMaxDataSize: NativeUInt;
+    FCharset, FContentLanguage: string;
     FOnHttpRequest: TOnHttpRequest;
     FOnHttpFilter: TOnHttpFilter;
     FOnHttpGetSession: TOnHttpGetSession;
@@ -203,6 +204,14 @@ type
     /// </summary>
     function GetSession(const SID: string): Pointer;
   published
+    /// <summary>
+    /// 默认字符集选项，会在响应客户端请求时加入 Content-Type 中。
+    /// </summary>
+    property Charset: string read FCharset write FCharset;
+    /// <summary>
+    /// 默认响应内容语言。会在响应客户端请求时加入 Content-Language 中。
+    /// </summary>
+    property ContentLanguage: string read FContentLanguage write FContentLanguage;
     /// 客户端上传数据大小的上限（默认为2M）
     property UploadMaxDataSize: NativeUInt read FUploadMaxDataSize write FUploadMaxDataSize;
     /// <summary>
@@ -401,6 +410,7 @@ type
     FGZip: Boolean;
     FBlockSendBuffer: TMemoryStream;
     FContentType: AnsiString;
+    FContentLanguage: AnsiString;
     function GetConnection: TIocpHttpConnection;
     function GetActive: Boolean;
     function GetContentType: AnsiString;
@@ -529,6 +539,8 @@ type
     property CacheTime: Cardinal read FCacheTime write FCacheTime;
     // 返回内容类型, 默认text/html
     property ContentType: AnsiString read GetContentType write FContentType;
+    // 返回内容语言
+    property ContentLanguage: AnsiString read FContentLanguage write FContentLanguage;
   end;
 
 type
@@ -2455,6 +2467,7 @@ begin
   FContextClass := TIocpHttpConnection;
   FSessionList := TStringHash.Create(99991);
   FSessionList.OnFreeItem := DoFreeHashItem;
+  FCharset := '';
 end;
 
 destructor TIocpHttpServer.Destroy;
@@ -2568,6 +2581,7 @@ var
   I: Integer;
 begin
   FContentType := '';
+  FContentLanguage := '';
   FCacheTime := 0;
   {$IFDEF UseGZip}
   FGZip := True;
@@ -2747,6 +2761,8 @@ const
   CSVRNAME: AnsiString = #13#10'Server: DIOCP-YXD/1.0'#13#10;
   CSDFILE: AnsiString = 'Accept-Ranges: bytes'#13#10 +
     'Content-Disposition: attachment;filename="%s"'#13#10'Last-Modified: %s'#13#10;
+  CSCHARSET: AnsiString = 'charset=';
+  CSContentLanguage: AnsiString = 'Content-Language: ';
 var
   Data: TStringCatHelperA;
   I: Integer;
@@ -2764,7 +2780,16 @@ begin
   Data.Cat(CSVRNAME);
 
   Data.Cat('Date: ').Cat(GetNowGMTRFC822()).Cat(HTTPLineBreak);
-  Data.Cat('Content-Type: ').Cat(GetContentType).Cat(HTTPLineBreak);
+  if Length(FContentLanguage) > 0 then
+    Data.Cat(CSContentLanguage).Cat(FContentLanguage).Cat(HTTPLineBreak)
+  else if Length(FRequest.FOwner.FContentLanguage) > 0 then
+    Data.Cat(CSContentLanguage).Cat(FRequest.FOwner.FContentLanguage).Cat(HTTPLineBreak);
+  Data.Cat('Content-Type: ').Cat(GetContentType);
+  if Length(FRequest.FOwner.FCharset) > 0 then begin
+    if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
+      Data.Cat('; ').Cat(CSCHARSET).Cat(FRequest.FOwner.FCharset);
+  end;
+  Data.Cat(HTTPLineBreak);
 
   //if ContextLength > 0 then
   Data.Cat('Content-Length: ').Cat(ContextLength).Cat(HTTPLineBreak);

@@ -141,6 +141,7 @@ type
     function GetChars(AIndex:Integer): CharA;
     procedure SetPosition(const Value: Integer);
     procedure NeedSize(ASize: Integer);
+    function GetMemory: Pointer;
   public
     constructor Create; overload;
     constructor Create(ASize: Integer); overload;
@@ -161,6 +162,7 @@ type
     property Start: PCharA read FStart;
     property Current: PCharA read FDest;
     property Position: Integer read GetPosition write SetPosition;
+    property Memory: Pointer read GetMemory;
   end;
 
 type
@@ -2704,6 +2706,11 @@ end;
 function TStringCatHelperA.GetChars(AIndex: Integer): CharA;
 begin
   Result := FStart[AIndex];
+end;
+
+function TStringCatHelperA.GetMemory: Pointer;
+begin
+  Result := FStart;
 end;
 
 function TStringCatHelperA.GetPosition: Integer;
