@@ -17,6 +17,7 @@
   7. 支持Pipe管道（一次多个请求）
   8. 支持Session
   9. 支持Cookies
+  10. 支持ajax跨域设置
 }
 
 unit iocp.Http;
@@ -91,6 +92,23 @@ type
     function IsEmpty: Boolean;
     function ToString(): AnsiString;
   end;
+
+  /// <summary>
+  /// Http跨域控制
+  /// </summary>
+  TIocpHttpAccessControlAllow = record
+    // 是否启用跨域控制
+    Enabled: Boolean;
+    // 允许哪些url可以跨域请求到本域
+    Origin: string;  // *
+    // 允许的请求方法
+    Methods: string; // GET, POST,PUT,DELETE,OPTIONS
+    // 允许哪些请求头可以跨域
+    Headers: string; // x-requested-with,content-type
+
+    procedure MakerHeader(const Data: TStringCatHelperA);
+  end;
+  PIocpHttpAccessControlAllow = ^TIocpHttpAccessControlAllow;
 
   /// <summary>
   /// Http 表单数据项
@@ -185,11 +203,13 @@ type
     FHttpRequestPool: TBaseQueue;
     FUploadMaxDataSize: NativeUInt;
     FCharset, FContentLanguage: string;
+    FAccessControlAllow: TIocpHttpAccessControlAllow;
     FOnHttpRequest: TOnHttpRequest;
     FOnHttpFilter: TOnHttpFilter;
     FOnHttpGetSession: TOnHttpGetSession;
     FOnHttpFreeSession: TOnHttpFreeSession;
-  protected
+    function GetAccessControlAllow: PIocpHttpAccessControlAllow;
+    procedure SetAccessControlAllow(const Value: PIocpHttpAccessControlAllow);  protected
     procedure DoRequest(ARequest: TIocpHttpRequest);
     function GetHttpRequest: TIocpHttpRequest;
     procedure FreeHttpRequest(V: TIocpHttpRequest);
@@ -203,6 +223,10 @@ type
     /// HashMap记录SessionID与Data的关联。
     /// </summary>
     function GetSession(const SID: string): Pointer;
+    /// <summary>
+    /// 跨域控制选项, 默认不启用
+    /// </summary>
+    property AccessControlAllow: PIocpHttpAccessControlAllow read GetAccessControlAllow write SetAccessControlAllow;
   published
     /// <summary>
     /// 默认字符集选项，会在响应客户端请求时加入 Content-Type 中。
@@ -212,6 +236,7 @@ type
     /// 默认响应内容语言。会在响应客户端请求时加入 Content-Language 中。
     /// </summary>
     property ContentLanguage: string read FContentLanguage write FContentLanguage;
+
     /// 客户端上传数据大小的上限（默认为2M）
     property UploadMaxDataSize: NativeUInt read FUploadMaxDataSize write FUploadMaxDataSize;
     /// <summary>
@@ -2513,6 +2538,11 @@ begin
   FreeAndNil(FSessionList);
 end;
 
+function TIocpHttpServer.GetAccessControlAllow: PIocpHttpAccessControlAllow;
+begin
+  Result := @FAccessControlAllow;
+end;
+
 function TIocpHttpServer.GetHttpRequest: TIocpHttpRequest;
 begin
   Result := TIocpHttpRequest(FHttpRequestPool.DeQueue);
@@ -2529,6 +2559,15 @@ begin
     Result := FOnHttpGetSession(Self, SID);
     FSessionList.AddOrUpdate(SID, Integer(Result));
   end;
+end;
+
+procedure TIocpHttpServer.SetAccessControlAllow(
+  const Value: PIocpHttpAccessControlAllow);
+begin
+  if Value = nil then
+    FAccessControlAllow.Enabled := False
+  else
+    FAccessControlAllow := Value^;
 end;
 
 { TIocpHttpResponse }
@@ -2780,10 +2819,14 @@ begin
   Data.Cat(CSVRNAME);
 
   Data.Cat('Date: ').Cat(GetNowGMTRFC822()).Cat(HTTPLineBreak);
+
+  // Content-Language
   if Length(FContentLanguage) > 0 then
     Data.Cat(CSContentLanguage).Cat(FContentLanguage).Cat(HTTPLineBreak)
   else if Length(FRequest.FOwner.FContentLanguage) > 0 then
     Data.Cat(CSContentLanguage).Cat(FRequest.FOwner.FContentLanguage).Cat(HTTPLineBreak);
+
+  // Content-Type
   Data.Cat('Content-Type: ').Cat(GetContentType);
   if Length(FRequest.FOwner.FCharset) > 0 then begin
     if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
@@ -2798,6 +2841,9 @@ begin
   if FGZip then
     Data.Cat('Content-Encoding: gzip'#13#10);
   {$ENDIF}
+
+  // 跨域控制
+  FRequest.FOwner.AccessControlAllow.MakerHeader(Data);
 
   if FCacheTime > 0 then
     Data.Cat('Cache-Control: max-age=').Cat(FCacheTime).Cat(HTTPLineBreak);
@@ -3428,6 +3474,40 @@ begin
     Result := Result + '; max-age=' + IntToStr(FMaxAge);
   if Length(FDoMain) > 0 then
     Result := Result + '; domain=' + string(FDoMain);
+end;
+
+{ TIocpHttpAccessControlAllow }
+
+procedure TIocpHttpAccessControlAllow.MakerHeader(
+  const Data: TStringCatHelperA);
+const
+  CS_AccessControlAllowOrigin = 'Access-Control-Allow-Origin: ';
+  CS_AccessControlAllowMethods = 'Access-Control-Allow-Methods: ';
+  CS_AccessControlAllowHeaders = 'Access-Control-Allow-Headers: ';
+  CS_ACAH = 'X-Requested-With, Content-Type';
+begin
+  if Enabled then begin
+    Data.Cat(CS_AccessControlAllowOrigin);
+    if Length(Origin) = 0 then
+      Data.Cat('*')
+    else
+      Data.Cat(Origin);
+    Data.Cat(HTTPLineBreak);
+    
+    Data.Cat(CS_AccessControlAllowMethods);
+    if Length(Methods) = 0 then
+      Data.Cat('POST, GET, OPTIONS')
+    else
+      Data.Cat(Methods);
+    Data.Cat(HTTPLineBreak);
+
+    Data.Cat(CS_AccessControlAllowHeaders);
+    if Length(Headers) = 0 then
+      Data.Cat(CS_ACAH)
+    else
+      Data.Cat(Headers);
+    Data.Cat(HTTPLineBreak);
+  end;
 end;
 
 initialization

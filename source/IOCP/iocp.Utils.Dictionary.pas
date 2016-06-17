@@ -1689,17 +1689,17 @@ end;
 
 function Dictionary.Exist(const Key: Number): Boolean;
 begin
-  Result := FItems.Exists(@Key);
+  Result := FItems.Exists(Key);
 end;
 
 function Dictionary.Exist(const Key: MString): Boolean;
 begin
-  Result := FItems.Exists(@Key);
+  Result := FItems.Exists(Key);
 end;
 
 function Dictionary.Exist(const Key: Double): Boolean;
 begin
-  Result := FItems.Exists(@Key);
+  Result := FItems.Exists(Key);
 end;
 
 function Dictionary.Exist(const Key: MapKey): Boolean;
