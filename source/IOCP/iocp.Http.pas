@@ -314,6 +314,7 @@ type
     function GetCookieItem(const Name: AnsiString): AnsiString;
     function GetSessionID: AnsiString;
     function GetAcceptGzip: Boolean;
+    function GetCharSet: AnsiString;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
     function DecodeHttpHeader(): Boolean;
@@ -357,6 +358,10 @@ type
     /// 读取请求头
     /// </summary>
     function GetHeader(const Key: AnsiString): AnsiString;
+    /// <summary>
+    /// 读取请求头中指定字段的值
+    /// </summary>
+    function GetHeaderParams(const Key, ParamName: AnsiString): AnsiString;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -398,6 +403,8 @@ type
     property RangeStart: Int64 read FRangeStart;
     // 区域传送结束位置
     property RangeEnd: Int64 read FRangeEnd;
+    // POST请求参数字符集
+    property CharSet: AnsiString read GetCharSet;
     
     // ------- 以下属性是在读的时候才从Header中解析 ---------
     property Accept: AnsiString read GetAccept;
@@ -1619,6 +1626,74 @@ begin
     MimeMap.Add('.' + MimeTypes[I].Key, I);
 end;
 
+function PosHeaderSubItem(const AHeaderLine, ASubItem: AnsiString;
+  var PStart, PEnd: PAnsiChar): Boolean;
+var
+  P, PMax, Ps, P1, P2: PAnsiChar;
+  SL: Integer;
+begin
+  Result := False;
+  P := PAnsiChar(AHeaderLine);
+  PMax := P + Length(AHeaderLine);
+  SL := Length(ASubItem);
+  if (SL = 0) or (PMax = P) or (P = nil) then Exit;  
+  Ps := PAnsiChar(ASubItem);
+  while P < PMax do begin
+    P1 := P;
+    while (P < PMax) do begin
+      if (P^ = ';') or (P^ = ',') or (P^ = '|') then begin
+        Inc(P);
+        Break;
+      end else if P^ = '=' then begin
+        P := P1;
+        Break;
+      end;
+      Inc(P);
+    end;
+    while (P < PMax) and (P^ = ' ') do Inc(P);
+    P1 := P;
+    while (P1 < PMax) and (P1^ <> '=') do Inc(P1);    
+    if (P1 = nil) or (P1^ = #0) then Exit;
+    if P1 - P = SL then begin
+      P2 := Ps;
+      Result := True;
+      while (P < P1) do begin
+        if P^ <> P2^ then begin
+          P := P1 + 1;
+          Result := False;
+          Break;
+        end else begin
+          Inc(P);
+          Inc(P2);
+        end;
+      end;
+      if Result then begin
+        Inc(P);
+        while (P < PMax) and (P^ = ' ') do Inc(P);
+        while (P1 < PMax) do begin
+          if (P1^ = ';') or (P1^ = ',') or (P1^ = '|') then Break;
+          Inc(P1);
+        end;
+        PStart := P;
+        PEnd := P1;
+        Exit;
+      end;
+    end else begin
+      P := P1 + 1;
+    end;
+  end;
+end;
+
+function ExtractHeaderSubItem(const AHeaderLine, ASubItem: AnsiString): AnsiString;
+var
+  P, P1: PAnsiChar;
+begin
+  if PosHeaderSubItem(AHeaderLine, ASubItem, P, P1) then
+    SetString(Result, P, P1 - P)
+  else
+    Result := '';
+end;
+
 { TIocpHttpRequest }
 
 function NewSessionID(): string;
@@ -1809,6 +1884,11 @@ begin
   Result := GetHeader('Accept-Language');
 end;
 
+function TIocpHttpRequest.GetCharSet: AnsiString;
+begin
+  Result := GetHeaderParams('Content-Type', 'charset');
+end;
+
 function TIocpHttpRequest.GetCookieItem(const Name: AnsiString): AnsiString;
 var
   P, PMax: PAnsiChar;
@@ -1848,12 +1928,19 @@ begin
 end;
 
 function TIocpHttpRequest.GetDataString: AnsiString;
+var
+  LCharSet: AnsiString;
 begin
   if (FDataSize = 0) or (not Assigned(FRequestData)) then
     Result := ''
-  else
+  else begin
     SetString(Result, PAnsiChar(FRequestData.Memory) + FHeaderSize, 
       FRequestData.Size - FHeaderSize);
+    // 检测客户端字符编码，看是否需要转换
+    LCharSet := LowerCase(CharSet);
+    if LCharSet = 'utf-8' then  // 如果是 UTF8，则解码一下
+      Result := UTF8Decode(PAnsiChar(Result), Length(Result));
+  end;
 end;
 
 // 这一块功能为实时查询，你要是有需要也可以弄成将解析结果保存起来，以加快读取速度
@@ -1929,6 +2016,12 @@ end;
 function TIocpHttpRequest.GetHeader(const Key: AnsiString): AnsiString;
 begin
   Result := InnerGetHeader(Key, FRequestData.Memory, FHeaderSize).ToString;
+end;
+
+function TIocpHttpRequest.GetHeaderParams(const Key,
+  ParamName: AnsiString): AnsiString;
+begin
+  Result := ExtractHeaderSubItem(GetHeader(Key), ParamName);
 end;
 
 function TIocpHttpRequest.GetHost: AnsiString;
