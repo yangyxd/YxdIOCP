@@ -903,9 +903,9 @@ type
     procedure SetMaxSendingQueueSize(pvSize: Integer);
 
     /// <summary>
-    /// 根据SocketHandle在在线列表中查找对应的Context实例
+    /// 根据ContextHandle在在线列表中查找对应的Context实例
     /// </summary>
-    function FindContext(SocketHandle: TSocket): TIocpClientContext;
+    function FindContext(ContextHandle: Cardinal): TIocpClientContext;
 
     /// <summary>
     /// 超时检测, 如果超过Timeout指定的时间还没有任何数据交换数据记录，
@@ -2185,7 +2185,7 @@ procedure TIocpCustom.AddToOnlineList(const pvObject: TIocpCustomContext);
 begin
   FLocker.Enter('AddToOnlineList');
   try
-    FOnlineContextList.Add(Cardinal(pvObject.SocketHandle), Integer(pvObject));
+    FOnlineContextList.Add(pvObject.FHandle, Integer(pvObject));
   finally
     FLocker.Leave;
   end;
@@ -2373,10 +2373,10 @@ begin
   FLocker.Enter('RemoveFromOnlineList');
   try
     {$IFDEF DEBUG_ON}
-    lvSucc := FOnlineContextList.Remove(Cardinal(pvObject.SocketHandle));
+    lvSucc := FOnlineContextList.Remove(pvObject.FHandle);
     Assert(lvSucc);
     {$ELSE}
-    FOnlineContextList.Remove(Cardinal(pvObject.SocketHandle));
+    FOnlineContextList.Remove(pvObject.FHandle);
     {$ENDIF}
   finally
     FLocker.Leave;
@@ -2464,7 +2464,7 @@ begin
       FContext.RequestDisconnect(Self{$IFDEF DEBUGINFO}, Format(strRecv_EngineOff, [FContext.SocketHandle]){$ENDIF});
     end else if ErrorCode <> 0 then begin
       FContext.DoError(ErrorCode);
-      if ErrorCode <> 995 then begin  // 异步任务等待时，本端关闭套接字
+      if ErrorCode <> ERROR_OPERATION_ABORTED then begin  // 异步任务等待时，本端关闭套接字
         FOwner.DoStateMsgE(Self, strRecv_Error, [FContext.SocketHandle, ErrorCode]);
       end;
       FContext.RequestDisconnect(Self{$IFDEF DEBUGINFO}, Format(strRecv_Error, [FContext.SocketHandle, ErrorCode]){$ENDIF});
@@ -3872,11 +3872,11 @@ begin
   end;
 end;
 
-function TIocpCustomTcpServer.FindContext(SocketHandle: TSocket): TIocpClientContext;
+function TIocpCustomTcpServer.FindContext(ContextHandle: Cardinal): TIocpClientContext;
 var
   Item: PHashValue;
 begin
-  Item := FOnlineContextList.ValueOf(Cardinal(SocketHandle));
+  Item := FOnlineContextList.ValueOf(ContextHandle);
   if Item <> nil then
     Result := TIocpClientContext(Item.Data)
   else
@@ -4816,7 +4816,7 @@ begin
       FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
     end;
     if ErrorCode <> 0 then begin
-      if ErrorCode <> 995 then  // 异步任务等待时，本端关闭套接字
+      if ErrorCode <> ERROR_OPERATION_ABORTED then  // 异步任务等待时，本端关闭套接字
         FOwner.DoStateMsgE(Self, strRecv_Error, [FOwner.SocketHandle, ErrorCode]);
       IsDisconnect := False;
     end else begin
