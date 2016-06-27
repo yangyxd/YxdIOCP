@@ -2201,7 +2201,7 @@ end;
 
 function MapList.Find(const Key: Number): PPMapHashItem;
 begin
-  Result := @Buckets[Key mod Cardinal(Length(Buckets))];
+  Result := @Buckets[NumberU(Key) mod Cardinal(Length(Buckets))];
   while Result^ <> nil do begin
     if (Key = Result^.Value.Key) then
       Exit
