@@ -38,7 +38,7 @@ begin
     BitBtn1.Caption := '启动服务';
   end else begin
     BitBtn1.Enabled := False;
-    FSvr := TPtService.Create(StrToIntDef(Edit1.Text, 8080));
+    FSvr := TPtHttpService.Create(StrToIntDef(Edit1.Text, 8080));
     FSvr.Start;
     BitBtn1.Caption := '停止服务';
     BitBtn1.Enabled := True;

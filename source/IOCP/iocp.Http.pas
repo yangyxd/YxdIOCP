@@ -35,7 +35,7 @@ interface
 uses
   iocp.Utils.Hash, iocp.Utils.Str, {$IFDEF UseGZip}ZLibExGZ, {$ENDIF}
   iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime,
-  iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues,
+  iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues, iocp.Utils.MemPool,
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
   SyncObjs, Windows, Classes, SysUtils, DateUtils;
 
@@ -72,6 +72,7 @@ type
   TIocpHttpServer = class;
   TIocpHttpRequest = class;
   TIocpHttpResponse = class;
+  TIocpArrayString = array of String;
 
   TOnHttpFilter = procedure (Request: TIocpHttpRequest; var CancelRequest: Boolean) of object;
   TOnHttpRequest = procedure (Sender: TIocpHttpServer;
@@ -202,6 +203,7 @@ type
     FSessionList: TStringHash;
     FHttpRequestPool: TBaseQueue;
     FUploadMaxDataSize: NativeUInt;
+    FAutoDecodePostParams: Boolean;
     FCharset, FContentLanguage: string;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
     FOnHttpRequest: TOnHttpRequest;
@@ -236,6 +238,10 @@ type
     /// 默认响应内容语言。会在响应客户端请求时加入 Content-Language 中。
     /// </summary>
     property ContentLanguage: string read FContentLanguage write FContentLanguage;
+    /// <summary>
+    /// 是否自动解析POST参数
+    /// </summary>
+    property AutoDecodePostParams: Boolean read FAutoDecodePostParams write FAutoDecodePostParams;
 
     /// 客户端上传数据大小的上限（默认为2M）
     property UploadMaxDataSize: NativeUInt read FUploadMaxDataSize write FUploadMaxDataSize;
@@ -293,7 +299,7 @@ type
     function GetReferer: AnsiString;
     function GetParamsCount: Integer;
     function GetRequestVersionStr: AnsiString;
-    function DecodeStr(const S: StringA): string;
+    function DecodeStr(const S: StringA): StringA;
     procedure DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean = False);
     procedure DecodeParams();
     function GetDataString: AnsiString;
@@ -349,19 +355,23 @@ type
     /// <summary>
     /// 判断参数是否存在
     /// </summary>
-    function ExistParam(const Key: AnsiString): Boolean;
+    function ExistParameter(const Name: AnsiString): Boolean;
     /// <summary>
-    /// 读取参数
+    /// 读取请求参数
     /// </summary>
-    function GetParam(const Key: AnsiString): string;
+    function GetParameter(const Name: AnsiString): string;
+    /// <summary>
+    /// 读取请求参数数组
+    /// </summary>
+    function GetParameterValues(const Name: AnsiString): TIocpArrayString;
     /// <summary>
     /// 读取请求头
     /// </summary>
-    function GetHeader(const Key: AnsiString): AnsiString;
+    function GetHeader(const Name: AnsiString): AnsiString;
     /// <summary>
     /// 读取请求头中指定字段的值
     /// </summary>
-    function GetHeaderParams(const Key, ParamName: AnsiString): AnsiString;
+    function GetHeaderParams(const Name, ParamName: AnsiString): AnsiString;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -429,6 +439,29 @@ type
     constructor Create; overload;
     constructor Create(const Ptr: Pointer; ASize: Integer); overload;
     function Write(const Buffer; Count: Longint): Longint; override;
+  end;
+
+  /// <summary>
+  /// 响应数据写入器
+  /// </summary>
+  TIocpHttpWriter = class(TObject)
+  private
+    FData: TStringCatHelper;
+    FIsUTF8: Boolean;
+    function GetIsEmpty: Boolean;
+  public
+    constructor Create(const BufferSize: Cardinal = 1024 * 8);
+    destructor Destroy; override;
+    function Write(const Data: string): TIocpHttpWriter; overload;
+    function Write(const Data: TIocpArrayString): TIocpHttpWriter; overload;
+    function Write(const Data: Integer): TIocpHttpWriter; overload;
+    function Write(const Data: Int64): TIocpHttpWriter; overload;
+    function Write(const Data: Cardinal): TIocpHttpWriter; overload;
+    function Write(const Data: Double): TIocpHttpWriter; overload;
+    function ToString: string; {$IFDEF UNICODE} override; {$ENDIF}
+    procedure Clear;
+    property IsUTF8: Boolean read FIsUTF8 write FIsUTF8;
+    property IsEmpty: Boolean read GetIsEmpty;
   end;
 
   /// <summary>
@@ -532,6 +565,7 @@ type
     procedure Send(const Data: AnsiString; AGZip: Boolean = False); overload;
     procedure Send(const Data: WideString; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
+    procedure Send(Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
 
     /// <summary>
     /// 发送HTTP响应数据头部 (异步)
@@ -1757,6 +1791,7 @@ begin
   FResponse := TIocpHttpResponse.Create;
   FResponse.FRequest := Self;
   FRequestData := TMemoryStream.Create;
+  FParamHash := nil;
 end;
 
 procedure TIocpHttpRequest.DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean);
@@ -1813,6 +1848,8 @@ begin
     Inc(P);
     DecodeParam(P, Length(FURL) - FURI.Len);
   end;
+  if FOwner.AutoDecodePostParams then
+    ParsePostParams;
 end;
 
 procedure TIocpHttpRequest.ParsePostParams;
@@ -1830,22 +1867,24 @@ begin
   FRequestData.Write(P^, Len);
 end;
 
-function TIocpHttpRequest.DecodeStr(const S: StringA): string;
+function TIocpHttpRequest.DecodeStr(const S: StringA): StringA;
 var
-  tmp: string;
+  tmp: StringA;
   AStr: StringA;
 begin
   if Pos(StringA('%'), S) > 0 then begin
     try
       AStr := URLDecode(S, False);
-      tmp := Utf8ToAnsi(AStr);
+      tmp := StringA(Utf8Decode(PCharA(AStr), Length(AStr)));
       if Length(tmp) > 0 then
-        Result := tmp;
+        Result := tmp
+      else
+        Result := AStr;
     except
       Result := '';
     end;
   end else
-    Result := string(S);
+    Result := S;
 end;
 
 destructor TIocpHttpRequest.Destroy;
@@ -1857,11 +1896,11 @@ begin
   inherited Destroy;
 end;
 
-function TIocpHttpRequest.ExistParam(const Key: AnsiString): Boolean;
+function TIocpHttpRequest.ExistParameter(const Name: AnsiString): Boolean;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
-  Result := FParamHash.Exists(string(Key));
+  Result := FParamHash.Exists(string(Name));
 end;
 
 function TIocpHttpRequest.GetAccept: AnsiString;
@@ -1939,7 +1978,7 @@ begin
     // 检测客户端字符编码，看是否需要转换
     LCharSet := LowerCase(CharSet);
     if LCharSet = 'utf-8' then  // 如果是 UTF8，则解码一下
-      Result := UTF8Decode(PAnsiChar(Result), Length(Result));
+      Result := StringA(UTF8Decode(PAnsiChar(Result), Length(Result)));
   end;
 end;
 
@@ -2013,15 +2052,15 @@ begin
   SetString(Result, PAnsiChar(FRequestData.Memory), FHeaderSize);
 end;
 
-function TIocpHttpRequest.GetHeader(const Key: AnsiString): AnsiString;
+function TIocpHttpRequest.GetHeader(const Name: AnsiString): AnsiString;
 begin
-  Result := InnerGetHeader(Key, FRequestData.Memory, FHeaderSize).ToString;
+  Result := InnerGetHeader(Name, FRequestData.Memory, FHeaderSize).ToString;
 end;
 
-function TIocpHttpRequest.GetHeaderParams(const Key,
+function TIocpHttpRequest.GetHeaderParams(const Name,
   ParamName: AnsiString): AnsiString;
 begin
-  Result := ExtractHeaderSubItem(GetHeader(Key), ParamName);
+  Result := ExtractHeaderSubItem(GetHeader(Name), ParamName);
 end;
 
 function TIocpHttpRequest.GetHost: AnsiString;
@@ -2080,11 +2119,41 @@ begin
   Result := (FRequestVersion = hv_V2) and (FRange);
 end;
 
-function TIocpHttpRequest.GetParam(const Key: AnsiString): string;
+function TIocpHttpRequest.GetParameter(const Name: AnsiString): string;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
-  Result := string(GetParamItem(FParamHash.ValueOf(LowerCase(string(Key)))));
+  Result := string(GetParamItem(FParamHash.ValueOf(LowerCase(string(Name)))));
+end;
+
+function TIocpHttpRequest.GetParameterValues(const Name: AnsiString): TIocpArrayString;
+var
+  P, P1: PHashItem;
+  I, J: Integer;
+begin
+  if not Assigned(FParamHash) then
+    DecodeParams;
+  FParamHash.Lock;
+  try
+    P := FParamHash.Find(LowerCase(string(Name)))^;
+    I := 0;
+    P1 := P;
+    while P1 <> nil do begin
+      Inc(I);
+      P1 := P1.Next;
+      if I > 100000 then
+        Exit;
+    end;
+    SetLength(Result, I);
+    J := 0;
+    while (J < I) do begin
+      Result[J] := string(GetParamItem(P.Value));
+      Inc(J);
+      P := P.Next;
+    end;
+  finally
+    FParamHash.UnLock;
+  end;
 end;
 
 function TIocpHttpRequest.GetParamIndex(Index: Integer): AnsiString;
@@ -2581,6 +2650,7 @@ constructor TIocpHttpServer.Create(AOwner: TComponent);
 begin
   inherited;
   FHttpRequestPool := TBaseQueue.Create;
+  FAutoDecodePostParams := True;
   FUploadMaxDataSize := 1024 * 1024 * 2;  // 2M
   FContextClass := TIocpHttpConnection;
   FSessionList := TStringHash.Create(99991);
@@ -2837,7 +2907,11 @@ begin
   if Length(FContentType) > 0 then   
     Result := FContentType
   else
+    {$IFDEF UNICODE}
+    Result := 'text/html; charset=UTF-16';  // delphi的 UnicodeString 实际上 UTF-16
+    {$ELSE}
     Result := 'text/html';
+    {$ENDIF}
 end;
 
 class function TIocpHttpResponse.GetFileLastModified(
@@ -3424,9 +3498,32 @@ begin
       FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)));
       FRequest.FConn.Send(Data);
       {$ELSE}
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)) + Data);
+      s := Data;
+      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))) + s);
       {$ENDIF}
     end;
+  end;
+end;
+
+procedure TIocpHttpResponse.Send(Writer: TIocpHttpWriter; AGZip, AFreeWriter: Boolean);
+begin
+  try
+    if Assigned(Writer) and (not Writer.IsEmpty) then begin
+      if Writer.IsUTF8 then begin
+        {$IFDEF UNICODE}
+        Send(UTF8Encode(Writer.FData.Start, Writer.FData.Position), AGzip)
+        {$ELSE}
+        Send(UTF8Encode(Writer.ToString()), AGzip)
+        {$ENDIF}
+      end else
+        Send(Writer.ToString, AGZip);
+    end else begin
+      if (not Active) then Exit;
+      FRequest.FConn.Send(FixHeader(MakeHeader(0)) + #0);
+    end;
+  finally
+    if AFreeWriter then
+      FreeAndNil(Writer);
   end;
 end;
 
@@ -3601,6 +3698,79 @@ begin
       Data.Cat(Headers);
     Data.Cat(HTTPLineBreak);
   end;
+end;
+
+{ TIocpHttpWriter }
+
+procedure TIocpHttpWriter.Clear;
+begin
+  FData.Reset;
+end;
+
+constructor TIocpHttpWriter.Create(const BufferSize: Cardinal);
+begin
+  FData := TStringCatHelper.Create(BufferSize);
+  FIsUTF8 := False;
+end;
+
+destructor TIocpHttpWriter.Destroy;
+begin
+  FreeAndNil(FData);
+  inherited Destroy;
+end;
+
+function TIocpHttpWriter.GetIsEmpty: Boolean;
+begin
+  Result := FData.Position = 0;
+end;
+
+function TIocpHttpWriter.ToString: string;
+begin
+  Result := FData.Value;
+end;
+
+function TIocpHttpWriter.Write(const Data: string): TIocpHttpWriter;
+begin
+  Result := Self;
+  FData.Cat(Data);
+end;
+
+function TIocpHttpWriter.Write(const Data: Int64): TIocpHttpWriter;
+begin
+  Result := Self;
+  FData.Cat(Data);
+end;
+
+function TIocpHttpWriter.Write(const Data: Double): TIocpHttpWriter;
+begin
+  Result := Self;
+  FData.Cat(Data);
+end;
+
+function TIocpHttpWriter.Write(const Data: TIocpArrayString): TIocpHttpWriter;
+var
+  I: Integer;
+begin
+  Result := Self;
+  FData.Cat('[');
+  for I := 0 to High(Data) do begin
+    if I > 0 then
+      FData.Cat(',');
+    FData.Cat(Data[I]);
+  end;
+  FData.Cat(']');
+end;
+
+function TIocpHttpWriter.Write(const Data: Cardinal): TIocpHttpWriter;
+begin
+  Result := Self;
+  FData.Cat(Data);
+end;
+
+function TIocpHttpWriter.Write(const Data: Integer): TIocpHttpWriter;
+begin
+  Result := Self;
+  FData.Cat(Data);
 end;
 
 initialization

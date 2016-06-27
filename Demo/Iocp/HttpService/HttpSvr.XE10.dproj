@@ -60,7 +60,7 @@
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_Namespace>System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
         <Version>7.0</Version>
@@ -68,10 +68,10 @@
         <DCC_LocalDebugSymbols>False</DCC_LocalDebugSymbols>
         <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
         <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
-        <DCC_UnitSearchPath>include\iocp\;;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
-        <DCC_ResourcePath>include\iocp\;;$(DCC_ResourcePath)</DCC_ResourcePath>
-        <DCC_ObjPath>include\iocp\;;$(DCC_ObjPath)</DCC_ObjPath>
-        <DCC_IncludePath>include\iocp\;;$(DCC_IncludePath)</DCC_IncludePath>
+        <DCC_UnitSearchPath>include\iocp\;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ResourcePath>include\iocp\;$(DCC_ResourcePath)</DCC_ResourcePath>
+        <DCC_ObjPath>include\iocp\;$(DCC_ObjPath)</DCC_ObjPath>
+        <DCC_IncludePath>include\iocp\;$(DCC_IncludePath)</DCC_IncludePath>
         <DCC_ExeOutput>bin</DCC_ExeOutput>
         <DCC_DcuOutput>bin\dcu\</DCC_DcuOutput>
         <DCC_ObjOutput>bin\dcu\</DCC_ObjOutput>
@@ -80,6 +80,9 @@
         <DCC_DcpOutput>bin</DCC_DcpOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <DCC_UnitSearchPath>..\..\..\source\iocp;</DCC_UnitSearchPath>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <AppEnableHighDPI>true</AppEnableHighDPI>
     </PropertyGroup>
@@ -92,15 +95,18 @@
         <DCC_HppOutput>bin\dcu\</DCC_HppOutput>
         <DCC_BplOutput>bin</DCC_BplOutput>
         <DCC_DcpOutput>bin</DCC_DcpOutput>
-        <DCC_UnitSearchPath>include\iocp\;;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
-        <DCC_ResourcePath>include\iocp\;;$(DCC_ResourcePath)</DCC_ResourcePath>
-        <DCC_ObjPath>include\iocp\;;$(DCC_ObjPath)</DCC_ObjPath>
-        <DCC_IncludePath>include\iocp\;;$(DCC_IncludePath)</DCC_IncludePath>
+        <DCC_UnitSearchPath>include\iocp\;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ResourcePath>include\iocp\;$(DCC_ResourcePath)</DCC_ResourcePath>
+        <DCC_ObjPath>include\iocp\;$(DCC_ObjPath)</DCC_ObjPath>
+        <DCC_IncludePath>include\iocp\;$(DCC_IncludePath)</DCC_IncludePath>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_iOSDevice64)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <VerInfo_Locale>1033</VerInfo_Locale>
+        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+        <DCC_UnitSearchPath>..\..\..\source\iocp;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <AppEnableHighDPI>true</AppEnableHighDPI>
     </PropertyGroup>
@@ -142,10 +148,10 @@
                     <VersionInfoKeys Name="Comments"/>
                 </VersionInfoKeys>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\bcbofficexp100.bpl">CodeGear C++Builder Office XP Servers Package</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k100.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp100.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="D:\Documents\Users\YangYxd\YxdIocp\bin\YxdIocp.bpl">File D:\Documents\Users\YangYxd\YxdIocp\bin\YxdIocp.bpl not found</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\bcboffice2k230.bpl">Embarcadero C++Builder Office 2000 Servers Package</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\bcbofficexp230.bpl">Embarcadero C++Builder Office XP Servers Package</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k230.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp230.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
                 <Source>
                     <Source Name="MainSource">HttpSvr.dpr</Source>
@@ -165,13 +171,6 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="uServer.pas"/>
-        <DCCReference Include="Include\IOCP\iocp.Http.Client.pas"/>
-        <DCCReference Include="Include\Iocp\iocp.Http.pas"/>
-        <DCCReference Include="Include\IOCP\iocp.RawSockets.pas"/>
-        <DCCReference Include="Include\IOCP\iocp.Sockets.pas"/>
-        <DCCReference Include="Include\IOCP\iocp.Sockets.Utils.pas"/>
-        <DCCReference Include="Include\Iocp\iocp.Utils.Hash.pas"/>
-        <DCCReference Include="Include\IOCP\iocp.Utils.Dictionary.pas"/>
         <DCCReference Include="uFrmMain.pas">
             <Form>HttpService</Form>
         </DCCReference>

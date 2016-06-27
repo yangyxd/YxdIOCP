@@ -8,13 +8,6 @@ uses
   iocp,
   iocp.Utils.Queues,
   uServer in 'uServer.pas',
-  iocp.Http.Client in 'Include\IOCP\iocp.Http.Client.pas',
-  iocp.Http in 'Include\Iocp\iocp.Http.pas',
-  iocp.RawSockets in 'Include\IOCP\iocp.RawSockets.pas',
-  iocp.Sockets in 'Include\IOCP\iocp.Sockets.pas',
-  iocp.Sockets.Utils in 'Include\IOCP\iocp.Sockets.Utils.pas',
-  iocp.Utils.Hash in 'Include\Iocp\iocp.Utils.Hash.pas',
-  iocp.Utils.Dictionary in 'Include\IOCP\iocp.Utils.Dictionary.pas',
   uFrmMain in 'uFrmMain.pas' {HttpService};
 
 { TServer }

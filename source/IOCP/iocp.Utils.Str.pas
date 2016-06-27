@@ -153,7 +153,6 @@ type
     function Cat(const V:Int64): TStringCatHelperA;overload;
     function Cat(const V:Double): TStringCatHelperA;overload;
     function Cat(const V:Boolean): TStringCatHelperA;overload;
-    function Cat(const V:Currency): TStringCatHelperA;overload;
     function Space(count: Integer): TStringCatHelperA;
     function Back(ALen: Integer): TStringCatHelperA;
     procedure Reset;
@@ -189,7 +188,6 @@ type
     function Cat(const V: Int64): TStringCatHelperW;overload;
     function Cat(const V: Double): TStringCatHelperW;overload;
     function Cat(const V: Boolean): TStringCatHelperW;overload;
-    function Cat(const V: Currency): TStringCatHelperW; overload;
     function Cat(const V: Variant): TStringCatHelperW; overload;
     function Replicate(const S: StringW; count: Integer): TStringCatHelperW;
     function Space(count: Integer): TStringCatHelperW;
@@ -1905,15 +1903,22 @@ end;
 {$IFDEF USE_STRENCODEFUNC}
 function Utf8Decode(p: PAnsiChar; l: Integer): StringW;
 var
-  ps,pe: PByte;
-  pd,pds: PWord;
+  ps: PByte;
+  {$IFNDEF MSWINDOWS}
+  pe: PByte;
+  pd, pds: PWord;
   c: Cardinal;
+  {$ENDIF}
 begin
   if l<=0 then begin
-    ps:=PByte(p);
+    ps := PByte(p);
     while ps^<>0 do Inc(ps);
     l := Integer(ps) - Integer(p);
   end;
+  {$IFDEF MSWINDOWS}
+    SetLength(Result, l);
+    SetLength(Result, MultiByteToWideChar(CP_UTF8, 8, p, l, PCharW(Result), l)); // 8==>MB_ERR_INVALID_CHARS
+  {$ELSE}
   ps := PByte(p);
   pe := ps;
   Inc(pe, l);
@@ -1994,6 +1999,7 @@ begin
     end;
   end;
   System.SetLength(Result, (Integer(pd)-Integer(pds)) shr 1);
+  {$ENDIF} 
 end;
 {$ENDIF}
 
@@ -2670,11 +2676,6 @@ begin
   Result := Self;
 end;
 
-function TStringCatHelperA.Cat(const V: Currency): TStringCatHelperA;
-begin
-  Result := Cat(CurrToStr(V));
-end;
-
 function TStringCatHelperA.Cat(const s: StringW): TStringCatHelperA;
 var
   V: StringA;
@@ -2975,11 +2976,6 @@ end;
 function TStringCatHelperW.Cat(const V: Int64): TStringCatHelperW;
 begin
   Result := Cat(IntToStr(V));
-end;
-
-function TStringCatHelperW.Cat(const V: Currency): TStringCatHelperW;
-begin
-  Result := Cat(CurrToStr(V));
 end;
 
 function TStringCatHelperW.Cat(const V: Boolean): TStringCatHelperW;

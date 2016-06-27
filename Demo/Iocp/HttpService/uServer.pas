@@ -25,13 +25,14 @@ type
   TOnProcRequest = procedure (Request: TIocpHttpRequest; Response: TIocpHttpResponse) of object;
 
   /// <summary>
-  /// 服务系统
+  /// HTTP服务系统
   /// </summary>
   TPtService = class(TObject)
   private
     FPtWebService: TIocpHttpServer;
     FOnWriteLog: TOnWriteLog;
     HttpReqRef: Integer;
+    FProcList: TStringHash;
   protected
     function IsDestroying: Boolean;
     procedure Log(Sender: TObject; AType: TXLogType; const Msg: string);
@@ -40,12 +41,23 @@ type
     procedure DoWriteLog(Sender: TObject; AType: TXLogType; const Msg: string);
   protected
     procedure DoRequest(Sender: TIocpHttpServer; Request: TIocpHttpRequest; Response: TIocpHttpResponse);
+    procedure DoRegProc(); virtual; abstract;
+    procedure DoFreeProcItem(Item: PHashItem);
   public
     constructor Create(Port: Word); reintroduce;
     destructor Destroy; override;
 
+    procedure RegProc(const URI: string; const Proc: TOnProcRequest);
+
     procedure Start;
     procedure Stop;
+  end;
+
+type
+  TPtHttpService = class(TPtService)
+  protected
+    procedure DoRegProc(); override;
+    procedure RequestDemo03(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
   end;
 
 implementation
@@ -65,6 +77,11 @@ begin
   FPtWebService.ListenPort := Port;
   FPtWebService.UploadMaxDataSize := 1024 * 1024;
   FPtWebService.OnHttpRequest := DoRequest;
+
+  FProcList := TStringHash.Create();
+  FProcList.OnFreeItem := DoFreeProcItem;
+
+  DoRegProc(); 
 end;
 
 destructor TPtService.Destroy;
@@ -72,26 +89,39 @@ begin
   try
     Stop;
     FreeAndNil(FPtWebService);
+    FreeAndNil(FProcList);
   except
     LogE(Self, 'DoDestroy', Exception(ExceptObject));  
   end;
   inherited Destroy;
 end;
 
+procedure TPtService.DoFreeProcItem(Item: PHashItem);
+begin
+  if Item <> nil then
+    Dispose(Pointer(Item.Value));
+end;
+
 procedure TPtService.DoRequest(Sender: TIocpHttpServer;
   Request: TIocpHttpRequest; Response: TIocpHttpResponse);
 var
   Path: string;
+  V: Number;
 begin
   InterlockedIncrement(HttpReqRef);
-  Path := StringReplace(Request.URI, '/', '\', [rfReplaceAll]);
+  Path := StringReplace(string(Request.URI), '/', '\', [rfReplaceAll]);
   if (Length(Path) > 0) and (Path[1] = '\') then
     Delete(Path, 1, 1);
   Path := SoftPath + Path;
   if FileExists(Path) then begin
     Response.SendFile(Path, '', False, True);
-  end else
-    Response.ErrorRequest(404);
+  end else begin
+    V := FProcList.ValueOf(LowerCase(string(Request.URI)));
+    if V <> -1 then begin
+      TOnProcRequest(PMethod(Pointer(V))^)(Request, Response);
+    end else
+      Response.ErrorRequest(404);
+  end;
 end;
 
 procedure TPtService.DoWriteLog(Sender: TObject; AType: TXLogType;
@@ -127,6 +157,18 @@ begin
   end;
 end;
 
+procedure TPtService.RegProc(const URI: string; const Proc: TOnProcRequest);
+var
+  P: PMethod;
+begin
+  if Length(URI) = 0 then Exit;
+  if Assigned(Proc) then begin
+    New(P);
+    P^ := TMethod(Proc);
+    FProcList.Add(LowerCase(URI), Integer(P));
+  end;
+end;
+
 procedure TPtService.Start;
 begin
   FPtWebService.Open;
@@ -136,6 +178,32 @@ procedure TPtService.Stop;
 begin
   FPtWebService.Close;
 end;  
+
+{ TPtHttpService }
+
+procedure TPtHttpService.DoRegProc;
+begin
+  RegProc('/RequestDemo03.o', RequestDemo03);
+end;
+
+procedure TPtHttpService.RequestDemo03(Request: TIocpHttpRequest;
+  Response: TIocpHttpResponse);
+var
+  Out: TIocpHttpWriter;
+begin
+  //Response.ContentType := 'text/html;charset=UTF-16';
+  Out := TIocpHttpWriter.Create();
+  //Out.IsUTF8 := True;
+  Out.Write('编号: ').Write(Request.GetParameter('userid')).Write('<br>');
+  Out.Write('用户名: ').Write(Request.GetParameter('username')).Write('<br>');
+  Out.Write('密码: ').Write(Request.GetParameter('userpass')).Write('<br>');
+  Out.Write('性别: ').Write(Request.GetParameter('sex')).Write('<br>');
+  Out.Write('部门: ').Write(Request.GetParameter('dept')).Write('<br>');
+  Out.Write('兴趣: ').Write(Request.GetParameterValues('inst')).Write('<br>');
+  Out.Write('说明: ').Write(Request.GetParameter('note')).Write('<br>');
+  Out.Write('隐藏内容: ').Write(Request.GetParameter('hiddenField')).Write('<br>');
+  Response.Send(Out, True);
+end;
 
 initialization
   SoftPath := ExtractFilePath(ParamStr(0));

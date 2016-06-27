@@ -168,6 +168,7 @@ type
   TIocpHttpServer = iocp.Http.TIocpHttpServer;
   TIocpHttpRequest = iocp.Http.TIocpHttpRequest;
   TIocpHttpResponse = iocp.Http.TIocpHttpResponse;
+  TIocpHttpWriter = iocp.Http.TIocpHttpWriter;
 
   TOnHttpFilter = iocp.Http.TOnHttpFilter;
   TOnHttpRequest = iocp.Http.TOnHttpRequest;

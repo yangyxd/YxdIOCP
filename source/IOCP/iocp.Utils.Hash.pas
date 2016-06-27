@@ -35,13 +35,16 @@ uses
 type
   {$if CompilerVersion < 23}
   NativeUInt = Cardinal;
+  NativeInt = Integer;
   {$ifend}
-  Number = NativeUInt;
+  Number = NativeInt;
   PNumber = ^Number;
+  NumberU = NativeUInt;
+  PNumberU = ^NumberU;
 
 type
   /// 桶内元素的哈希值列表
-  THashType = Number;
+  THashType = NumberU;
   PPHashList = ^PHashList;
   PHashList = ^THashList;
   THashList = packed record
@@ -107,7 +110,7 @@ type
   THashItem = record
     Next: PHashItem;
     Key: string;
-    Value: Integer;
+    Value: Number;
   end;
 
 type
@@ -123,18 +126,18 @@ type
     FLocker: TCriticalSection;
     FOnFreeItem: TYXDStrHashItemFreeNotify;
   protected
-    function Find(const Key: string): PPHashItem;
   public
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
-    procedure Add(const Key: string; Value: Integer);
-    procedure AddOrUpdate(const Key: string; Value: Integer);
+    function Find(const Key: string): PPHashItem;
+    procedure Add(const Key: string; Value: Number);
+    procedure AddOrUpdate(const Key: string; Value: Number);
     procedure Clear;
     procedure Lock;
     procedure UnLock;
     procedure Remove(const Key: string);
-    function Modify(const Key: string; Value: Integer): Boolean;
-    function ValueOf(const Key: string): Integer;
+    function Modify(const Key: string; Value: Number): Boolean;
+    function ValueOf(const Key: string): Number;
     function Exists(const Key: string): Boolean;  
     property OnFreeItem: TYXDStrHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
@@ -145,7 +148,7 @@ type
   TIntHashItem = record
     Next: PIntHashItem;
     Key: THashType;
-    Value: Integer;
+    Value: Number;
   end;
 
   /// <summary>删除哈希表一个元素的通知</summary>
@@ -160,16 +163,16 @@ type
     FLocker: TCriticalSection;
     FOnFreeItem: TYXDIntHashItemFreeNotify;
   protected
-    function Find(const Key: THashType): PPIntHashItem;
   public
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
-    procedure Add(const Key: THashType; Value: Integer);
-    procedure AddOrUpdate(const Key: THashType; Value: Integer);
+    function Find(const Key: THashType): PPIntHashItem;
+    procedure Add(const Key: THashType; Value: Number);
+    procedure AddOrUpdate(const Key: THashType; Value: Number);
     procedure Clear;
     function Remove(const Key: THashType): Boolean;
-    function Modify(const Key: THashType; Value: Integer): Boolean;
-    function ValueOf(const Key: THashType): Integer;
+    function Modify(const Key: THashType; Value: Number): Boolean;
+    function ValueOf(const Key: THashType): Number;
     function Exists(const Key: THashType): Boolean;
     property OnFreeItem: TYXDIntHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
@@ -523,9 +526,9 @@ end;
 
 { TStringHash }
 
-procedure TStringHash.Add(const Key: string; Value: Integer);
+procedure TStringHash.Add(const Key: string; Value: Number);
 var
-  Hash: Integer;
+  Hash: THashType;
   Bucket: PHashItem;
 begin
   Hash := HashOf(Key) mod Cardinal(Length(Buckets));
@@ -538,7 +541,7 @@ begin
   FLocker.Leave;
 end;
 
-procedure TStringHash.AddOrUpdate(const Key: string; Value: Integer);
+procedure TStringHash.AddOrUpdate(const Key: string; Value: Number);
 begin
   if not Modify(Key, Value) then
     Add(Key, Value);
@@ -609,7 +612,7 @@ begin
   FLocker.Enter;
 end;
 
-function TStringHash.Modify(const Key: string; Value: Integer): Boolean;
+function TStringHash.Modify(const Key: string; Value: Number): Boolean;
 var
   P: PHashItem;
 begin
@@ -650,7 +653,7 @@ begin
   FLocker.Leave;
 end;
 
-function TStringHash.ValueOf(const Key: string): Integer;
+function TStringHash.ValueOf(const Key: string): Number;
 var
   P: PHashItem;
 begin
@@ -665,7 +668,7 @@ end;
 
 { TIntHash }
 
-procedure TIntHash.Add(const Key: THashType; Value: Integer);
+procedure TIntHash.Add(const Key: THashType; Value: Number);
 var
   Hash: THashType;
   Bucket: PIntHashItem;
@@ -680,7 +683,7 @@ begin
   FLocker.Leave;
 end;
 
-procedure TIntHash.AddOrUpdate(const Key: THashType; Value: Integer);
+procedure TIntHash.AddOrUpdate(const Key: THashType; Value: Number);
 begin
   if not Modify(Key, Value) then
     Add(Key, Value);
@@ -742,7 +745,7 @@ begin
   end;
 end;
 
-function TIntHash.Modify(const Key: THashType; Value: Integer): Boolean;
+function TIntHash.Modify(const Key: THashType; Value: Number): Boolean;
 var
   P: PIntHashItem;
 begin
@@ -775,7 +778,7 @@ begin
   FLocker.Leave;
 end;
 
-function TIntHash.ValueOf(const Key: THashType): Integer;
+function TIntHash.ValueOf(const Key: THashType): Number;
 var
   P: PIntHashItem;
 begin
