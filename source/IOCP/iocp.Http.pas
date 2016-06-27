@@ -355,15 +355,15 @@ type
     /// <summary>
     /// 判断参数是否存在
     /// </summary>
-    function ExistParameter(const Name: AnsiString): Boolean;
+    function ExistParam(const Name: AnsiString): Boolean;
     /// <summary>
     /// 读取请求参数
     /// </summary>
-    function GetParameter(const Name: AnsiString): string;
+    function GetParam(const Name: AnsiString): string;
     /// <summary>
     /// 读取请求参数数组
     /// </summary>
-    function GetParameterValues(const Name: AnsiString): TIocpArrayString;
+    function GetParamValues(const Name: AnsiString): TIocpArrayString;
     /// <summary>
     /// 读取请求头
     /// </summary>
@@ -371,7 +371,7 @@ type
     /// <summary>
     /// 读取请求头中指定字段的值
     /// </summary>
-    function GetHeaderParams(const Name, ParamName: AnsiString): AnsiString;
+    function GetHeaderParam(const Name, ParamName: AnsiString): AnsiString;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -1896,7 +1896,7 @@ begin
   inherited Destroy;
 end;
 
-function TIocpHttpRequest.ExistParameter(const Name: AnsiString): Boolean;
+function TIocpHttpRequest.ExistParam(const Name: AnsiString): Boolean;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
@@ -1925,7 +1925,7 @@ end;
 
 function TIocpHttpRequest.GetCharSet: AnsiString;
 begin
-  Result := GetHeaderParams('Content-Type', 'charset');
+  Result := GetHeaderParam('Content-Type', 'charset');
 end;
 
 function TIocpHttpRequest.GetCookieItem(const Name: AnsiString): AnsiString;
@@ -2057,7 +2057,7 @@ begin
   Result := InnerGetHeader(Name, FRequestData.Memory, FHeaderSize).ToString;
 end;
 
-function TIocpHttpRequest.GetHeaderParams(const Name,
+function TIocpHttpRequest.GetHeaderParam(const Name,
   ParamName: AnsiString): AnsiString;
 begin
   Result := ExtractHeaderSubItem(GetHeader(Name), ParamName);
@@ -2119,14 +2119,14 @@ begin
   Result := (FRequestVersion = hv_V2) and (FRange);
 end;
 
-function TIocpHttpRequest.GetParameter(const Name: AnsiString): string;
+function TIocpHttpRequest.GetParam(const Name: AnsiString): string;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
   Result := string(GetParamItem(FParamHash.ValueOf(LowerCase(string(Name)))));
 end;
 
-function TIocpHttpRequest.GetParameterValues(const Name: AnsiString): TIocpArrayString;
+function TIocpHttpRequest.GetParamValues(const Name: AnsiString): TIocpArrayString;
 var
   P, P1: PHashItem;
   I, J: Integer;

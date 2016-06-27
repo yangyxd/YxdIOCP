@@ -189,20 +189,20 @@ end;
 procedure TPtHttpService.RequestDemo03(Request: TIocpHttpRequest;
   Response: TIocpHttpResponse);
 var
-  Out: TIocpHttpWriter;
+  O: TIocpHttpWriter;
 begin
   //Response.ContentType := 'text/html;charset=UTF-16';
-  Out := TIocpHttpWriter.Create();
+  O := TIocpHttpWriter.Create();
   //Out.IsUTF8 := True;
-  Out.Write('编号: ').Write(Request.GetParameter('userid')).Write('<br>');
-  Out.Write('用户名: ').Write(Request.GetParameter('username')).Write('<br>');
-  Out.Write('密码: ').Write(Request.GetParameter('userpass')).Write('<br>');
-  Out.Write('性别: ').Write(Request.GetParameter('sex')).Write('<br>');
-  Out.Write('部门: ').Write(Request.GetParameter('dept')).Write('<br>');
-  Out.Write('兴趣: ').Write(Request.GetParameterValues('inst')).Write('<br>');
-  Out.Write('说明: ').Write(Request.GetParameter('note')).Write('<br>');
-  Out.Write('隐藏内容: ').Write(Request.GetParameter('hiddenField')).Write('<br>');
-  Response.Send(Out, True);
+  O.Write('编号: ').Write(Request.GetParam('userid')).Write('<br>');
+  O.Write('用户名: ').Write(Request.GetParam('username')).Write('<br>');
+  O.Write('密码: ').Write(Request.GetParam('userpass')).Write('<br>');
+  O.Write('性别: ').Write(Request.GetParam('sex')).Write('<br>');
+  O.Write('部门: ').Write(Request.GetParam('dept')).Write('<br>');
+  O.Write('兴趣: ').Write(Request.GetParamValues('inst')).Write('<br>');
+  O.Write('说明: ').Write(Request.GetParam('note')).Write('<br>');
+  O.Write('隐藏内容: ').Write(Request.GetParam('hiddenField')).Write('<br>');
+  Response.Send(O, True);
 end;
 
 initialization
