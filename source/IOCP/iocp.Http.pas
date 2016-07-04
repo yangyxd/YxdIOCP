@@ -446,6 +446,7 @@ type
   /// </summary>
   TIocpHttpWriter = class(TObject)
   private
+    FOwner: TIocpHttpResponse;
     FData: TStringCatHelper;
     FIsUTF8: Boolean;
     function GetIsEmpty: Boolean;
@@ -460,8 +461,10 @@ type
     function Write(const Data: Double): TIocpHttpWriter; overload;
     function ToString: string; {$IFDEF UNICODE} override; {$ENDIF}
     procedure Clear;
+    procedure Flush;
     property IsUTF8: Boolean read FIsUTF8 write FIsUTF8;
     property IsEmpty: Boolean read GetIsEmpty;
+    property Response: TIocpHttpResponse read FOwner write FOwner;
   end;
 
   /// <summary>
@@ -474,6 +477,7 @@ type
     FCacheTime: Cardinal;
     FGZip: Boolean;
     FBlockSendBuffer: TMemoryStream;
+    FOutWriter: TIocpHttpWriter;
     FContentType: AnsiString;
     FContentLanguage: AnsiString;
     function GetConnection: TIocpHttpConnection;
@@ -596,6 +600,11 @@ type
     /// 分块发送数据结束 (异步)
     /// </summary>
     procedure SendChunkEnd();
+
+    /// <summary>
+    /// 获取一个输出对象
+    /// </summary>
+    function GetOutWriter(BufferSize: Cardinal = 1024 * 8): TIocpHttpWriter;
 
     property Request: TIocpHttpRequest read FRequest;
     property Connection: TIocpHttpConnection read GetConnection;
@@ -2790,6 +2799,7 @@ begin
   {$ENDIF}
   if Assigned(FBlockSendBuffer) then
     FBlockSendBuffer.Clear;
+  FreeAndNil(FOutWriter);
   if Assigned(FCookies) then begin
     for I := 0 to FCookies.Count - 1 do
       TObject(FCookies[I]).Free;
@@ -2804,6 +2814,7 @@ end;
 
 destructor TIocpHttpResponse.Destroy;
 begin
+  FreeAndNil(FOutWriter);
   FreeAndNil(FBlockSendBuffer);
   FreeAndNil(FCookies);
   inherited;
@@ -2918,6 +2929,15 @@ class function TIocpHttpResponse.GetFileLastModified(
   const AFileName: string): TDateTime;
 begin
   Result := GetFileLastWriteTime(StringA(AFileName));
+end;
+
+function TIocpHttpResponse.GetOutWriter(BufferSize: Cardinal): TIocpHttpWriter;
+begin
+  if not Assigned(FOutWriter) then begin
+    FOutWriter := TIocpHttpWriter.Create(BufferSize);
+    FOutWriter.FOwner := Self;
+  end;
+  Result := FOutWriter;
 end;
 
 {$IFDEF UseGZip}
@@ -3717,6 +3737,16 @@ destructor TIocpHttpWriter.Destroy;
 begin
   FreeAndNil(FData);
   inherited Destroy;
+end;
+
+procedure TIocpHttpWriter.Flush;
+begin
+  if Assigned(FOwner) then begin
+    if FOwner.FOutWriter = Self then
+      FOwner.FOutWriter := nil;
+    FOwner.Send(Self, FOwner.FRequest.AcceptGzip, True)
+  end else
+    Exception.Create(strConnectNonExist);
 end;
 
 function TIocpHttpWriter.GetIsEmpty: Boolean;

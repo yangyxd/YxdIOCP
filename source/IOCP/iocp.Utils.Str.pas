@@ -87,6 +87,11 @@ type
   CharAS = array of CharA;
 
 type
+  TTextEncoding = (teUnknown, {未知的编码} teAuto,{自动检测} teAnsi, { Ansi编码 }
+    teUnicode16LE, { Unicode LE 编码 } teUnicode16BE, { Unicode BE 编码 }
+    teUTF8 { UTF8编码 } );
+
+type
   TBytesCatHelper = class
   private
     FValue: TBytes;
@@ -207,6 +212,55 @@ type
 type
   TStringCatHelper = {$IFDEF UNICODE} TStringCatHelperW; {$ELSE}  TStringCatHelperA; {$ENDIF}
 
+type
+  TStringArrayItem = packed record
+    P: PChar;
+    Len: Integer;
+  end;
+  PStringArrayItem = ^TStringArrayItem;
+  TStringArrayData = array of TStringArrayItem;
+
+type
+  TStringArray = class;
+  TOnFilterEvent = function (Sender: TStringArray; const P: PChar; const Len: Integer): Boolean;
+  
+  /// <summary>
+  /// 字符串数组，轻量化的字符分隔类
+  /// </summary>
+  TStringArray = class(TObject)
+  private
+    FData: string;
+    FList: array of TStringArrayItem;
+    FCount, FCapacity: Integer;
+    FDelimiter: Char;
+    FTag: Integer;
+    FOnFilter: TOnFilterEvent;
+    procedure Grow;
+    procedure CheckIndex(const Index: Integer); 
+    function GetItem(const Index: Integer): string; overload;
+    procedure SetDelimitedText(const Value: string);
+    procedure SetText(const Value: string); 
+  protected
+    procedure SetCapacity(NewCapacity: Integer); virtual;
+  public
+    procedure Clear;
+    function Add(const P: PChar; const Len: Integer): Integer;
+    procedure SetDelimitedData(const Value: Pointer; const Len: Integer);
+    procedure GetString(const Index: Integer; var Data: string);
+    function GetText(const ADelimiter: string = #13#10): string;
+    function GetFloat(const Index: Integer): Double;
+    function GetValue(const Index: Integer): PStringArrayItem;
+    function GetItemValue(const Index: Integer): PStringArrayItem;
+    property Delimiter: Char read FDelimiter write FDelimiter;
+    property DelimitedText: string write SetDelimitedText;
+    property Count: Integer read FCount;
+    property Capacity: Integer read FCapacity;
+    property Items[const Index: Integer]: string read GetItem; default;
+    property Text: string read FData write SetText;
+    property Tag: Integer read FTag write FTag;
+    property OnFilter: TOnFilterEvent read FOnFilter write FOnFilter;
+  end;
+
 // --------------------------------------------------------------------------
 //  基本字符串处理函数，类型转换
 // --------------------------------------------------------------------------
@@ -285,6 +339,8 @@ function RightStr(const AText: WideString; const ACount: Integer): WideString; o
 function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; inline;
 function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; inline;
 function PCharToString(const P: PChar; Len: Integer): string;
+// 字符串替换
+function StringReplaceEx(const S, Old, New: string; AFlags: TReplaceFlags): string; overload;
 //编码转换
 function IsHexChar(c: Char): Boolean; inline;
 function HexValue(c: Char): Integer;
@@ -300,6 +356,7 @@ function CharInW(c, list: PWideChar; ACharLen: PInteger = nil): Boolean;
 function CharSizeA(c: PAnsiChar): Integer;
 function CharSizeU(c: PAnsiChar): Integer;
 function CharSizeW(c: PWideChar): Integer;
+//字符串编码转换
 {$IFDEF USE_STRENCODEFUNC}
 function AnsiEncode(p:PWideChar; l:Integer): AnsiString; overload;
 function AnsiEncode(const p: StringW): AnsiString; overload;
@@ -314,12 +371,18 @@ function Utf8Decode(const S: AnsiString): StringW; overload;
 {$ENDIF}
 function Utf8Decode(p: PAnsiChar; l: Integer): StringW; overload;
 {$ENDIF}
+//十六进制
 function BinToHex(p: Pointer; l: Integer): string; overload;
 function BinToHex(const ABytes:TBytes): string; overload;
 procedure HexToBin(p: Pointer; l: Integer; var AResult: TBytes); overload;
 function HexToBin(const S: String): TBytes; overload;
 procedure HexToBin(const S: String; var AResult: TBytes); overload;
-
+// 加载字符串从流中
+function LoadTextA(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringA; overload;
+function LoadTextU(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringA; overload;
+function LoadTextW(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringW; overload;
+//检测字符串编码
+function DetectTextEncoding(const p: Pointer; L: Integer; var b: Boolean): TTextEncoding;
 //查找字符所在行列号，返回行的起始地址
 function StrPosA(start, current: PAnsiChar; var ACol, ARow:Integer): PAnsiChar;
 function StrPosU(start, current: PAnsiChar; var ACol, ARow:Integer): PAnsiChar;
@@ -349,7 +412,23 @@ function SkipUntilW(var p: PWideChar; AExpects: PWideChar; AQuoter: WideChar = #
 function StartWith(s, startby: PChar; AIgnoreCase: Boolean): Boolean;
 function StartWithIgnoreCase(s, startby: PChar): Boolean;
 //字符串转数字
+function HexToInt(const S: string): integer; overload;
+function HexToIntDef(const S: string; def: Integer = 0): integer; overload;
+function HexToInt(const S: pchar; Len: Integer): integer; overload;
+function HexToIntDef(const S: pchar; Len: Integer; def: Integer = 0): integer; overload;
+function PCharToInt(const S: pchar; Len: Integer): integer;
+function PCharToIntDef(const S: pchar; Len: Integer; def: Integer = 0): integer;
+function PCharToInt64Def(const S: pchar; Len: Integer; def: int64 = 0): int64;
 function PCharToFloat(const S: PChar; Len: Integer): Double;
+function PCharToFloatDef(const S: PChar; Len: Integer; def: Double = 0): Double;
+function PCharToHexStr(p: PChar; len: Integer): string;
+function PCharToStr(p: PChar; len: Integer; Decode: Boolean = False; fillgap: Char = '.'): string;
+// 将“yyyy-mm-dd hh:mm:ss"格式的字符串转换成TDateTime
+function PCharToDateTime(aValue: PChar): TDateTime; inline;
+// IP地址转为整型
+function ipToInt(const strIP : string): Cardinal;
+// 整型IP转为IP地址字符串
+function ipToStr(Addr: Cardinal): string;
 
 var
   // 系统 ACP
@@ -380,67 +459,6 @@ var
   VCStrStrW: TMSVCStrStrW;
   VCMemCmp: TMSVCMemCmp;
 {$ENDIF}
-
-const
-  ConvertInt: array[0..255] of Integer =
-    (
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,
-     -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
-     );
-
-function PCharToInt64Def(const S: PAnsichar; Len: Integer; def: int64 = 0): int64;
-var
-  I: Integer;
-  v: Integer;
-begin
-  if Len = 0 then
-    Result := def
-  else begin
-    Result := 0;
-    for I := 0 to len-1 do begin
-      V := ConvertInt[ord(s[i])];
-      if V<0 then begin
-        Result := def;
-        Exit;
-      end;
-      result := (result * 10) + V;
-    end;
-  end;
-end;
-
-function PCharToIntDef(const S: PAnsichar; Len: Integer; def: Integer = 0): Integer;
-var
-  I: Integer;
-  v: Integer;
-begin
-  if Len = 0 then
-    Result := Def
-  else begin
-    Result := 0;
-    for I := 0 to len-1 do begin
-      V := ConvertInt[ord(s[i])];
-      if V<0 then begin
-        Result := def;
-        Exit;
-      end;
-      result := (result * 10) + V;
-    end;
-  end;
-end;
 
 function WideStrLen(S: PWideChar): Integer; inline;
 begin
@@ -2096,7 +2114,7 @@ end;
 {$ENDIF}
 
 const
-  Convert: array[0..127] of Integer =
+  Convert: array[0..255] of Integer =
     (
      -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
      -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -2105,10 +2123,148 @@ const
      -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
      -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
      -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
      -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
      );
-     
+  Convert2: array[0..255] of Integer =
+    (
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+     );
+
+function HexToInt(const S: string): integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 1 to length(S) do begin
+    V := Convert[ord(s[i])];
+    if V<0 then
+      raise EConvertError.CreateResFmt(@SInvalidInteger, [S]);
+    result := (result * 16) or V;
+  end;
+end;
+
+function HexToIntDef(const S: string; def: Integer = 0): integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 1 to length(s) do begin
+    V := Convert[ord(s[i])];
+    if V<0 then begin
+      Result := def;
+      Exit;
+    end;
+    result := (result * 16) or V;
+  end;
+end;
+
+function HexToInt(const S: pchar; Len: Integer): integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 0 to len-1 do begin
+    V := Convert[ord(s[i])];
+    if V<0 then
+      raise EConvertError.CreateResFmt(@SInvalidInteger, [S]);
+    result := (result * 16) or V;
+  end;
+end;
+
+function HexToIntDef(const S: pchar; Len: Integer; def: Integer = 0): integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 0 to len-1 do begin
+    V := Convert[ord(s[i])];
+    if V<0 then begin
+      Result := def;
+      Exit;
+    end;
+    result := (result * 16) or V;
+  end;
+end;
+
+function PCharToInt(const S: pchar; Len: Integer): integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 0 to len-1 do begin
+    V := Convert[ord(s[i])];
+    if V<0 then
+      raise EConvertError.CreateResFmt(@SInvalidInteger, [S]);
+    result := (result * 10) + V;
+  end;
+end;
+
+function PCharToIntDef(const S: pchar; Len: Integer; def: Integer = 0): Integer;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 0 to len-1 do begin
+    V := Convert[ord(s[i])];
+    if V<0 then begin
+      Result := def;
+      Exit;
+    end;
+    result := (result * 10) + V;
+  end;
+end;
+
+function PCharToInt64Def(const S: pchar; Len: Integer; def: int64 = 0): int64;
+var
+  I: Integer;
+  v: Integer;
+begin
+  Result := 0;
+  for I := 0 to len-1 do begin
+    V := Convert[ord(s[i])];
+    if V < 0 then begin
+      Result := def;
+      Exit;
+    end;
+    result := (result * 10) + V;
+  end;
+end;
+
 function PCharToFloat(const S: PChar; Len: Integer): Double;
+begin
+  Result := PCharToFloatDef(S, Len, 0);
+end;
+
+function PCharToFloatDef(const S: PChar; Len: Integer; def: Double = 0): Double;
 var
   I, K, V, M: Integer;
 begin
@@ -2120,7 +2276,7 @@ begin
     if (s[i] = '.') and (k = 0) then Inc(k);
     if (V < 0) then begin
       if (k > 1) then begin
-        Result := 0;
+        Result := def;
         Exit;
       end;
     end else begin
@@ -2132,6 +2288,99 @@ begin
       end;
     end;
   end;
+end;
+
+function PcharToHexStr(p: PChar; len: Integer): string;
+var
+  i: Integer;
+begin
+  Result := '';
+  if (len = 0) then Exit;
+  for i := 0 to len - 1 do
+    Result := Result + IntToHex(Ord(p[i]), 2) + ' ';
+  Result := Result;
+end;
+
+function PCharToStr(p: PChar; len: Integer; Decode: Boolean; fillgap: Char): string;
+var
+  r: PChar;
+begin
+  if (len > 0) and (p <> nil) then begin
+    SetLength(Result, len);
+    if not Decode then
+      Move(p^, Result[1], len)
+    else begin
+      r := PChar(Result);
+      while len > 0 do begin
+        if p^ < #$21 then
+          r^ := fillgap
+        else
+          r^ := p^;
+        Inc(r);
+        Inc(p);
+        Dec(len);
+      end;
+    end;
+  end else
+    Result := '';
+end;
+
+function PCharToDateTime(aValue: PChar): TDateTime;
+var
+  p1, p2: PChar;
+  y, m, d, h, n, s: Word;
+begin
+  Result := 0;
+  p1 := aValue;
+  if p1 = nil then Exit;
+  p2 := StrScan(p1, '-');
+  y := PCharToInt(p1, p2-p1);
+  inc(p2);
+  p1 := StrScan(p2, '-');
+  m := PCharToInt(p2, p1-p2);
+  inc(p1);
+  p2 := StrScan(p1, ' ');
+  d := PCharToInt(p1, p2-p1);
+  Inc(p2);
+  p1 := StrScan(p2, ':');
+  h := PCharToInt(p2, p1-p2);
+  inc(p1);
+  p2 := StrScan(p1, ':');
+  n := PCharToInt(p1, p2-p1);
+  Inc(p2);
+  s := PCharToInt(p2, Length(p2));
+  Result := EncodeDate(Y,M,D)+EncodeTime(H,N,S,0);
+end;
+
+function ipToInt(const strIP : string): Cardinal;
+var
+  i: Cardinal;
+  p, p1: PChar;
+begin
+  result := 0;
+  p := PChar(strIP);
+  p1 := StrScan(p, '.');
+  if p1 = nil then Exit;
+  i := PCharToInt64Def(p, p1-p) shl 24;
+  Inc(p1);
+  p := StrScan(p1, '.');
+  if (p = nil) then Exit;
+  i := i + PCharToInt64Def(p1, p-p1) shl 16;
+  Inc(p);
+  p1 := StrScan(p, '.');
+  if (p1 = nil) then Exit;
+  Result := i + PCharToInt64Def(p, p1-p) shl 8;
+  Inc(p1);
+  Result := Result + PCharToInt64Def(p1, Length(p1));
+end;
+
+function IPToStr(Addr: Cardinal): string;
+begin
+  Result := Format('%d.%d.%d.%d', [
+    (Addr shr $18) and $FF,
+    (Addr shr $10) and $FF,
+    (Addr shr $8) and $FF,
+    Addr and $FF]);
 end;
 
 function IsHexChar(c: Char): Boolean; inline;
@@ -2617,6 +2866,302 @@ begin
   {$ELSE}
   Result := AnsiCompareText(A1, A2) = 0;
   {$ENDIF}
+end;
+
+function StringReplaceEx(const S, Old, New: string; AFlags: TReplaceFlags): string;
+{$IF RTLVersion>30}// Berlin 开始直接使用系统自带的替换函数
+begin
+  Result := StringReplace(S, Old, New, AFlags);
+end;
+{$ELSE}
+var
+  ps, pse, pds, pr, pd, po, pn: PChar;
+  l, LO, LN, LS, LR: Integer;
+  AReplaceOnce: Boolean;
+begin
+  LO := Length(Old);
+  LN := Length(New);
+  if LO = LN then begin
+    if Old = New then begin
+      Result := S;
+      Exit;
+    end;
+  end;
+  LS := Length(S);
+  if (LO > 0) and (LS >= LO) then begin
+    AReplaceOnce := not(rfReplaceAll in AFlags);
+    // LO=LN，则不变LR=LS，假设全替换，也不过是原长度
+    // LO<LN，则LR=LS+(LS*LN)/LO，假设全替换的长度
+    // LO>LN，则LR=LS，假设一次都不替换，也不过是原长度
+    if LO >= LN then
+      LR := LS
+    else if AReplaceOnce then
+      LR := LS + (LN - LO)
+    else
+      LR := LS + 1 + LS * LN div LO;
+    SetLength(Result, LR);
+    ps := PChar(S);
+    pse := ps + LS;
+    pd := PChar(Result);
+    pds := pd;
+    po := PChar(Old);
+    pn := PChar(New);
+    repeat
+      if rfIgnoreCase in AFlags then
+        pr := StrIStr(ps, po)
+      else
+        pr := StrStr(ps, po);
+      if pr <> nil then
+      begin
+        l := IntPtr(pr) - IntPtr(ps);
+        Move(ps^, pd^, l);
+        Inc(pd, l{$IFDEF UNICODE} shr 1{$ENDIF});
+        Inc(pr, LO);
+        Move(pn^, pd^, LN{$IFDEF UNICODE} shr 1{$ENDIF});
+        Inc(pd, LN);
+        ps := pr;
+      end;
+    until (pr = nil) or AReplaceOnce;
+    // 将剩余部分合并到目标
+    l := IntPtr(pse) - IntPtr(ps);
+    Move(ps^, pd^, l);
+    Inc(pd, l{$IFDEF UNICODE} shr 1{$ENDIF});
+    SetLength(Result, pd - pds);
+  end else
+    Result := S;
+end;
+{$IFEND}
+
+function DetectTextEncoding(const p: Pointer; L: Integer; var b: Boolean): TTextEncoding;
+const
+  NoUtf8Char: array [0 .. 3] of Byte = ($C1, $AA, $CD, $A8); // ANSI编码的联通
+var
+  pAnsi: PByte;
+  pWide: PWideChar;
+  I, AUtf8CharSize: Integer;
+
+  function IsUtf8Order(var ACharSize:Integer):Boolean;
+  var
+    I: Integer;
+    ps: PByte;
+  const
+    Utf8Masks:array [0..4] of Byte=($C0, $E0, $F0, $F8, $FC);
+  begin
+    ps := pAnsi;
+    ACharSize := CharSizeU(PAnsiChar(ps));
+    Result := False;
+    if ACharSize > 1 then begin
+      I := ACharSize-2;
+      if ((Utf8Masks[I] and ps^) = Utf8Masks[I]) then begin
+        Inc(ps);
+        Result:=True;
+        for I := 1 to ACharSize-1 do begin
+          if (ps^ and $80)<>$80 then begin
+            Result:=False;
+            Break;
+          end;
+          Inc(ps);
+        end;
+      end;
+    end;
+  end;
+
+begin
+  Result := teAnsi;
+  b := false;
+  if L >= 2 then begin
+    pAnsi := PByte(p);
+    pWide := PWideChar(p);
+    b := True;
+    if pWide^ = #$FEFF then
+      Result := teUnicode16LE
+    else if pWide^ = #$FFFE then
+      Result := teUnicode16BE
+    else if L >= 3 then begin
+      if (pAnsi^ = $EF) and (PByte(IntPtr(pAnsi) + 1)^ = $BB) and
+        (PByte(IntPtr(pAnsi) + 2)^ = $BF) then // UTF-8编码
+        Result := teUTF8
+      else begin// 检测字符中是否有符合UFT-8编码规则的字符，11...
+        b := false;
+        Result := teUnknown;//假设文件为UTF8编码，然后检测是否有不符合UTF-8编码的序列
+        I := 0;
+        Dec(L, 2);
+        while I<=L do begin
+          if (pAnsi^ and $80) <> 0 then begin // 高位为1
+            if (l - I >= 4) then begin
+              if CompareMem(pAnsi, @NoUtf8Char[0], 4) then begin
+                // 联通？是则忽略掉，不做UTF-8编码的判断依据
+                Inc(pAnsi, 4);
+                Inc(I, 4);
+                continue;
+              end;
+            end;
+            if IsUtf8Order(AUtf8CharSize) then begin
+              if AUtf8CharSize>2 then begin//出现大于2个字节长度的UTF8序列，99%就是UTF-8了，不再判断
+                Result := teUTF8;
+                Break;
+              end;
+              Inc(pAnsi,AUtf8CharSize);
+              Inc(I, AUtf8CharSize);
+            end else begin
+              Result:=teAnsi;
+              Break;
+            end;
+          end else begin
+            if pAnsi^=0 then begin //00 xx (xx<128) 高位在前，是BE编码
+              if PByte(IntPtr(pAnsi)+1)^<128 then begin
+                Result := teUnicode16BE;
+                Break;
+              end;
+            end else if PByte(IntPtr(pAnsi)+1)^=0 then begin//xx 00 低位在前，是LE编码
+              Result:=teUnicode16LE;
+              Break;
+            end;
+            Inc(pAnsi);
+            Inc(I);
+          end;
+        end;
+        if Result = teUnknown then
+          Result := teAnsi;
+      end;
+    end;
+  end;
+end;
+
+function LoadTextA(AStream: TStream; AEncoding: TTextEncoding): StringA;
+var
+  ASize: Integer;
+  ABuffer: TBytes;
+  ABomExists: Boolean;
+begin
+  ASize := AStream.Size - AStream.Position;
+  if ASize > 0 then begin
+    SetLength(ABuffer, ASize);
+    AStream.ReadBuffer((@ABuffer[0])^, ASize);
+    if AEncoding in [teUnknown,teAuto] then
+      AEncoding := DetectTextEncoding(@ABuffer[0], ASize, ABomExists);
+    if AEncoding=teAnsi then
+      Result := AnsiString(ABuffer)
+    else if AEncoding = teUTF8 then begin
+      if ABomExists then
+        Result := AnsiEncode(Utf8Decode(@ABuffer[3], ASize-3))
+      else
+        Result := AnsiEncode(Utf8Decode(@ABuffer[0], ASize));
+      end
+    else begin
+      if AEncoding = teUnicode16BE then
+        ExchangeByteOrder(@ABuffer[0],ASize);
+      if ABomExists then
+        Result := AnsiEncode(PWideChar(@ABuffer[2]), (ASize-2) shr 1)
+      else
+        Result := AnsiEncode(PWideChar(@ABuffer[0]), ASize shr 1);
+    end;
+  end else
+    Result := '';
+end;
+
+function LoadTextU(AStream: TStream; AEncoding: TTextEncoding): StringA;
+var
+  ASize: Integer;
+  ABuffer: TBytes;
+  ABomExists: Boolean;
+  P: PAnsiChar;
+begin
+  ASize := AStream.Size - AStream.Position;
+  if ASize>0 then begin
+    SetLength(ABuffer, ASize);
+    AStream.ReadBuffer((@ABuffer[0])^, ASize);
+    if AEncoding in [teUnknown, teAuto] then
+      AEncoding:=DetectTextEncoding(@ABuffer[0],ASize,ABomExists)
+    else if ASize>=2 then begin
+      case AEncoding of
+        teUnicode16LE:
+          ABomExists:=(ABuffer[0]=$FF) and (ABuffer[1]=$FE);
+        teUnicode16BE:
+          ABomExists:=(ABuffer[1]=$FE) and (ABuffer[1]=$FF);
+        teUTF8:
+          begin
+            if ASize>3 then
+              ABomExists:=(ABuffer[0]=$EF) and (ABuffer[1]=$BB) and (ABuffer[2]=$BF)
+            else
+              ABomExists:=False;
+          end;
+      end;
+    end else
+      ABomExists:=False;
+    if AEncoding=teAnsi then
+      Result := iocp.Utils.Str.Utf8Encode(AnsiDecode(@ABuffer[0], ASize))
+    else if AEncoding = teUTF8 then begin
+      if ABomExists then begin
+        Dec(ASize, 3);
+        {$IFDEF NEXTGEN}
+        Result.From(@ABuffer[0], 3, ASize);
+        {$ELSE}
+        SetLength(Result, ASize);
+        P := @ABuffer[0];
+        Inc(P, 3);
+        Move(P^, PAnsiChar(@Result[1])^, ASize);
+        {$ENDIF}
+      end else
+        Result := AnsiString(ABuffer);
+    end else begin
+      if AEncoding=teUnicode16BE then
+        ExchangeByteOrder(@ABuffer[0],ASize);
+      if ABomExists then
+        Result := Utf8Encode(PWideChar(@ABuffer[2]), (ASize-2) shr 1)
+      else
+        Result := Utf8Encode(PWideChar(@ABuffer[0]), ASize shr 1);
+      end;
+    end
+  else
+    Result := '';
+end;
+
+function LoadTextW(AStream: TStream; AEncoding: TTextEncoding): StringW;
+var
+  ASize: Integer;
+  ABuffer: TBytes;
+  ABomExists: Boolean;
+begin
+  ASize := AStream.Size - AStream.Position;
+  if ASize>0 then begin
+    SetLength(ABuffer, ASize);
+    AStream.ReadBuffer((@ABuffer[0])^, ASize);
+    ABomExists := False;
+    // 不管是否指定编码，强制检测BOM头，避免由于编码指定不符造成问题
+    if (ABuffer[0]=$FF) and (ABuffer[1]=$FE) then begin
+      ABomExists := True;
+      AEncoding := teUnicode16LE;
+    end else if (ABuffer[1]=$FE) and (ABuffer[1]=$FF) then begin
+      ABomExists := True;
+      AEncoding := teUnicode16BE;
+    end else if (ASize > 3) and (ABuffer[0]=$EF) and (ABuffer[1]=$BB) and (ABuffer[2]=$BF) then begin
+      ABomExists := True;
+      AEncoding := teUTF8;
+    end else if AEncoding in [teUnknown, teAuto] then
+      AEncoding := DetectTextEncoding(@ABuffer[0], ASize, ABomExists);
+
+    if AEncoding = teAnsi then
+      Result := AnsiDecode(@ABuffer[0], ASize)
+    else if AEncoding = teUTF8 then begin
+      if ABomExists then
+        Result := Utf8Decode(@ABuffer[3], ASize-3)
+      else
+        Result := Utf8Decode(@ABuffer[0], ASize);
+    end else begin
+      if AEncoding = teUnicode16BE then
+        ExchangeByteOrder(@ABuffer[0], ASize);
+      if ABomExists then begin
+        Dec(ASize, 2);
+        SetLength(Result, ASize shr 1);
+        Move(ABuffer[2], PWideChar(Result)^, ASize);
+      end else begin
+        SetLength(Result, ASize shr 1);
+        Move(ABuffer[0], PWideChar(Result)^, ASize);
+      end;
+    end;
+  end else
+    Result := '';
 end;
 
 { TStringCatHelperA }
@@ -3153,6 +3698,187 @@ begin
   end;
   Inc(pd);
   FDest := pd;
+end;
+
+
+{ TStringArray }
+
+function TStringArray.Add(const P: PChar; const Len: Integer): Integer;
+begin
+  if (not Assigned(FOnFilter)) or (FOnFilter(Self, P, Len)) then begin
+    Result := FCount;
+    if Result = FCapacity then
+      Grow;
+    FList[Result].P := P;
+    FList[Result].Len := Len;
+    Inc(FCount);
+  end else
+    Result := -1;
+end;
+
+procedure TStringArray.CheckIndex(const Index: Integer);
+begin
+  if (Index < 0) or (Index >= FCount) then
+    raise Exception.Create(Format(SOutOfIndex,[Index, 0, FCount - 1]));
+end;
+
+procedure TStringArray.Clear;
+begin
+  FCount := 0;
+end;
+
+function TStringArray.GetFloat(const Index: Integer): Double;
+var
+  P: PStringArrayItem;
+begin
+  P := @FList[index];
+  if P.P = nil then
+    Result := 0
+  else
+    Result := PCharToFloat(P.P, P.Len);
+end;
+
+function TStringArray.GetItem(const Index: Integer): string;
+begin
+  CheckIndex(Index);
+  GetString(Index, Result);
+end;
+
+function TStringArray.GetItemValue(const Index: Integer): PStringArrayItem;
+begin
+  Result := @FList[index];
+end;
+
+procedure TStringArray.Grow;
+var
+  Delta: Integer;
+begin
+  if FCapacity > 64 then Delta := FCapacity div 4 else
+    if FCapacity > 8 then Delta := 16 else
+      Delta := 4;
+  SetCapacity(FCapacity + Delta);
+end;
+
+function TStringArray.GetValue(const Index: Integer): PStringArrayItem;
+begin
+  CheckIndex(Index);
+  Result := @FList[index];
+end;
+
+procedure TStringArray.GetString(const Index: Integer; var Data: string);
+var
+  P: PStringArrayItem;
+begin
+  P := @FList[index];
+  if P.P = nil then
+    Data := ''
+  else
+    SetString(Data, P.P, P.Len);
+end;
+
+function TStringArray.GetText(const ADelimiter: string): string;
+var
+  S: TStringCatHelper;
+  I: Integer;
+begin
+  if Length(FList) > 0 then begin
+    S := TStringCatHelper.Create;
+    for I := 0 to FCount - 1 do begin
+      S.Cat(FList[I].P, FList[I].Len);
+      if I < FCount - 1 then
+        S.Cat(ADelimiter);
+    end;
+    Result := S.Value;
+    S.Free;
+  end else
+    Result := '';
+end;
+
+procedure TStringArray.SetCapacity(NewCapacity: Integer);
+begin
+  SetLength(FList, NewCapacity);
+  FCapacity := NewCapacity;
+end;
+
+procedure TStringArray.SetDelimitedData(const Value: Pointer; const Len: Integer);
+var
+  P, P1, PMax: PChar;
+  C: Char;
+begin
+  if Value = nil then Exit;
+  FCount := 0;
+  FData := '';
+  P := Value;
+  C := FDelimiter;
+  P1 := P;
+  PMax := P + Len;
+  while True do begin
+    if P = PMax then begin
+      Add(P1, P - P1);
+      Break;
+    end else if P^ = C then begin
+      Add(P1, P - P1);
+      Inc(P);
+      P1 := P;
+    end else
+      Inc(P);
+  end;
+end;
+
+procedure TStringArray.SetDelimitedText(const Value: string);
+var
+  P, P1, PMax: PChar;
+  C: Char;
+begin
+  FCount := 0;
+  FData := Value;
+  P := Pointer(Value);
+  if P = nil then Exit;
+  C := FDelimiter;
+  P1 := P;
+  PMax := P + Length(Value);
+  while True do begin
+    if P = PMax then begin
+      Add(P1, P - P1);
+      Break;
+    end else if P^ = C then begin
+      Add(P1, P - P1);
+      Inc(P);
+      P1 := P;
+    end else
+      Inc(P);
+  end;
+end;
+
+procedure TStringArray.SetText(const Value: string);
+var
+  P, P1, PMax: PChar;
+begin
+  FCount := 0;
+  FData := Value;
+  P := Pointer(Value);
+  if P = nil then Exit;
+  P1 := P;
+  PMax := P + Length(Value);
+  while True do begin
+    if P = PMax then begin
+      Add(P1, P - P1);
+      Break;
+    end else if (P^ = #13) then begin
+      Add(P1, P - P1);
+      Inc(P);
+      if (P^ = #10) then
+        Inc(P);
+      P1 := P;
+    end else if (P^ = #10) then begin
+      Add(P1, P - P1);
+      Inc(P);
+      if (P^ = #13) then
+        Inc(P);
+      P1 := P;
+    end else
+      Inc(P);
+  end; 
 end;
 
 initialization

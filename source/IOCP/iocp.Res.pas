@@ -66,6 +66,7 @@ resourcestring
 
   strCannotConnect     = '当前状态下不能进行连接...';
   strConnectError      = '建立连接失败, 错误代码: %d';
+  strConnectNonExist   = '连接不存在';
   strStreamReadTimeOut = '流读取错误';
 
   
