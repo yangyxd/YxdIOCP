@@ -204,6 +204,8 @@ type
     FHttpRequestPool: TBaseQueue;
     FUploadMaxDataSize: NativeUInt;
     FAutoDecodePostParams: Boolean;
+    FWebBasePath: string;
+    FGzipFileTypes: string;
     FCharset, FContentLanguage: string;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
     FOnHttpRequest: TOnHttpRequest;
@@ -211,7 +213,8 @@ type
     FOnHttpGetSession: TOnHttpGetSession;
     FOnHttpFreeSession: TOnHttpFreeSession;
     function GetAccessControlAllow: PIocpHttpAccessControlAllow;
-    procedure SetAccessControlAllow(const Value: PIocpHttpAccessControlAllow);  protected
+    procedure SetAccessControlAllow(const Value: PIocpHttpAccessControlAllow);
+    procedure SetGzipFileTypes(const Value: string);  protected
     procedure DoRequest(ARequest: TIocpHttpRequest);
     function GetHttpRequest: TIocpHttpRequest;
     procedure FreeHttpRequest(V: TIocpHttpRequest);
@@ -238,6 +241,15 @@ type
     /// 默认响应内容语言。会在响应客户端请求时加入 Content-Language 中。
     /// </summary>
     property ContentLanguage: string read FContentLanguage write FContentLanguage;
+    /// <summary>
+    /// WEB文件夹的根目录。默认为程序所在目录下Web文件夹
+    /// </summary>
+    property WebPath: string read FWebBasePath write FWebBasePath;
+    /// <summary>
+    /// 下载文件时，自动使用GZip进行压缩的文件类型 (以";"进行分隔)
+    /// 如：'.htm;.html;.css;.js;'
+    /// </summary>
+    property GzipFileTypes: string read FGzipFileTypes write SetGzipFileTypes;
     /// <summary>
     /// 是否自动解析POST参数
     /// </summary>
@@ -278,6 +290,7 @@ type
     FHeaderSize: Integer;
     FRequestData: TMemoryStream;
     FKeepAlive: Boolean;
+    FAcceptGZip: Boolean;
     FRange: Boolean;
     FIsFormData: Byte;
     FRangeStart, FRangeEnd: Int64;
@@ -319,7 +332,6 @@ type
     procedure CheckCookieSession;
     function GetCookieItem(const Name: AnsiString): AnsiString;
     function GetSessionID: AnsiString;
-    function GetAcceptGzip: Boolean;
     function GetCharSet: AnsiString;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
@@ -420,7 +432,7 @@ type
     property Accept: AnsiString read GetAccept;
     property AcceptEncoding: AnsiString read GetAcceptEncoding;
     property AcceptLanguage: AnsiString read GetAcceptLanguage;
-    property AcceptGzip: Boolean read GetAcceptGzip;
+    property AcceptGzip: Boolean read FAcceptGZip;
     property Host: AnsiString read GetHost;
     property Referer: AnsiString read GetReferer;
     property Session: Pointer read GetSession;
@@ -543,7 +555,28 @@ type
     /// <param name="ParserContentType">是否自动解析内容类型（根据文件名称）</param>
     /// </summary>
     procedure SendFile(const FileName: string; const AContentType: string = '';
+      IsDownFile: Boolean = True; ParserContentType: Boolean = False); overload; 
+
+    /// <summary>
+    /// 发送文件
+    /// <param name="Request">下载文件的请求</param>
+    /// <param name="AContentType">内容类型（非空时不自动解析）</param>
+    /// <param name="IsDownFile">是否使用文件下载的方式</param>
+    /// <param name="ParserContentType">是否自动解析内容类型（根据文件名称）</param>
+    /// </summary>
+    procedure SendFile(Request: TIocpHttpRequest; const AContentType: string = '';
+      IsDownFile: Boolean = True; ParserContentType: Boolean = False); overload; inline;
+
+    /// <summary>
+    /// 发送文件
+    /// <param name="URI">下载文件的请求URI</param>
+    /// <param name="AContentType">内容类型（非空时不自动解析）</param>
+    /// <param name="IsDownFile">是否使用文件下载的方式</param>
+    /// <param name="ParserContentType">是否自动解析内容类型（根据文件名称）</param>
+    /// </summary>
+    procedure SendFileByURI(const URI: string; const AContentType: string = '';
       IsDownFile: Boolean = True; ParserContentType: Boolean = False);
+      
     /// <summary>
     /// 发送文件, FileName用于指定文件名称，可以不是完整路径
     ///  * 文件服务器建议将文件加载到内存，然后使用本函数来发送数据，直接用
@@ -1754,7 +1787,7 @@ procedure TIocpHttpRequest.CheckCookieSession;
 begin
   FSessionID := GetCookieItem(HTTPSESSIONID);
   if (FSessionID = '') and (Assigned(FResponse)) then begin
-    FSessionID := HTTPSESSIONID + '_' + AnsiString(NewSessionID());
+    FSessionID := AnsiString(NewSessionID());
     FResponse.AddCookie(HTTPSESSIONID, FSessionID);
   end;
 end;
@@ -1798,7 +1831,7 @@ constructor TIocpHttpRequest.Create(AOwner: TIocpHttpServer);
 begin
   FOwner := AOwner;
   FResponse := TIocpHttpResponse.Create;
-  FResponse.FRequest := Self;
+  FResponse.FRequest := Self; 
   FRequestData := TMemoryStream.Create;
   FParamHash := nil;
 end;
@@ -1920,11 +1953,6 @@ end;
 function TIocpHttpRequest.GetAcceptEncoding: AnsiString;
 begin
   Result := GetHeader('Accept-Encoding');
-end;
-
-function TIocpHttpRequest.GetAcceptGzip: Boolean;
-begin
-  Result := Pos(StringA('gzip'), GetAcceptEncoding()) > 0;
 end;
 
 function TIocpHttpRequest.GetAcceptLanguage: AnsiString;
@@ -2337,7 +2365,12 @@ begin
     FKeepAlive := True
   else
     FKeepAlive := False;
-    
+
+  // Accept GZip
+  FAcceptGZip := Pos(StringA('gzip'), GetAcceptEncoding()) > 0;
+  if Assigned(FResponse) then
+    FResponse.FGZip := FAcceptGZip;
+
   Result := True;
 end;
 
@@ -2665,6 +2698,8 @@ begin
   FSessionList := TStringHash.Create(99991);
   FSessionList.OnFreeItem := DoFreeHashItem;
   FCharset := '';
+  FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
+  GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
 end;
 
 destructor TIocpHttpServer.Destroy;
@@ -2742,6 +2777,11 @@ begin
     FAccessControlAllow := Value^;
 end;
 
+procedure TIocpHttpServer.SetGzipFileTypes(const Value: string);
+begin
+  FGzipFileTypes := LowerCase(Value);
+end;
+
 { TIocpHttpResponse }
 
 const
@@ -2809,7 +2849,7 @@ end;
 
 constructor TIocpHttpResponse.Create;
 begin
-  FGZip := True;
+  FGZip := False;
 end;
 
 destructor TIocpHttpResponse.Destroy;
@@ -3229,12 +3269,49 @@ begin
   FRequest.FConn.Send(Data);
 end;
 
-procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
+procedure TIocpHttpResponse.SendFile(Request: TIocpHttpRequest;
+  const AContentType: string; IsDownFile, ParserContentType: Boolean);
+begin
+  SendFileByURI(string(Request.URI), AContentType, IsDownFile, ParserContentType);
+end;
+
+procedure TIocpHttpResponse.SendFileByURI(const URI, AContentType: string;
   IsDownFile, ParserContentType: Boolean);
 var
+  Path: string;
+begin
+  Path := StringReplaceEx(URI, '/', '\', [rfReplaceAll]);
+  if (Length(Path) > 0) and (Path[1] = '\') then begin
+    SendFile(Request.FOwner.FWebBasePath + Copy(Path, 2, Length(Path) - 1),
+      AContentType, IsDownFile, ParserContentType)
+  end else
+    SendFile(Request.FOwner.FWebBasePath + Path, AContentType, IsDownFile, ParserContentType);
+end;
+
+procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
+  IsDownFile, ParserContentType: Boolean);
+
+  procedure SendData(S: TStream; const FileExt: string; const Last: TDateTime);
+  var
+    I: Integer;     
+  begin
+    if Length(AContentType) = 0 then begin
+      I := -1;
+      if ParserContentType then
+        I := MimeMap.ValueOf(FileExt);
+      if I < 0 then
+        SendStream(S, IsDownFile, StringA(FileName), HTTPCTTypeStream, Last)
+      else
+        SendStream(S, IsDownFile, StringA(FileName), StringA(MimeTypes[I].Value), Last);
+    end else
+      SendStream(S, IsDownFile, StringA(FileName), StringA(AContentType), Last);
+  end;
+  
+var
   S: TFileOnlyStream;
+  MS: TMemoryStream;
   Last: TDateTime;
-  I: Integer;
+  FileExt: string;
 begin
   if (not Active) then Exit;
   if not FileExists(FileName) then begin
@@ -3245,22 +3322,31 @@ begin
   // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
   if not CheckFileUpdate(Last) then
     Exit;
+  FileExt := LowerCase(ExtractFileExt(FileName));
+  // 如果未设置Gzip，客户端支持Gzip    
+  if Request.AcceptGzip then 
+    FGZip := Pos(FileExt + ';', Request.FOwner.FGzipFileTypes) > 0
+  else
+    FGZip := False;
+  MS := nil;
   S := TFileOnlyStream.Create(FileName);
   try
-    FGZip := False;
     S.Position := 0;
-    if Length(AContentType) = 0 then begin
-      I := -1;
-      if ParserContentType then
-        I := MimeMap.ValueOf(ExtractFileExt(FileName));
-      if I < 0 then
-        SendStream(S, IsDownFile, StringA(FileName), HTTPCTTypeStream, Last)
-      else
-        SendStream(S, IsDownFile, StringA(FileName), StringA(MimeTypes[I].Value), Last);
-    end else
-      SendStream(S, IsDownFile, StringA(FileName), StringA(AContentType), Last);
+    if FGZip then begin
+      MS := TMemoryStream.Create;
+      if GZCompress(S, MS) then begin
+        FreeAndNil(S);
+        MS.Position := 0;
+        SendData(MS, FileExt, Last)
+      end else begin
+        S.Position := 0;
+        SendData(S, FileExt, Last);
+      end;
+    end else 
+      SendData(S, FileExt, Last);    
   finally
-    S.Free;
+    FreeAndNil(MS);
+    FreeAndNil(S);
   end;
 end;
 

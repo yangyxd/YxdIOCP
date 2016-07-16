@@ -455,11 +455,13 @@ type
   private
     function GetItem(Index: Integer): TCookie;
     procedure SetItem(Index: Integer; const Value: TCookie);
+    function GetText: string;
   protected
     procedure Notify(Ptr: Pointer; Action: TListNotification); override;
   public
     procedure Add(const Value: TCookie);
     property Items[Index: Integer]: TCookie read GetItem write SetItem;
+    property Text: string read GetText;
   end;
 
   TCookieManager = class
@@ -476,7 +478,8 @@ type
     procedure Clear();
   public
     procedure AddCookies(const Value: string; const URL: TURI);
-    function GetCookies(const URL: TURI): string;
+    function GetCookies(const URL: TURI): string; overload;
+    function GetCookies(const URL: TURI; List: TCookies): Integer; overload;
   public
     property Cookies: TStringList read FCookies;
   end;
@@ -503,6 +506,7 @@ type
   TReceiveDataEvent = procedure(const Sender: TObject; AContentLength: Int64; AReadCount: Int64; var Abort: Boolean) of object;
   TRequestErrorEvent = procedure(const Sender: TObject; const AError: string) of object;
   TRequestCompletedEvent = procedure(const Sender: TObject; const AResponse: THttpResponse) of object;
+  TRequestRedirectEvent = procedure(const Sender: TObject; StatusCode: Integer; const NewURL: string) of object;
 
   /// <summary>
   /// HTTP状态
@@ -572,6 +576,7 @@ type
     FContentStream: TMemoryStream;
     FStream: TStream;
     FLastStreamPos: Int64;
+    FRawDataSize: Int64;
     {$IFDEF USE_COOKIES}
     FCookies: TCookies;
     {$ENDIF}
@@ -589,7 +594,12 @@ type
     function GetLastModified: string;
     function GetDate: string;
     function GetMimeType: string;
+    function GetContentType: string;
     function GetContentString: string;
+    function GetHeaderSize: Cardinal;
+    {$IFDEF USE_COOKIES}
+    function GetCookies: TCookies;
+    {$ENDIF}
   protected
     function GetHeaders: string;
     /// <summary>Returns realm attribute from Server/Proxy Authentication response</summary>
@@ -602,17 +612,20 @@ type
     destructor Destroy; override;
     
     property Header: string read GetHeaders write FHeader;
+    property HeaderSize: Cardinal read GetHeaderSize;
     property HeaderValue[const Name: string]: string read GetHeaderValue;
 
     property StatusCode: Integer read FStatusCode;
     property Version: THttpProtocolVersion read GetVersion;
 
+    property RawDataSize: Int64 read FRawDataSize;
     property LastModified: string read GetLastModified;
     property Date: string read GetDate;
     property ContentLength: Int64 read GetContentLength;
     property ContentCharSet: string read FCharSetText;
     property ContentEncoding: string read GetContentEncoding;
     property ContentLanguage: string read GetContentLanguage;
+    property ContentType: string read GetContentType;
     property MimeType: string read GetMimeType;
 
     property IsGZip: Boolean read FIsGZip;
@@ -621,7 +634,7 @@ type
     property ContentStream: TMemoryStream read FContentStream;
     property ContentString: string read GetContentString;
     {$IFDEF USE_COOKIES}
-    property Cookies: TCookies read FCookies;
+    property Cookies: TCookies read GetCookies;
     {$ENDIF}
   end;
 
@@ -632,6 +645,7 @@ type
   private
     FAllowCookies: Boolean;
     FHandleRedirects: Boolean;
+    FAutoDecodeStr: Boolean;
     FConnectionTimeOut: Integer;
     FRecvTimeOut: Integer;
 
@@ -639,6 +653,7 @@ type
     FOnReceiveData: TReceiveDataEvent;
     FOnRequestError: TRequestErrorEvent;
     FOnRequestCompleted: TRequestCompletedEvent;
+    FOnRequestRedirect: TRequestRedirectEvent;
     
     function GetAccept: string;
     function GetAcceptCharSet: string;
@@ -666,6 +681,7 @@ type
     {$IFDEF USE_COOKIES}
     FCookieMgr: TCookieManager;
     {$ENDIF}
+    FDefautlCharset: THttpCharsetType;
     
     FWSession: HINTERNET;
     FCertificateList: TCertificateList;
@@ -748,6 +764,8 @@ type
     function Put(const AURL: string; const ASource: string; ACharset: THttpCharsetType = hct_UTF8;
       const AResponseContent: TStream = nil; const AHeaders: THttpHeaders = nil): THttpResult; overload; inline;
 
+    // 是否允许响应内容自动字符串转码
+    property AutoDecodeStr: Boolean read FAutoDecodeStr write FAutoDecodeStr;
     // 是否允许记录Cookies
     property AllowCookies: Boolean read FAllowCookies write FAllowCookies;
     // 是否支持重定向
@@ -761,6 +779,8 @@ type
     property AcceptLanguage: string read GetAcceptLanguage write SetAcceptLanguage;
     property ContentType: string read GetContentType write SetContentType;
     property UserAgent: string read GetUserAgent write SetUserAgent;
+    property MaxRedirects: Integer read FMaxRedirects write FMaxRedirects;
+    property DefautlCharset: THttpCharsetType read FDefautlCharset write FDefautlCharset;
 
     /// <summary>
     /// 连接超时：单位（毫秒），连接远程主机时的超时设置。默认30秒
@@ -772,9 +792,11 @@ type
     property RecvTimeOut: Integer read FRecvTimeOut write FRecvTimeOut;
 
     property ReceiveDataCallBack: TReceiveDataCallback read FReceiveDataCallback write FReceiveDataCallback;
+  published
     property OnReceiveData: TReceiveDataEvent read FOnReceiveData write FOnReceiveData;
     property OnRequestError: TRequestErrorEvent read FOnRequestError write FOnRequestError;
     property OnRequestCompleted: TRequestCompletedEvent read FOnRequestCompleted write FOnRequestCompleted;
+    property OnRequestRedirect: TRequestRedirectEvent read FOnRequestRedirect write FOnRequestRedirect;
   end;
 
   THttpLocalClient = class(THttpClient)
@@ -797,7 +819,8 @@ type
     property RecvTimeOut;
     property ConnectionTimeOut;
 
-    property MaxRedirects: Integer read FMaxRedirects write FMaxRedirects;
+    property MaxRedirects;
+    property DefautlCharset;
 
     property OnReceiveData;
     property OnRequestError;
@@ -1824,7 +1847,7 @@ begin
     while (PV < P) and (PV^ <> ':') do Inc(PV); // 查找 ":"
     PN := PV;
     Inc(PV);
-    while (PV < PMax) and (PV = ' ') do Inc(P); // 跳过空格
+    while (PV < PMax) and (PV^ = ' ') do Inc(PV); // 跳过空格
     FData.AddItem(PCharToString(P1, PN - P1), PCharToString(PV, P - PV), True); // 添加项
     Inc(P);
     while (P < PMax) and ((P^ = ' ') or (P^ = #13) or (P^ = #10)) do Inc(P); // 跳过换行符和行首空格
@@ -2143,11 +2166,31 @@ var
 begin
   New(Item);
   Item^ := Value;
+  inherited Add(Item);
 end;
 
 function TCookies.GetItem(Index: Integer): TCookie;
 begin
   Result := PCookie(inherited Items[Index])^;
+end;
+
+function TCookies.GetText: string;
+var
+  I: Integer;
+  SB: TStringCatHelper;
+  Item: PCookie;
+begin
+  SB := TStringCatHelper.Create;
+  try
+    for I := 0 to Count - 1 do begin
+      Item := inherited Items[I];
+      SB.Cat(Item.ToString);
+      SB.Cat(sLineBreak);
+    end;
+  finally
+    Result := SB.Value;
+    SB.Free;
+  end;
 end;
 
 procedure TCookies.Notify(Ptr: Pointer; Action: TListNotification);
@@ -2211,8 +2254,9 @@ begin
 
   FCredentialsStorage := TCredentialsStorage.Create;
 
-  FConnectionTimeOut := 30000; // 默认连接超时 30 秒
-  FRecvTimeOut := 0;           // 默认无接收数据超时
+  FConnectionTimeOut := 30000;    // 默认连接超时 30 秒
+  FRecvTimeOut := 0;              // 默认无接收数据超时
+  FDefautlCharset := hct_GB2312;  // 默认使用GB2312
   
   FMaxRedirects := DefaultMaxRedirects;
   FHandleRedirects := True;
@@ -2222,6 +2266,7 @@ begin
   {$ELSE}
   FAllowCookies := False;
   {$ENDIF}
+  FAutoDecodeStr := True;
 
   FCertificateList := TCertificateList.Create;
   FWinCertList := TPCCERTCONTEXTList.Create;
@@ -2440,6 +2485,8 @@ begin
   if (AResponse.StatusCode >= 300) and (AResponse.StatusCode < 400) then // Redirect
   begin
     LURI.Create(TURI.PathRelativeToAbs(AResponse.HeaderValue[S_Location], ARequest.FURL));
+    if Assigned(FOnRequestRedirect) then
+      FOnRequestRedirect(ARequest, AResponse.StatusCode, LURI.URL);
     ARequest.UpdateRequest(LURI);
     AResponse.FStatusCode := 0;
     Result := False;
@@ -2508,7 +2555,7 @@ begin
 
       // Add Cookies
       {$IFDEF USE_COOKIES}
-      if FCookieMgr <> nil then begin
+      if AllowCookies and (FCookieMgr <> nil) then begin
         LCookieHeader := FCookieMgr.GetCookies(ARequest.FURL);
         if Length(LCookieHeader) > 0 then
           ARequest.AddHeader(S_Cookie, LCookieHeader);  // do not localize
@@ -2904,8 +2951,10 @@ begin
   PMax := P + Length(AResponse.Header);
   while P < PMax do begin
     V := AResponse.InnerGetHeaderValue(P, PMax, S_SetCookie);
-    if Length(V) > 0 then
-      FCookieMgr.AddCookies(V, AResponse.FRequest.URL);
+    if V <> '' then
+      FCookieMgr.AddCookies(V, AResponse.FRequest.URL)
+    else
+      Break;
   end;
 end;
 {$ENDIF}
@@ -3243,15 +3292,13 @@ constructor THttpResponse.Create(ARequest: THttPRequest; const AResponseStream: 
 begin
   inherited Create();
   FRequest := ARequest;
-  {$IFDEF USE_COOKIES}
-  FCookies := TCookies.Create;
-  {$ENDIF}
   FContentStream := TMemoryStream.Create;
   FStream := AResponseStream;
   if Assigned(FStream) then
     FLastStreamPos := FStream.Position
   else
     FLastStreamPos := 0;
+  FRawDataSize := 0;
 end;
 
 procedure THttpResponse.DecodeHeader;
@@ -3279,7 +3326,7 @@ procedure THttpResponse.DecodeHeader;
   var
     PMax, P2, PSS, PSAS: PAnsiChar;
   begin
-    FCharSet := hct_GB2312;
+    FCharSet := FRequest.FClient.FDefautlCharset;
     FCharSetText := ExtractHeaderSubItem(MimeType, S_CharSet);
     if Length(FCharSetText) = 0 then begin
       // 在内容中查找charset
@@ -3297,6 +3344,8 @@ procedure THttpResponse.DecodeHeader;
               Inc(PSAS);
             end;
             if P = P2 then begin
+              while (P < PMax) and ((P^ = '"') or (P^ = '''') or (P^ = ' ')) do
+                Inc(P);            
               CmpStr(P);
               Exit;
             end;
@@ -3313,6 +3362,7 @@ var
   M: TMemoryStream;
 begin
   FContentStream.Position := 0;
+  FRawDataSize := FContentStream.Size;
   FIsGZip := Pos('gzip', LowerCase(ContentEncoding)) > 0;
   if FIsGZip then begin
     M := TMemoryStream.Create;
@@ -3404,6 +3454,7 @@ var
   Buf: TBytes;
   A, Len: Int64;
 begin
+  M := nil;
   AllowFree := False;
   try
     if Assigned(FStream) then begin
@@ -3427,26 +3478,45 @@ begin
       end;
     end else
       M := FContentStream;
-
-    case FCharSet of
-      hct_GB2312, hct_GBK, hct_ISO8859_1:
-        Result := PCharToString(FContentStream.Memory, FContentStream.Size);
-      hct_UTF8:
-        Result := Utf8Decode(FContentStream.Memory, FContentStream.Size);
-      hct_UTF16:
-        {$IFDEF UNICODE}
-        Result := PChar(FContentStream.Memory);
-        {$ELSE}
-        Result := PCharWToString(FContentStream.Memory, FContentStream.Size);
-        {$ENDIF}
-      hct_BIG5: // 这个暂时不处理
-        Result := PCharToString(FContentStream.Memory, FContentStream.Size);
-    end;
+    if FRequest.FClient.FAutoDecodeStr then begin
+      case FCharSet of
+        hct_GB2312, hct_GBK, hct_ISO8859_1:
+          Result := PCharToString(M.Memory, M.Size);
+        hct_UTF8:
+          Result := Utf8Decode(M.Memory, M.Size);
+        hct_UTF16:
+          {$IFDEF UNICODE}
+          Result := PChar(M.Memory);
+          {$ELSE}
+          Result := PCharWToString(M.Memory, M.Size);
+          {$ENDIF}
+        hct_BIG5: // 这个暂时不处理
+          Result := PCharToString(M.Memory, M.Size);
+      end;
+    end else
+      Result := PCharToString(M.Memory, M.Size);
   finally
     if AllowFree then
       FreeAndNil(M);
   end;
 end;
+
+function THttpResponse.GetContentType: string;
+begin
+  Result := GetHeaderValue(S_ContentType);  
+end;
+
+{$IFDEF USE_COOKIES}
+function THttpResponse.GetCookies: TCookies;
+begin
+  if not Assigned(FCookies) then begin
+    FCookies := TCookies.Create;
+    if Assigned(FRequest) and Assigned(FRequest.FClient) then
+      FRequest.FClient.FCookieMgr.GetCookies(FRequest.URL, FCookies);
+  end;
+  Result := FCookies;
+end;
+{$ENDIF}
 
 function THttpResponse.GetDate: string;
 begin
@@ -3455,9 +3525,14 @@ end;
 
 function THttpResponse.GetHeaders: string;
 begin
-  if Length(FHeader) = 0 then
+  if FHeader = '' then
     FHeader := ReadHeader(FRequest.FWRequest, WINHTTP_QUERY_RAW_HEADERS_CRLF);
   Result := FHeader;
+end;
+
+function THttpResponse.GetHeaderSize: Cardinal;
+begin
+  Result := Length(Header);
 end;
 
 function THttpResponse.GetHeaderValue(const Name: string): string;
@@ -3476,7 +3551,7 @@ end;
 
 function THttpResponse.GetMimeType: string;
 begin
-  Result := GetHeaderValue(S_ContentType); 
+  Result := GetHeaderValue(S_ContentType);
 end;
 
 function THttpResponse.GetStatusCode: Integer;
@@ -3720,6 +3795,39 @@ begin
   finally
     FCS.Leave;
   end;
+end;
+
+function TCookieManager.GetCookies(const URL: TURI; List: TCookies): Integer;
+var
+  Domain, SubDomain, Path: string;
+  _Domain, _Path: string;
+  Index: Integer;
+  PF: PCookie;
+begin
+  FCS.Enter;
+  try
+    DoMain    := URL.Host;
+    Path      := URL.Path;
+    if Path = '' then Path := '/';
+
+    for Index := 0 to FCookies.Count - 1 do begin
+      PF := PCookie(FCookies.Objects[Index]);
+      _Domain := PF.Domain;
+      _Path   := PF.Path;
+      if StrLICompH(_Domain, DoMain) then begin
+        if Pos(_Path, Path) = 1 then
+          List.Add(PF^);
+      end else begin
+        //判读2级域名
+        SubDoMain := GetSubDomain(DoMain);
+        if IncludeSubDomin(_Domain, SubDoMain) and (Pos(_Path, Path) = 1) then
+          List.Add(PF^);
+      end;
+    end;
+  finally
+    FCS.Leave;
+  end;
+  Result := List.Count;
 end;
 
 function TCookieManager.GetSubDomain(const Domain: string): string;

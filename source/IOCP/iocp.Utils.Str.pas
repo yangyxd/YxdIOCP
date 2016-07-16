@@ -381,6 +381,11 @@ procedure HexToBin(const S: String; var AResult: TBytes); overload;
 function LoadTextA(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringA; overload;
 function LoadTextU(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringA; overload;
 function LoadTextW(AStream: TStream; AEncoding: TTextEncoding=teUnknown): StringW; overload;
+//保存文本
+procedure SaveTextA(AStream: TStream; const S: StringA);
+procedure SaveTextU(AStream: TStream; const S: StringA; AWriteBom: Boolean = True);
+procedure SaveTextW(AStream: TStream; const S: StringW; AWriteBom: Boolean = True);
+procedure SaveTextWBE(AStream: TStream; const S: StringW; AWriteBom: Boolean = True);
 //检测字符串编码
 function DetectTextEncoding(const p: Pointer; L: Integer; var b: Boolean): TTextEncoding;
 //查找字符所在行列号，返回行的起始地址
@@ -1929,6 +1934,10 @@ var
   {$ENDIF}
 begin
   if l<=0 then begin
+    if (p = nil) or (p^ = #0) then begin
+      Result := '';
+      Exit;
+    end; 
     ps := PByte(p);
     while ps^<>0 do Inc(ps);
     l := Integer(ps) - Integer(p);
@@ -3162,6 +3171,76 @@ begin
     end;
   end else
     Result := '';
+end;
+
+procedure SaveTextA(AStream: TStream; const S: AnsiString);
+begin
+  AStream.WriteBuffer(PAnsiChar(S)^, Length(S))
+end;
+
+procedure SaveTextU(AStream: TStream; const S: AnsiString; AWriteBom: Boolean);
+
+  procedure WriteBom;
+  var
+    ABom:TBytes;
+  begin
+    SetLength(ABom,3);
+    ABom[0]:=$EF;
+    ABom[1]:=$BB;
+    ABom[2]:=$BF;
+    AStream.WriteBuffer(ABom[0],3);
+  end;
+
+  procedure SaveAnsi;
+  var
+    T: AnsiString;
+  begin
+    T := iocp.Utils.Str.Utf8Encode({$IFDEF NEXTGEN}AnsiDecode(S){$ELSE}string(S){$ENDIF});
+    AStream.WriteBuffer(PAnsiChar(T)^, Length(T));
+  end;
+
+begin
+  if AWriteBom then
+    WriteBom;
+  SaveAnsi;
+end;
+
+procedure SaveTextW(AStream: TStream; const S: StringW; AWriteBom: Boolean);
+  procedure WriteBom;
+  var
+    bom: Word;
+  begin
+    bom := $FEFF;
+    AStream.WriteBuffer(bom, 2);
+  end;
+begin
+  if AWriteBom then
+    WriteBom;
+  AStream.WriteBuffer(PWideChar(S)^, System.Length(S) shl 1);
+end;
+
+procedure SaveTextWBE(AStream: TStream; const S: StringW; AWriteBom: Boolean);
+var
+  pw, pe: PWord;
+  w: Word;
+  ABuilder: TStringCatHelper;
+begin
+  pw := PWord(PWideChar(S));
+  pe := pw;
+  Inc(pe, Length(S));
+  ABuilder := TStringCatHelper.Create(IntPtr(pe)-IntPtr(pw));
+  try
+    while IntPtr(pw)<IntPtr(pe) do begin
+      w := (pw^ shr 8) or (pw^ shl 8);
+      ABuilder.Cat(@w, 1);
+      Inc(pw);
+    end;
+    if AWriteBom then
+      AStream.WriteBuffer(#$FE#$FF, 2);
+    AStream.WriteBuffer(ABuilder.Start^, Length(S) shl 1);
+  finally
+    ABuilder.Free;
+  end;
 end;
 
 { TStringCatHelperA }
