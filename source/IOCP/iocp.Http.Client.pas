@@ -3434,6 +3434,7 @@ begin
       DecompressGZip(FContentStream, M);
       FContentStream.Position := 0;
       FContentStream.Write(M.Memory^, M.Size);
+      FContentStream.Size := FContentStream.Position;
     finally
       M.Free;
     end;
