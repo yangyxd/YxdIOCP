@@ -505,7 +505,7 @@ type
   TReceiveDataCallback = procedure(const Sender: TObject; AContentLength: Int64; AReadCount: Int64; var Abort: Boolean);
   TReceiveDataEvent = procedure(const Sender: TObject; AContentLength: Int64; AReadCount: Int64; var Abort: Boolean) of object;
   TRequestErrorEvent = procedure(const Sender: TObject; const AError: string) of object;
-  TRequestCompletedEvent = procedure(const Sender: TObject; const AResponse: THttpResponse) of object;
+  TRequestCompletedEvent = procedure(const Sender: TObject; const AResult: THttpResult) of object;
   TRequestRedirectEvent = procedure(const Sender: TObject; StatusCode: Integer; const NewURL: string) of object;
 
   /// <summary>
@@ -541,6 +541,7 @@ type
 
     procedure CreateHandles(const AURI: TURI);
     procedure UpdateRequest(const AURI: TURI);
+    function GetSourceString: string;
   protected
     FURL: TURI;
     FMethodString: string;
@@ -566,6 +567,7 @@ type
 
     property URL: TURI read FURL write SetURL;
     property SourceStream: TStream read FSourceStream write FSourceStream;
+    property SourceString: string read GetSourceString;
     property Headers: string read GetHeaders;
   end;
 
@@ -595,7 +597,11 @@ type
     function GetDate: string;
     function GetMimeType: string;
     function GetContentType: string;
+    function GetContentStringStream(var M: TMemoryStream): Boolean;
     function GetContentString: string;
+    {$IFNDEF UNICODE}
+    function GetContentStringW: StringW;
+    {$ENDIF}
     function GetHeaderSize: Cardinal;
     {$IFDEF USE_COOKIES}
     function GetCookies: TCookies;
@@ -633,6 +639,9 @@ type
 
     property ContentStream: TMemoryStream read FContentStream;
     property ContentString: string read GetContentString;
+    {$IFNDEF UNICODE}
+    property ContentStringW: StringW read GetContentStringW;
+    {$ENDIF}
     {$IFDEF USE_COOKIES}
     property Cookies: TCookies read GetCookies;
     {$ENDIF}
@@ -689,7 +698,7 @@ type
     
     procedure DoOnReceiveData(const Sender: TObject; AContentLength: Int64; AReadCount: Int64; var Abort: Boolean);
     procedure DoOnRequestError(const Sender: TObject; const AError: string);
-    procedure DoOnRequestCompleted(const Sender: TObject; const AResponse: THttpResponse);
+    procedure DoOnRequestCompleted(const Sender: TObject; const AResult: THttpResult);
 
     function DoSetCredential(AnAuthTargetType: TAuthTargetType; const ARequest: THttpRequest;
       const ACredential: TCredential): Boolean; 
@@ -2309,7 +2318,7 @@ begin
   except
     DoOnRequestError(Self, Exception(ExceptObject).Message);
   end;
-  DoOnRequestCompleted(Self, Result.Response);
+  DoOnRequestCompleted(Self, Result);
 end;
 
 function THttpClient.DoExecuteRequest(const ARequest: THTTPRequest;
@@ -2320,7 +2329,7 @@ var
   Res: Boolean;
   LastError: Cardinal;
   Buffer: TBytes;
-  ToRead: Int64;
+  ToRead, LastSrcPosition: Int64;
   BytesWritten: Cardinal;
 begin
   Result := resp_Success;
@@ -2367,6 +2376,7 @@ begin
 
   // Send data
   if DataLength > 0 then begin
+    LastSrcPosition := ARequest.FSourceStream.Position;
     SetLength(Buffer, BUFFERSIZE);
     while ARequest.FSourceStream.Position < ARequest.FSourceStream.Size do begin
       ToRead := ARequest.FSourceStream.Size - ARequest.FSourceStream.Position;
@@ -2379,6 +2389,7 @@ begin
       if BytesWritten < ToRead then
         ARequest.FSourceStream.Position := ARequest.FSourceStream.Position - (ToRead - BytesWritten);
     end;
+    ARequest.FSourceStream.Position := LastSrcPosition;
   end;
 
   // Wait to receive response
@@ -2409,11 +2420,15 @@ begin
     FOnReceiveData(Sender, AContentLength, AReadCount, Abort);
 end;
 
-procedure THttpClient.DoOnRequestCompleted(const Sender: TObject;
-  const AResponse: THttpResponse);
+procedure THttpClient.DoOnRequestCompleted(const Sender: TObject; const AResult: THttpResult);
 begin
-  if Assigned(FOnRequestCompleted) then
-    FOnRequestCompleted(Sender, AResponse);
+  if Assigned(FOnRequestCompleted) then begin
+    try
+      FOnRequestCompleted(Sender, AResult);
+    except
+      DoOnRequestError(Sender, Exception(ExceptObject).Message);
+    end;
+  end;
 end;
 
 procedure THttpClient.DoOnRequestError(const Sender: TObject;
@@ -2630,6 +2645,8 @@ begin
   finally
     LClientCertificateList.Free;
     Result := LResponse;
+    if ARequest.FSourceStream <> nil then
+      ARequest.FSourceStream.Position := OrigSourceStreamPosition;
   end;
 end;
 
@@ -3105,6 +3122,8 @@ begin
     if FHeaders.FData.Exist(Item.Name) then Continue;
     FHeaders[Item.Name] := Item.Value;
   end;
+  if Assigned(FSourceStream) then    
+    FHeaders[S_ContentLength] := IntToStr(FSourceStream.Size - FSourceStream.Position);
   Result := FClient.ExecuteHTTP(Self, AResponseContent);
 end;
 
@@ -3116,6 +3135,51 @@ end;
 function THttpRequest.GetHeaderValue(const AName: string): string;
 begin
   Result := ReadHeader(FWRequest, WINHTTP_QUERY_FLAG_REQUEST_HEADERS, AName);
+end;
+
+function THttpRequest.GetSourceString: string;
+var
+  Buf: TBytes;
+  A, Len: Int64;
+  M: TMemoryStream;
+  AllowFree: Boolean;
+  LastSrcPosition: Int64;
+begin
+  Result := '';
+  M := nil;
+  AllowFree := False;
+  try
+    if Assigned(FSourceStream) then begin
+      if FSourceStream is TCustomMemoryStream then
+        M := TMemoryStream(FSourceStream)
+      else begin
+        AllowFree := True;
+        M := TMemoryStream.Create;
+        Setlength(Buf, BUFFERSIZE);
+        LastSrcPosition := FSourceStream.Position;
+        Len := FSourceStream.Size - LastSrcPosition;
+        try
+          while Len > 0 do begin
+            if Len > BUFFERSIZE then
+              A := BUFFERSIZE
+            else
+              A := Len;
+            A := FSourceStream.Read(Buf[0], A);
+            M.Write(Buf[0], A);
+            Dec(Len, A);
+          end;
+        finally
+          FSourceStream.Position := LastSrcPosition;
+          M.Position := 0;
+        end;
+      end;
+    end else
+      Exit;
+    Result := PCharToString(PAnsiChar(M.Memory) + M.Position, M.Size - M.Position);
+  finally
+    if AllowFree then     
+      FreeAndNil(M);
+  end;
 end;
 
 function THttpRequest.RemoveHeader(const AName: string): Boolean;
@@ -3451,33 +3515,11 @@ function THttpResponse.GetContentString: string;
 var
   M: TMemoryStream;
   AllowFree: Boolean;
-  Buf: TBytes;
-  A, Len: Int64;
 begin
   M := nil;
   AllowFree := False;
   try
-    if Assigned(FStream) then begin
-      if FStream is TCustomMemoryStream then
-        M := TMemoryStream(FStream)
-      else begin
-        AllowFree := True;
-        M := TMemoryStream.Create;
-        Setlength(Buf, BUFFERSIZE);
-        FStream.Position := FLastStreamPos;
-        Len := FStream.Size - FLastStreamPos;
-        while Len > 0 do begin
-          if Len > BUFFERSIZE then
-            A := BUFFERSIZE
-          else
-            A := Len;
-          A := FStream.Read(Buf[0], A);
-          M.Write(Buf[0], A);
-          Dec(Len, A);
-        end;
-      end;
-    end else
-      M := FContentStream;
+    AllowFree := GetContentStringStream(M);
     if FRequest.FClient.FAutoDecodeStr then begin
       case FCharSet of
         hct_GB2312, hct_GBK, hct_ISO8859_1:
@@ -3500,6 +3542,65 @@ begin
       FreeAndNil(M);
   end;
 end;
+
+function THttpResponse.GetContentStringStream(var M: TMemoryStream): Boolean;
+var
+  Buf: TBytes;
+  A, Len: Int64;
+begin
+  M := nil;
+  Result := False;
+  if Assigned(FStream) then begin
+    if FStream is TCustomMemoryStream then
+      M := TMemoryStream(FStream)
+    else begin
+      Result := True;
+      M := TMemoryStream.Create;
+      Setlength(Buf, BUFFERSIZE);
+      FStream.Position := FLastStreamPos;
+      Len := FStream.Size - FLastStreamPos;
+      while Len > 0 do begin
+        if Len > BUFFERSIZE then
+          A := BUFFERSIZE
+        else
+          A := Len;
+        A := FStream.Read(Buf[0], A);
+        M.Write(Buf[0], A);
+        Dec(Len, A);
+      end;
+    end;
+  end else
+    M := FContentStream;
+end;
+
+{$IFNDEF UNICODE}
+function THttpResponse.GetContentStringW: StringW;
+var
+  M: TMemoryStream;
+  AllowFree: Boolean;
+begin
+  AllowFree := False;
+  try
+    AllowFree := GetContentStringStream(M);
+    if FRequest.FClient.FAutoDecodeStr then begin
+      case FCharSet of
+        hct_GB2312, hct_GBK, hct_ISO8859_1:
+          Result := PCharToString(M.Memory, M.Size);
+        hct_UTF8:
+          Result := Utf8Decode(M.Memory, M.Size);
+        hct_UTF16:
+          Result := PCharWToString(M.Memory, M.Size);
+        hct_BIG5: // 这个暂时不处理
+          Result := PCharToString(M.Memory, M.Size);
+      end;
+    end else
+      Result := PCharToString(M.Memory, M.Size);
+  finally
+    if AllowFree then
+      FreeAndNil(M);
+  end;
+end;
+{$ENDIF}
 
 function THttpResponse.GetContentType: string;
 begin
