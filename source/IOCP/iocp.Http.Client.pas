@@ -1172,22 +1172,6 @@ begin
   QuickSort(Values, Comparer, Low(Values), High(Values));
 end;
 
-function PCharWToString(P: Pointer; Size: Integer): StringA;
-const
-  CodePage = 936;
-var
-  Len: Integer;
-begin
-  Len := WideCharToMultiByte(CodePage,
-    WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
-    P, -1, nil, 0, nil, nil);  
-  SetLength(Result, Len - 1);
-  if Len > 1 then
-    WideCharToMultiByte(CodePage,  
-      WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
-      P, -1, @Result[1], Len - 1, nil, nil);
-end;
-
 function ReadHeader(ARequest: HINTERNET; AHeaderFlag: DWORD; const AHeaderName: string = ''): string;
 var
   LSize: Cardinal;

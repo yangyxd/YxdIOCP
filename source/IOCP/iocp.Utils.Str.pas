@@ -348,6 +348,7 @@ function RightStr(const AText: WideString; const ACount: Integer): WideString; o
 function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; inline;
 function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; inline;
 function PCharToString(const P: PChar; Len: Integer): string;
+function PCharWToString(P: Pointer; Size: Integer; CodePage: Integer = 936): StringA;
 // ×Ö·û´®Ìæ»»
 function StringReplaceEx(const S, Old, New: string; AFlags: TReplaceFlags): string; overload;
 //±àÂë×ª»»
@@ -1757,10 +1758,24 @@ end;
 
 function PCharToString(const P: PChar; Len: Integer): string;
 begin
-  if Len > 0 then   
-    SetString(Result, P, Len)
+  if Len > 0 then
+    SetString(Result, P, Len{$IFDEF UNICODE} shr 1{$ENDIF})
   else
     Result := '';
+end;
+
+function PCharWToString(P: Pointer; Size, CodePage: Integer): StringA;
+var
+  Len: Integer;
+begin
+  Len := WideCharToMultiByte(CodePage,
+    WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
+    P, -1, nil, 0, nil, nil);  
+  SetLength(Result, Len - 1);
+  if Len > 1 then
+    WideCharToMultiByte(CodePage,  
+      WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
+      P, -1, @Result[1], Len - 1, nil, nil);
 end;
 
 {$IFDEF USE_STRENCODEFUNC}

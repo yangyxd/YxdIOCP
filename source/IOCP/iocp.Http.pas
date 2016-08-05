@@ -321,7 +321,7 @@ type
     function DecodeStr(const S: StringA): StringA;
     procedure DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean = False);
     procedure DecodeParams();
-    function GetDataString: StringA;
+    function GetDataStringA: StringA;
     function GetHeaderStr: StringA;
     function GetRawURL: StringA;
     function GetParamIndex(Index: Integer): StringA;
@@ -390,6 +390,10 @@ type
     /// 读取请求头中指定字段的值
     /// </summary>
     function GetHeaderParam(const Name, ParamName: StringA): StringA;
+    /// <summary>
+    /// 获取指定字符集字符串形式的请求参数
+    /// </summary>
+    function GetDataString(const ACharset: string): string;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -424,7 +428,7 @@ type
     // HTTP 请求协议版本字符串
     property RequestVersionStr: StringA read GetRequestVersionStr;
     // 字符串形式的请求参数
-    property DataString: StringA read GetDataString;
+    property DataString: StringA read GetDataStringA;
     // 请求头部长度
     property HeaderLength: Integer read FHeaderSize;
     // 区域传送开始位置
@@ -2026,20 +2030,52 @@ begin
   Result := FCookies.ToString;
 end;
 
-function TIocpHttpRequest.GetDataString: StringA;
+function TIocpHttpRequest.GetDataString(const ACharset: string): string;
 var
-  LCharSet: StringA;
+  P, Data: PAnsiChar;
+  DataLen: Integer;
 begin
-  if (FDataSize = 0) or (not Assigned(FRequestData)) then
-    Result := ''
-  else begin
-    SetString(Result, PAnsiChar(FRequestData.Memory) + FHeaderSize, 
-      FRequestData.Size - FHeaderSize);
-    // 检测客户端字符编码，看是否需要转换
-    LCharSet := LowerCase(CharSet);
-    if LCharSet = 'utf-8' then  // 如果是 UTF8，则解码一下
-      Result := StringA(UTF8Decode(PAnsiChar(Result), Length(Result)));
+  if (FDataSize = 0) or (not Assigned(FRequestData)) then begin
+    Result := '';
+    Exit;
   end;
+  P := PChar(ACharset);
+  Data := PAnsiChar(FRequestData.Memory) + FHeaderSize;
+  DataLen := FRequestData.Size - FHeaderSize;
+  // 根据字符集，解码成Ansi字符串
+  if StrLIComp(P, PAnsiChar(StringA('UTF-8')), 5) = 0 then
+    Result := UTF8Decode(Data, DataLen)
+  else if StrLIComp(P, PAnsiChar(StringA('UTF-16')), 6) = 0 then begin
+    {$IFDEF UNICODE}
+    Result := PChar(M.Memory);
+    {$ELSE}
+    Result := PCharWToString(Data, DataLen);
+    {$ENDIF}
+  end else // 其它的直接返回 (比如 GB2312, GBK, ISO-8859 等)
+    Result := PCharToString(Data, DataLen);
+end;
+
+function TIocpHttpRequest.GetDataStringA: StringA;
+var
+  P, Data: PAnsiChar;
+  LCharSet: StringA;
+  DataLen: Integer;
+begin
+  if (FDataSize = 0) or (not Assigned(FRequestData)) then begin
+    Result := '';
+    Exit;
+  end;
+  LCharSet := CharSet;
+  P := PAnsiChar(LCharSet);
+  Data := PAnsiChar(FRequestData.Memory) + FHeaderSize;
+  DataLen := FRequestData.Size - FHeaderSize;
+  // 根据字符集，解码成Ansi字符串
+  if StrLIComp(P, PAnsiChar(StringA('UTF-8')), 5) = 0 then
+    Result := StringA(UTF8Decode(Data, DataLen))
+  else if StrLIComp(P, PAnsiChar(StringA('UTF-16')), 6) = 0 then
+    Result := PCharWToString(Data, DataLen)
+  else // 其它的直接返回 (比如 GB2312, GBK, ISO-8859 等)
+    SetString(Result, Data, DataLen);
 end;
 
 // 这一块功能为实时查询，你要是有需要也可以弄成将解析结果保存起来，以加快读取速度

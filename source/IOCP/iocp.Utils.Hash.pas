@@ -137,7 +137,7 @@ type
     procedure UnLock;
     procedure Remove(const Key: string);
     function Modify(const Key: string; Value: Number): Boolean;
-    function ValueOf(const Key: string): Number;
+    function ValueOf(const Key: string; const DefaultValue: Number = -1): Number;
     function Exists(const Key: string): Boolean;  
     property OnFreeItem: TYXDStrHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
@@ -172,7 +172,7 @@ type
     procedure Clear;
     function Remove(const Key: THashType): Boolean;
     function Modify(const Key: THashType; Value: Number): Boolean;
-    function ValueOf(const Key: THashType): Number;
+    function ValueOf(const Key: THashType; const DefaultValue: Number = -1): Number;
     function Exists(const Key: THashType): Boolean;
     property OnFreeItem: TYXDIntHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
@@ -653,7 +653,7 @@ begin
   FLocker.Leave;
 end;
 
-function TStringHash.ValueOf(const Key: string): Number;
+function TStringHash.ValueOf(const Key: string; const DefaultValue: Integer): Number;
 var
   P: PHashItem;
 begin
@@ -662,7 +662,7 @@ begin
   if P <> nil then
     Result := P^.Value
   else
-    Result := -1;
+    Result := DefaultValue;
   FLocker.Leave;
 end;
 
@@ -778,7 +778,7 @@ begin
   FLocker.Leave;
 end;
 
-function TIntHash.ValueOf(const Key: THashType): Number;
+function TIntHash.ValueOf(const Key: THashType; const DefaultValue: Number): Number;
 var
   P: PIntHashItem;
 begin
@@ -787,7 +787,7 @@ begin
   if P <> nil then
     Result := P^.Value
   else
-    Result := -1;
+    Result := DefaultValue;
   FLocker.Leave;
 end;
 
