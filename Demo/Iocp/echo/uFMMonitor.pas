@@ -6,7 +6,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, iocp.Sockets, StdCtrls, ExtCtrls, psApi;
+  Dialogs, iocp, iocp.Sockets, StdCtrls, ExtCtrls, psApi;
 
 type
   TFMMonitor = class(TFrame)
@@ -37,12 +37,15 @@ type
     lblSendRequestCaption: TLabel;
     lblPCInfo: TLabel;
     lblDEBUG_ON: TLabel;
+    lblHandleCount: TLabel;
+    lblHandleCaption: TLabel;
     procedure lblRecvCaptionDblClick(Sender: TObject);
     procedure lblWorkerCountClick(Sender: TObject);
     procedure tmrReaderTimer(Sender: TObject);
     procedure RefreshState;
   private
     FIocpTcpServer: TiocpCustomTcpServer;
+    FPID: Cardinal;
     procedure Translate();
   public
     class function CreateAsChild(pvParent: TWinControl; pvIOCPTcpServer:
@@ -65,9 +68,10 @@ resourcestring
   strContext_Caption      = '连接信息';
   strOnline_Caption       = '在线信息';
   strWorkers_Caption      = '工作线程';
+  strHandle_Caption       = '句柄数量';
   strRunTime_Caption      = '运行信息';
   strDebugON_Caption      = '*调试模式';
-  
+
 
   strState_Active      = '开启';
   strState_MonitorNull = '没有创建监控器';
@@ -166,7 +170,9 @@ begin
   lblSocketHandleCaption.Caption := strSocketHandle_Caption;
   lblContextInfoCaption.Caption := strContext_Caption;
   lblWorkersCaption.Caption := strWorkers_Caption;
+  lblHandleCaption.Caption := strHandle_Caption;
   lblDEBUG_ON.Caption := strDebugON_Caption;
+  FPID := GetCurrentProcessId;
 end;
 
 // qsl
@@ -300,11 +306,12 @@ begin
   
   lblWorkerCount.Caption := Format('%d', [FIocpTcpServer.WorkerCount]);
 
+  lblHandleCount.Caption := IntToStr(iocp.GetProcessHandleCount(FPID));
 
   lblRunTimeINfo.Caption := GetRunTimeINfo;
 
   lblPCInfo.Caption := Format(strMemory_info,
-        [RollupSize(GetProcessMemUse(GetCurrentProcessId))]
+        [RollupSize(GetProcessMemUse(FPID))]
         //[GetAddressSpaceUsed / 1.0]
         );
 end;

@@ -92,6 +92,7 @@ object Form1: TForm1
     Height = 395
     ActivePage = TabSheet1
     Align = alCustom
+    Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 7
     object TabSheet1: TTabSheet
       Caption = #30417#25511#38754#26495

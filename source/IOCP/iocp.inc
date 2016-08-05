@@ -4,8 +4,9 @@
   {$DEFINE DEBUG_ON}
 {$ENDIF}
 
+// Socket 重用
 {.$DEFINE SOCKET_REUSE}
-
+// 使用HashTable
 {$DEFINE USE_HASHTABLE}
 
 {$IF (RTLVersion>=26) and (not Defined(NEXTGEN))}

@@ -3,7 +3,7 @@ unit Unit1;
 interface
 
 uses
-  iocp, iocp.http, PsAPI, utils.buffer, 
+  iocp, iocp.http, iocp.Utils.GMTTime, PsAPI, utils.buffer,
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ExtCtrls;
 
@@ -254,7 +254,7 @@ end;
 procedure TForm1.OnHttpExecute(Sender: TIocpHttpServer;
   Request: TIocpHttpRequest; Response: TIocpHttpResponse);
 var
-  Params: AnsiString;
+  Params: string;
   I: Integer;
   S: TStream;
 begin
@@ -301,18 +301,18 @@ begin
     Request.ParsePostParams;
 
   Response.SendChunkHeader(False);
-  Response.SendChunk(AnsiString(Format('远程地址: %s:%d'#13#10'<br>', [Request.Connection.RemoteAddr, Request.Connection.RemotePort])));
-  Response.SendChunk('HTTP 版本: ' + Request.RequestVersionStr + #13#10'<br>');
-  Response.SendChunk('URL: ' + Request.URL + #13#10'<br>');
-  Response.SendChunk('URI: ' + Request.URI + #13#10'<br>');
-  Response.SendChunk(AnsiString('请求头部长度: ' + IntToStr(Request.HeaderLength) + #13#10'<br>'));
-  Response.SendChunk(AnsiString('请求参数: ' + IntToStr(Request.ParamsCount) + #13#10'<br>'));
+  Response.SendChunk(Format('远程地址: %s:%d'#13#10'<br>', [Request.Connection.RemoteAddr, Request.Connection.RemotePort]));
+  Response.SendChunk('HTTP 版本: ' + string(Request.RequestVersionStr) + #13#10'<br>');
+  Response.SendChunk('URL: ' + string(Request.URL) + #13#10'<br>');
+  Response.SendChunk('URI: ' + string(Request.URI) + #13#10'<br>');
+  Response.SendChunk('请求头部长度: ' + IntToStr(Request.HeaderLength) + #13#10'<br>');
+  Response.SendChunk('请求参数: ' + IntToStr(Request.ParamsCount) + #13#10'<br>');
   Params := '';
   for I := 0 to Request.ParamsCount - 1 do
     Params := Params + '参数' + IntToStr(I+1) + ': ' + Request.Params[i] + #13#10'<br>';
   Response.SendChunk(Params + #13#10'<br>');
-  Response.SendChunk(AnsiString('请求内容长度: ' + IntToStr(Request.ContextLength) + 'Bytes'#13#10'<br>'));
-  Response.SendChunk(AnsiString('请求内容: '#13#10'<br>' + Request.DataString + #13#10'<br>'));
+  Response.SendChunk('请求内容长度: ' + IntToStr(Request.ContextLength) + 'Bytes'#13#10'<br>');
+  Response.SendChunk('请求内容: '#13#10'<br>' + string(Request.DataString) + #13#10'<br>');
   Response.SendChunkEnd;
 end;
 

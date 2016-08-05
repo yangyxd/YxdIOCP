@@ -23,7 +23,7 @@ uses
 //GMT时间处理
 function DateTimeToGMTRFC822(Const DateTime: TDateTime): string;
 function GMTRFC822ToDateTime(const pSour: AnsiString): TDateTime;
-function GetNowGMTRFC822: string;
+function GetNowGMTRFC822: AnsiString;
 
 //字符串转数字
 function PCharToInt64Def(const S: PAnsichar; Len: Integer; def: int64 = 0): int64;
@@ -221,14 +221,18 @@ end;
 
 var
   LastUpdate: Cardinal = 0;
-  LastGMTTime: string = '';
+  LastGMTTime: AnsiString = '';
   FGMTLocker: TCriticalSection;
 
-function GetNowGMTRFC822: string;
+function GetNowGMTRFC822: AnsiString;
+var
+  T: Cardinal;
 begin
-  if GetTickCount - LastUpdate > 250 then begin
+  T := GetTickCount;
+  if T - LastUpdate > 100 then begin
     FGMTLocker.Enter;
-    LastGMTTime := DateTimeToGMTRFC822(Now);
+    LastGMTTime := AnsiString(DateTimeToGMTRFC822(Now));
+    LastUpdate := T;
     FGMTLocker.Leave;
   end;
   Result := LastGMTTime;

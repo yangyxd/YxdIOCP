@@ -410,7 +410,7 @@ begin
     sin_addr.S_addr := inet_addr(PAnsichar(AnsiString(pvAddr)));
     sin_port :=  htons(pvPort);
   end;
-  Result := iocp.winapi.winsock.bind(s, TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
+  Result := iocp.winapi.winsock.bind(s, @TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
 end;
 
 function SetKeepAlive(pvSocket: TSocket; pvKeepAliveTime: Integer = 5000):

@@ -29,7 +29,26 @@ const
   SO_UPDATE_ACCEPT_CONTEXT     = $700B;
   {$EXTERNALSYM SO_CONNECT_TIME}
   SO_CONNECT_TIME = $700C;
-  
+
+  IP_V4 = 0;
+  IP_V6 = 1;
+
+const
+  {$IFNDEF DOTNET}
+  {$IFDEF USE_VCL_POSIX}
+  DIOCP_PF_INET4 = AF_INET;
+  DIOCP_PF_INET6 = AF_INET6;
+  {$ELSE}
+  DIOCP_PF_INET4 = PF_INET;
+  DIOCP_PF_INET6 = PF_INET6;
+  {$ENDIF}
+  {$ELSE}
+  DIOCP_PF_INET4 = ProtocolFamily.InterNetwork;
+  DIOCP_PF_INET6 = ProtocolFamily.InterNetworkV6;
+  {$ENDIF}
+
+  IPV6_SOCKADDR_SIZE = SizeOf(TSockAddrIn6);
+
 type
   TKeepAlive = record
     OnOff: Integer;
@@ -50,15 +69,18 @@ type
     FSocketHandle: TSocket;
     FProtocol: Integer;
     FSockType: Integer;
+    FIPVersion: Integer;
     function IsConnected: Boolean;
     function GetActive: Boolean;
     function GetIsRaw: Boolean;
     function GetIsTCP: Boolean; 
-    function GetIsUDP: Boolean; public
+    function GetIsUDP: Boolean;
+    function GetIsInvalid: Boolean; public
     constructor Create;
     destructor Destroy; override;
     procedure Close;
     procedure CreateSocket(ASockType: Integer; Protocol: Integer; IsOverlapped: Boolean);
+    procedure CheckDestroyHandle;
 
     procedure CreateRawSocket(IsOverlapped: Boolean = False); inline;
     procedure CreateTcpSocket(IsOverlapped: Boolean = False); inline;
@@ -119,8 +141,10 @@ type
     property IsRAW: Boolean read GetIsRaw;
     property IsTCP: Boolean read GetIsTCP;
     property IsUDP: Boolean read GetIsUDP;
+    property IsInvalid: Boolean read GetIsInvalid;
     property Protocol: Integer read FProtocol;
     property SockType: Integer read FSockType;
+    property IPVersion: Integer read FIPVersion write FIPVersion;
   end;
 
 var
@@ -133,20 +157,41 @@ implementation
 
 function TRawSocket.Bind(const pvAddr: AnsiString; pvPort: Word): Boolean;
 var
-  sockaddr: TSockAddrIn;
+  sockaddr: array[0..127] of byte;
+  lvSize: Integer;
 begin
-  sockaddr := GetSocketAddr(AnsiString(pvAddr), pvPort);
-  Result := iocp.Winapi.WinSock.Bind(FSocketHandle, TSockAddr(sockaddr), SizeOf(sockaddr)) = 0;
+  FillChar(sockaddr, SizeOf(sockaddr), 0);
+  if FIPVersion = IP_V4 then begin
+    PSockAddrIn(@sockaddr[0])^ := GetSocketAddr(AnsiString(pvAddr), pvPort);
+    lvSize := SizeOf(TSockAddrIn);
+  end else begin
+    PSockAddrIn6(@sockaddr[0])^.sin6_family := DIOCP_PF_INET6;
+    PSockAddrIn6(@sockaddr[0])^.sin6_port := htons(pvPort);
+    lvSize := SizeOf(TSockAddrIn6);
+  end;
+  Result := iocp.Winapi.WinSock.Bind(FSocketHandle, PSockAddr(@sockaddr[0]), lvSize) = 0;
 end;
 
 function TRawSocket.Bind(var pvAddr: TSockAddr): Boolean;
 begin
-  Result := iocp.Winapi.WinSock.Bind(FSocketHandle, pvAddr, SizeOf(pvAddr)) = 0;
+  Result := iocp.Winapi.WinSock.Bind(FSocketHandle, @pvAddr, SizeOf(pvAddr)) = 0;
 end;
 
 function TRawSocket.Cancel: Boolean;
 begin
   Result := Windows.CancelIo(FSocketHandle);
+end;
+
+procedure TRawSocket.CheckDestroyHandle;
+var
+  lvTempSocket: TSocket;
+begin
+  lvTempSocket := FSocketHandle;
+  if (lvTempSocket <> 0) and (lvTempSocket <> INVALID_SOCKET) then begin
+    FSocketHandle := INVALID_SOCKET;
+    Closesocket(lvTempSocket);
+    InterlockedIncrement(_DebugWSACloseCounter);
+  end;
 end;
 
 procedure TRawSocket.Close;
@@ -212,6 +257,7 @@ end;
 constructor TRawSocket.Create;
 begin
   FSocketHandle := INVALID_SOCKET;
+  FIPVersion := IP_V4;
 end;
 
 procedure TRawSocket.CreateRawSocket(IsOverlapped: Boolean);
@@ -222,9 +268,17 @@ end;
 procedure TRawSocket.CreateSocket(ASockType, Protocol: Integer;
   IsOverlapped: Boolean);
 begin
-  if IsOverlapped then
-    FSocketHandle := WSASocket(AF_INET, ASockType, Protocol, nil, 0, WSA_FLAG_OVERLAPPED)
-  else
+  CheckDestroyHandle();
+  if IsOverlapped then begin
+    if FIPVersion = IP_V6 then begin
+      {$IFDEF UNICODE}
+      FSocketHandle := WSASocketW(AF_INET6, ASockType, Protocol, Nil, 0, WSA_FLAG_OVERLAPPED);
+      {$ELSE}
+      FSocketHandle := WSASocketA(AF_INET6, ASockType, Protocol, Nil, 0, WSA_FLAG_OVERLAPPED);
+      {$ENDIF}
+    end else
+      FSocketHandle := WSASocket(AF_INET, ASockType, Protocol, nil, 0, WSA_FLAG_OVERLAPPED)
+  end else
     FSocketHandle := socket(AF_INET, ASockType, Protocol);
   if (FSocketHandle = 0) or (FSocketHandle = INVALID_SOCKET) then
     RaiseLastOSError;
@@ -262,6 +316,11 @@ end;
 function TRawSocket.GetActive: Boolean;
 begin
   Result := FSocketHandle <> INVALID_SOCKET;
+end;
+
+function TRawSocket.GetIsInvalid: Boolean;
+begin
+  Result := (FSocketHandle = INVALID_SOCKET) or (FSocketHandle = 0);
 end;
 
 function TRawSocket.GetIsRaw: Boolean;

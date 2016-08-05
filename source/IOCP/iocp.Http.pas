@@ -40,11 +40,11 @@ uses
   SyncObjs, Windows, Classes, SysUtils, DateUtils;
 
 const
-  HTTPLineBreak = #13#10;
-  HTTPHeaderEnd = #13#10#13#10;
-  HTTPCTTypeStream = 'application/octet-stream'; // （ 二进制流，不知道下载文件类型）
+  HTTPLineBreak: StringA = #13#10;
+  HTTPHeaderEnd: StringA = #13#10#13#10;
+  HTTPCTTypeStream: StringA = 'application/octet-stream'; // （ 二进制流，不知道下载文件类型）
   HTTPMethodLen: array [0..8] of Word = (0, 3, 4, 3, 4, 7, 6, 5, 7);
-  HTTPSESSIONID = 'diocp_sid';
+  HTTPSESSIONID: StringA = 'diocp_sid';
 
 type
   /// <summary>
@@ -91,7 +91,7 @@ type
     P: PAnsiChar;
     Len: Word;
     function IsEmpty: Boolean;
-    function ToString(): AnsiString;
+    function ToString(): StringA;
   end;
 
   /// <summary>
@@ -118,11 +118,11 @@ type
   private
     P, FC: PAnsiChar;
     Len: Integer;
-    function GetContentType: AnsiString;
-    function GetDisposition: AnsiString;
-    function GetFileName: AnsiString;
-    function GetName: AnsiString;
-    function GetContent: AnsiString;
+    function GetContentType: StringA;
+    function GetDisposition: StringA;
+    function GetFileName: StringA;
+    function GetName: StringA;
+    function GetContent: StringA;
     function GetHeaderSize: Integer;
     function GetIsFile: Boolean;
   public
@@ -135,11 +135,11 @@ type
 
     property Data: PAnsiChar read P;
     property DataSize: Integer read Len;
-    property Name: AnsiString read GetName;
-    property ContentDisposition: AnsiString read GetDisposition;
-    property ContentType: AnsiString read GetContentType;
-    property FileName: AnsiString read GetFileName;
-    property Content: AnsiString read GetContent;
+    property Name: StringA read GetName;
+    property ContentDisposition: StringA read GetDisposition;
+    property ContentType: StringA read GetContentType;
+    property FileName: StringA read GetFileName;
+    property Content: StringA read GetContent;
     property HeaderSize: Integer read GetHeaderSize;
   end;
 
@@ -149,10 +149,7 @@ type
   private
     FRequest: TIocpHttpRequest;
     FHttpState: TIocpHttpState;
-    FRequestQueue: TSimpleQueue;
-    FProcessRequesting: Boolean;
   protected
-    procedure ClearRequestTaskObject();
     procedure DoCleanUp; override;
     procedure DoJob(AJob: PIocpJob);
     procedure DoRequest(ARequest: TIocpHttpRequest);
@@ -169,10 +166,10 @@ type
   private
     FExpires: TDateTime;
     FMaxAge: Cardinal;
-    FName: AnsiString;
-    FPath: AnsiString;
-    FValue: AnsiString;
-    FDoMain: AnsiString;
+    FName: StringA;
+    FPath: StringA;
+    FValue: StringA;
+    FDoMain: StringA;
   public
     constructor Create;
     /// <summary>
@@ -181,16 +178,16 @@ type
     {$IFDEF UNICODE}
     function ToString: string; override;
     {$ELSE}
-    function ToString: AnsiString;
+    function ToString: StringA;
     {$ENDIF}
     // 指定了coolie的生存期
     property Expires: TDateTime read FExpires write FExpires;
-    property Name: AnsiString read FName write FName;
-    property Value: AnsiString read FValue write FValue;
+    property Name: StringA read FName write FName;
+    property Value: StringA read FValue write FValue;
     // 指定与cookie关联在一起的网页
-    property Path: AnsiString read FPath write FPath;
+    property Path: StringA read FPath write FPath;
     // 使多个web服务器共享cookie
-    property DoMain: AnsiString read FDoMain write FDoMain;
+    property DoMain: StringA read FDoMain write FDoMain;
     // 用秒来设置cookie的生存期
     property MaxAge: Cardinal read FMaxAge write FMaxAge;
   end;
@@ -202,11 +199,13 @@ type
   private
     FSessionList: TStringHash;
     FHttpRequestPool: TBaseQueue;
+    FHeaderBuildPool: TBaseQueue;
     FUploadMaxDataSize: NativeUInt;
+    FMaxHeaderBuildPoolSize: Integer;
     FAutoDecodePostParams: Boolean;
     FWebBasePath: string;
     FGzipFileTypes: string;
-    FCharset, FContentLanguage: string;
+    FCharset, FContentLanguage: StringA;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
     FOnHttpRequest: TOnHttpRequest;
     FOnHttpFilter: TOnHttpFilter;
@@ -215,11 +214,14 @@ type
     function GetAccessControlAllow: PIocpHttpAccessControlAllow;
     procedure SetAccessControlAllow(const Value: PIocpHttpAccessControlAllow);
     procedure SetGzipFileTypes(const Value: string);  protected
+    procedure FreeSessionList;
+    procedure DoFreeHashItem(Item: PHashItem);
+  protected
     procedure DoRequest(ARequest: TIocpHttpRequest);
     function GetHttpRequest: TIocpHttpRequest;
     procedure FreeHttpRequest(V: TIocpHttpRequest);
-    procedure FreeSessionList;
-    procedure DoFreeHashItem(Item: PHashItem);
+    function GetHeaderBuilder: TStringCatHelperA;
+    procedure FreeHeaderBuilder(V: TStringCatHelperA);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -232,15 +234,19 @@ type
     /// 跨域控制选项, 默认不启用
     /// </summary>
     property AccessControlAllow: PIocpHttpAccessControlAllow read GetAccessControlAllow write SetAccessControlAllow;
+    /// <summary>
+    /// 最大Http响应头部构造器内存池大小
+    /// </summary>
+    property MaxHeaderBuildPoolSize: Integer read FMaxHeaderBuildPoolSize write FMaxHeaderBuildPoolSize;
   published
     /// <summary>
     /// 默认字符集选项，会在响应客户端请求时加入 Content-Type 中。
     /// </summary>
-    property Charset: string read FCharset write FCharset;
+    property Charset: StringA read FCharset write FCharset;
     /// <summary>
     /// 默认响应内容语言。会在响应客户端请求时加入 Content-Language 中。
     /// </summary>
-    property ContentLanguage: string read FContentLanguage write FContentLanguage;
+    property ContentLanguage: StringA read FContentLanguage write FContentLanguage;
     /// <summary>
     /// WEB文件夹的根目录。默认为程序所在目录下Web文件夹
     /// </summary>
@@ -298,41 +304,41 @@ type
     FParams: TStrings;
     FRawURL: TIocpPointerStr;
     FURI: TIocpPointerStr;
-    FURL: AnsiString;
+    FURL: StringA;
     FFormDataBoundary: TIocpPointerStr;
     FCookies: TIocpPointerStr;
-    FSessionID : AnsiString;
+    FSessionID : StringA;
     FTag: Integer;
-    function GetAccept: AnsiString;
-    function GetAcceptEncoding: AnsiString;
-    function GetAcceptLanguage: AnsiString;
-    function GetCookies: AnsiString;
-    function GetHost: AnsiString;
-    function GetParamItem(Index: Integer): AnsiString;
-    function GetReferer: AnsiString;
+    function GetAccept: StringA;
+    function GetAcceptEncoding: StringA;
+    function GetAcceptLanguage: StringA;
+    function GetCookies: StringA;
+    function GetHost: StringA;
+    function GetParamItem(Index: Integer): StringA;
+    function GetReferer: StringA;
     function GetParamsCount: Integer;
-    function GetRequestVersionStr: AnsiString;
+    function GetRequestVersionStr: StringA;
     function DecodeStr(const S: StringA): StringA;
     procedure DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean = False);
     procedure DecodeParams();
-    function GetDataString: AnsiString;
-    function GetHeaderStr: AnsiString;
-    function GetRawURL: AnsiString;
-    function GetParamIndex(Index: Integer): AnsiString;
-    function GetURI: AnsiString;
+    function GetDataString: StringA;
+    function GetHeaderStr: StringA;
+    function GetRawURL: StringA;
+    function GetParamIndex(Index: Integer): StringA;
+    function GetURI: StringA;
     function GetIsPost: Boolean;
     function GetIsGet: Boolean;
     function GetIsPut: Boolean;
     function GetIsRange: Boolean;
     function GetIsFormData: Boolean;
-    function GetFormDataItem(const Key: AnsiString): TIocpHttpFromDataItem;
-    class function InnerGetHeader(const Key: AnsiString;
+    function GetFormDataItem(const Key: StringA): TIocpHttpFromDataItem;
+    class function InnerGetHeader(const Key: StringA;
       const Data: Pointer; DataSize: Integer): TIocpPointerStr;
     procedure InnerGetCookie;
     procedure CheckCookieSession;
-    function GetCookieItem(const Name: AnsiString): AnsiString;
-    function GetSessionID: AnsiString;
-    function GetCharSet: AnsiString;
+    function GetCookieItem(const Name: StringA): StringA;
+    function GetSessionID: StringA;
+    function GetCharSet: StringA;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
     function DecodeHttpHeader(): Boolean;
@@ -367,23 +373,23 @@ type
     /// <summary>
     /// 判断参数是否存在
     /// </summary>
-    function ExistParam(const Name: AnsiString): Boolean;
+    function ExistParam(const Name: StringA): Boolean;
     /// <summary>
     /// 读取请求参数
     /// </summary>
-    function GetParam(const Name: AnsiString): string;
+    function GetParam(const Name: StringA): string;
     /// <summary>
     /// 读取请求参数数组
     /// </summary>
-    function GetParamValues(const Name: AnsiString): TIocpArrayString;
+    function GetParamValues(const Name: StringA): TIocpArrayString;
     /// <summary>
     /// 读取请求头
     /// </summary>
-    function GetHeader(const Name: AnsiString): AnsiString;
+    function GetHeader(const Name: StringA): StringA;
     /// <summary>
     /// 读取请求头中指定字段的值
     /// </summary>
-    function GetHeaderParam(const Name, ParamName: AnsiString): AnsiString;
+    function GetHeaderParam(const Name, ParamName: StringA): StringA;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -406,19 +412,19 @@ type
     // 原始请求数据，一般为nil，Post请求一般会有数据
     property Data: TMemoryStream read FRequestData;
     // 从头信息解码器出来的Url,包含参数
-    property URL: AnsiString read FURL;
+    property URL: StringA read FURL;
     // 不带URL参数
-    property URI: AnsiString read GetURI;
+    property URI: StringA read GetURI;
     // 原始URL，带参数
-    property RawURL: AnsiString read GetRawURL;
+    property RawURL: StringA read GetRawURL;
     // 原始请求头信息
-    property Header: AnsiString read GetHeaderStr;
+    property Header: StringA read GetHeaderStr;
     // HTTP 请求协议版本
     property RequestVersion: TIocpHttpReqVer read FRequestVersion;
     // HTTP 请求协议版本字符串
-    property RequestVersionStr: AnsiString read GetRequestVersionStr;
+    property RequestVersionStr: StringA read GetRequestVersionStr;
     // 字符串形式的请求参数
-    property DataString: AnsiString read GetDataString;
+    property DataString: StringA read GetDataString;
     // 请求头部长度
     property HeaderLength: Integer read FHeaderSize;
     // 区域传送开始位置
@@ -426,23 +432,23 @@ type
     // 区域传送结束位置
     property RangeEnd: Int64 read FRangeEnd;
     // POST请求参数字符集
-    property CharSet: AnsiString read GetCharSet;
+    property CharSet: StringA read GetCharSet;
     
     // ------- 以下属性是在读的时候才从Header中解析 ---------
-    property Accept: AnsiString read GetAccept;
-    property AcceptEncoding: AnsiString read GetAcceptEncoding;
-    property AcceptLanguage: AnsiString read GetAcceptLanguage;
+    property Accept: StringA read GetAccept;
+    property AcceptEncoding: StringA read GetAcceptEncoding;
+    property AcceptLanguage: StringA read GetAcceptLanguage;
     property AcceptGzip: Boolean read FAcceptGZip;
-    property Host: AnsiString read GetHost;
-    property Referer: AnsiString read GetReferer;
+    property Host: StringA read GetHost;
+    property Referer: StringA read GetReferer;
     property Session: Pointer read GetSession;
-    property SessionID: AnsiString read GetSessionID;
-    property Cookies: AnsiString read GetCookies;
-    property Cookie[const Name: AnsiString]: AnsiString read GetCookieItem;
+    property SessionID: StringA read GetSessionID;
+    property Cookies: StringA read GetCookies;
+    property Cookie[const Name: StringA]: StringA read GetCookieItem;
     property ParamsCount: Integer read GetParamsCount;
-    property Params[Index: Integer]: AnsiString read GetParamIndex;
+    property Params[Index: Integer]: StringA read GetParamIndex;
     // 注意，本方法是实时解析，使用时注意效率
-    property FormData[const Key: AnsiString]: TIocpHttpFromDataItem read GetFormDataItem;
+    property FormData[const Key: StringA]: TIocpHttpFromDataItem read GetFormDataItem;
     property Tag: Integer read FTag write FTag;
   end;
 
@@ -490,18 +496,25 @@ type
     FGZip: Boolean;
     FBlockSendBuffer: TMemoryStream;
     FOutWriter: TIocpHttpWriter;
-    FContentType: AnsiString;
-    FContentLanguage: AnsiString;
+    FContentType: StringA;
+    FContentLanguage: StringA;
     function GetConnection: TIocpHttpConnection;
     function GetActive: Boolean;
-    function GetContentType: AnsiString;
+    function GetContentType: StringA;
   protected
-    function MakeHeader(ContextLength: Int64; const Status: AnsiString = '';
-      FileDown: Boolean = False; const FileName: AnsiString = '';
-      const LastModified: TDateTime = 0): AnsiString;
-    function GetBlockHeader: AnsiString;
+    function MakeHeader(Data: TStringCatHelperA;
+      const ContextLength: Int64; const Status: StringA = '';
+      FileDown: Boolean = False; const FileName: StringA = '';
+      const LastModified: TDateTime = 0): Boolean; overload;
+    function MakeHeader(const ContextLength: Int64; const Status: StringA = '';
+      FileDown: Boolean = False; const FileName: StringA = '';
+      const LastModified: TDateTime = 0; IsFixHeader: Boolean = False): StringA; overload;
+    function MakeFixHeader(const ContextLength: Int64; const Status: StringA = '';
+      FileDown: Boolean = False; const FileName: StringA = '';
+      const LastModified: TDateTime = 0): StringA; overload; inline;
+    function GetBlockHeader: StringA;
     procedure SendStream(Stream: TStream; IsDownloadFile: Boolean = False;
-      const AFileName: AnsiString = ''; const AContentType: AnsiString = '';
+      const AFileName: StringA = ''; const AContentType: StringA = '';
       const LastModified: TDateTime = 0);
     function CheckFileUpdate(const Last: TDateTime): Boolean;
   public
@@ -514,13 +527,13 @@ type
     /// 添加Cookie
     /// </summary>
     function AddCookie: TIocpHttpCookie; overload;
-    function AddCookie(const Name, Value: AnsiString): TIocpHttpCookie; overload;
-    function AddCookie(const Name, Value: AnsiString; MaxAge: Cardinal): TIocpHttpCookie; overload;
+    function AddCookie(const Name, Value: StringA): TIocpHttpCookie; overload;
+    function AddCookie(const Name, Value: StringA; MaxAge: Cardinal): TIocpHttpCookie; overload;
 
     /// <summary>
     /// URL重定向, 调用经方法后会发客户端发送重定向包, 重定向包发送后会关闭连接
     /// </summary>
-    procedure RedirectURL(const pvURL: AnsiString);
+    procedure RedirectURL(const pvURL: StringA);
     /// <summary>
     /// 返回代表请求错误的响应包，并断开连接
     /// </summary>
@@ -528,17 +541,17 @@ type
     /// <summary>
     /// 返回指定响应代码
     /// </summary>
-    procedure ResponeCode(Code: Word; const Data: AnsiString = '');
+    procedure ResponeCode(Code: Word; const Data: StringA = '');
     /// <summary>
     /// 返回服务器错误信息，并断开连接
     /// </summary>
-    procedure ServerError(const Msg: AnsiString);
+    procedure ServerError(const Msg: StringA);
 
     {$IFDEF UseGZip}
     // GZ 压缩数据
-    function GZCompress(const Data: AnsiString): AnsiString; overload;
-    function GZCompress(const Data: WideString): AnsiString; overload;
-    function GZCompress(Buf: Pointer; Len: Cardinal): AnsiString; overload;
+    function GZCompress(const Data: StringA): StringA; overload;
+    function GZCompress(const Data: StringW): StringA; overload;
+    function GZCompress(Buf: Pointer; Len: Cardinal): StringA; overload;
     function GZCompress(inStream, outStream: TStream): Boolean; overload;
     {$ENDIF}
 
@@ -582,27 +595,27 @@ type
     ///  * 文件服务器建议将文件加载到内存，然后使用本函数来发送数据，直接用
     ///  * SendFile会因为磁盘IO问题产生异常
     /// </summary>
-    procedure SendFileStream(AFileStream: TStream; const FileName: AnsiString = '';
-      const AContentType: AnsiString = ''; const LastModified: TDateTime = 0;
+    procedure SendFileStream(AFileStream: TStream; const FileName: StringA = '';
+      const AContentType: StringA = ''; const LastModified: TDateTime = 0;
       AGZip: Boolean = False);
-    procedure SendFileData(const Data: AnsiString; const FileName: AnsiString = '';
-      const AContentType: AnsiString = ''; const LastModified: TDateTime = 0;
+    procedure SendFileData(const Data: StringA; const FileName: StringA = '';
+      const AContentType: StringA = ''; const LastModified: TDateTime = 0;
       AGZip: Boolean = False); overload;
-    procedure SendFileData(const Data: WideString; const FileName: AnsiString = '';
-      const AContentType: AnsiString = ''; const LastModified: TDateTime = 0;
+    procedure SendFileData(const Data: StringW; const FileName: StringA = '';
+      const AContentType: StringA = ''; const LastModified: TDateTime = 0;
       AGZip: Boolean = False); overload;
     procedure SendFileData(const Data: Pointer; DataLen: Cardinal;
-      const FileName: AnsiString = '';  const AContentType: AnsiString = '';
+      const FileName: StringA = '';  const AContentType: StringA = '';
       const LastModified: TDateTime = 0; AGZip: Boolean = False); overload;
 
     /// <summary>
     /// 发送数据，全自动添加 Http 响应头 (异步)
     /// </summary>
     procedure Send(buf: Pointer; len: Cardinal; AGZip: Boolean = False); overload;
-    procedure Send(const Data: AnsiString; AGZip: Boolean = False); overload;
-    procedure Send(const Data: WideString; AGZip: Boolean = False); overload;
+    procedure Send(const Data: StringA; AGZip: Boolean = False); overload;
+    procedure Send(const Data: StringW; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
-    procedure Send(Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
+    procedure Send(var Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
 
     /// <summary>
     /// 发送HTTP响应数据头部 (异步)
@@ -613,8 +626,8 @@ type
     /// * 要使用GZip，建议的做法是先将数据压缩，再SendHeader，再调用本方法
     /// * 也可以使用分块发送的方式。
     /// </summary>
-    procedure SendContent(const Data: AnsiString); overload;
-    procedure SendContent(const Data: WideString); overload;
+    procedure SendContent(const Data: StringA); overload;
+    procedure SendContent(const Data: StringW); overload;
 
     /// <summary>
     /// 分块发送HTTP响应数据头部 (异步)
@@ -625,8 +638,8 @@ type
     /// * 每块数据不能独自Gzip，否则浏览器解码时会出错，当然要是自己处理
     /// * 可以这样做。
     /// </summary>
-    procedure SendChunk(const Data: AnsiString); overload;
-    procedure SendChunk(const Data: WideString); overload;
+    procedure SendChunk(const Data: StringA); overload;
+    procedure SendChunk(const Data: StringW); overload;
     procedure SendChunk(buf: Pointer; len: Cardinal); overload;
     procedure SendChunk(Stream: TStream); overload;
     /// <summary>
@@ -646,9 +659,9 @@ type
     // 缓存控制（浏览器缓存时间：ms)
     property CacheTime: Cardinal read FCacheTime write FCacheTime;
     // 返回内容类型, 默认text/html
-    property ContentType: AnsiString read GetContentType write FContentType;
+    property ContentType: StringA read GetContentType write FContentType;
     // 返回内容语言
-    property ContentLanguage: AnsiString read FContentLanguage write FContentLanguage;
+    property ContentLanguage: StringA read FContentLanguage write FContentLanguage;
   end;
 
 type
@@ -683,7 +696,17 @@ begin
 end;
 {$ENDIF}
 
-function FixHeader(const Header: AnsiString): AnsiString;
+procedure FixHeader(const Header: TStringCatHelperA); overload;
+begin
+  if Header.RightStr(4) <> HTTPHeaderEnd then begin
+    if Header.RightStr(2) = HTTPLineBreak then
+      Header.Cat(HTTPLineBreak)
+    else
+      Header.Cat(HTTPHeaderEnd);
+  end;
+end;
+
+function FixHeader(const Header: StringA): StringA; overload;
 begin
   if (iocp.Utils.Str.RightStr(Header, 4) <> HTTPHeaderEnd) then begin
     if (iocp.Utils.Str.RightStr(Header, 2) = HTTPLineBreak) then
@@ -1702,7 +1725,7 @@ begin
     MimeMap.Add('.' + MimeTypes[I].Key, I);
 end;
 
-function PosHeaderSubItem(const AHeaderLine, ASubItem: AnsiString;
+function PosHeaderSubItem(const AHeaderLine, ASubItem: StringA;
   var PStart, PEnd: PAnsiChar): Boolean;
 var
   P, PMax, Ps, P1, P2: PAnsiChar;
@@ -1760,7 +1783,7 @@ begin
   end;
 end;
 
-function ExtractHeaderSubItem(const AHeaderLine, ASubItem: AnsiString): AnsiString;
+function ExtractHeaderSubItem(const AHeaderLine, ASubItem: StringA): StringA;
 var
   P, P1: PAnsiChar;
 begin
@@ -1787,7 +1810,7 @@ procedure TIocpHttpRequest.CheckCookieSession;
 begin
   FSessionID := GetCookieItem(HTTPSESSIONID);
   if (FSessionID = '') and (Assigned(FResponse)) then begin
-    FSessionID := AnsiString(NewSessionID());
+    FSessionID := StringA(NewSessionID());
     FResponse.AddCookie(HTTPSESSIONID, FSessionID);
   end;
 end;
@@ -1938,34 +1961,34 @@ begin
   inherited Destroy;
 end;
 
-function TIocpHttpRequest.ExistParam(const Name: AnsiString): Boolean;
+function TIocpHttpRequest.ExistParam(const Name: StringA): Boolean;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
   Result := FParamHash.Exists(string(Name));
 end;
 
-function TIocpHttpRequest.GetAccept: AnsiString;
+function TIocpHttpRequest.GetAccept: StringA;
 begin
   Result := GetHeader('Accept');
 end;
 
-function TIocpHttpRequest.GetAcceptEncoding: AnsiString;
+function TIocpHttpRequest.GetAcceptEncoding: StringA;
 begin
   Result := GetHeader('Accept-Encoding');
 end;
 
-function TIocpHttpRequest.GetAcceptLanguage: AnsiString;
+function TIocpHttpRequest.GetAcceptLanguage: StringA;
 begin
   Result := GetHeader('Accept-Language');
 end;
 
-function TIocpHttpRequest.GetCharSet: AnsiString;
+function TIocpHttpRequest.GetCharSet: StringA;
 begin
   Result := GetHeaderParam('Content-Type', 'charset');
 end;
 
-function TIocpHttpRequest.GetCookieItem(const Name: AnsiString): AnsiString;
+function TIocpHttpRequest.GetCookieItem(const Name: StringA): StringA;
 var
   P, PMax: PAnsiChar;
   Sub: PAnsiChar;
@@ -1997,15 +2020,15 @@ begin
   end;
 end;
 
-function TIocpHttpRequest.GetCookies: AnsiString;
+function TIocpHttpRequest.GetCookies: StringA;
 begin
   InnerGetCookie();
   Result := FCookies.ToString;
 end;
 
-function TIocpHttpRequest.GetDataString: AnsiString;
+function TIocpHttpRequest.GetDataString: StringA;
 var
-  LCharSet: AnsiString;
+  LCharSet: StringA;
 begin
   if (FDataSize = 0) or (not Assigned(FRequestData)) then
     Result := ''
@@ -2021,7 +2044,7 @@ end;
 
 // 这一块功能为实时查询，你要是有需要也可以弄成将解析结果保存起来，以加快读取速度
 function TIocpHttpRequest.GetFormDataItem(
-  const Key: AnsiString): TIocpHttpFromDataItem;
+  const Key: StringA): TIocpHttpFromDataItem;
 var
   P, P1, P2, P3: PAnsiChar;
   B: Boolean;
@@ -2084,30 +2107,30 @@ begin
   Result.Len := 0;
 end;
 
-function TIocpHttpRequest.GetHeaderStr: AnsiString;
+function TIocpHttpRequest.GetHeaderStr: StringA;
 begin
   SetString(Result, PAnsiChar(FRequestData.Memory), FHeaderSize);
 end;
 
-function TIocpHttpRequest.GetHeader(const Name: AnsiString): AnsiString;
+function TIocpHttpRequest.GetHeader(const Name: StringA): StringA;
 begin
   Result := InnerGetHeader(Name, FRequestData.Memory, FHeaderSize).ToString;
 end;
 
 function TIocpHttpRequest.GetHeaderParam(const Name,
-  ParamName: AnsiString): AnsiString;
+  ParamName: StringA): StringA;
 begin
   Result := ExtractHeaderSubItem(GetHeader(Name), ParamName);
 end;
 
-function TIocpHttpRequest.GetHost: AnsiString;
+function TIocpHttpRequest.GetHost: StringA;
 begin
   Result := GetHeader('Host');
 end;
 
 function TIocpHttpRequest.GetIsFormData: Boolean;
 var
-  S: AnsiString;
+  S: StringA;
   I: Integer;
 begin
   if FIsFormData = 0 then begin
@@ -2156,14 +2179,14 @@ begin
   Result := (FRequestVersion = hv_V2) and (FRange);
 end;
 
-function TIocpHttpRequest.GetParam(const Name: AnsiString): string;
+function TIocpHttpRequest.GetParam(const Name: StringA): string;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
   Result := string(GetParamItem(FParamHash.ValueOf(LowerCase(string(Name)))));
 end;
 
-function TIocpHttpRequest.GetParamValues(const Name: AnsiString): TIocpArrayString;
+function TIocpHttpRequest.GetParamValues(const Name: StringA): TIocpArrayString;
 var
   P, P1: PHashItem;
   I, J: Integer;
@@ -2193,14 +2216,14 @@ begin
   end;
 end;
 
-function TIocpHttpRequest.GetParamIndex(Index: Integer): AnsiString;
+function TIocpHttpRequest.GetParamIndex(Index: Integer): StringA;
 begin
   if not Assigned(FParamHash) then
     DecodeParams;
   Result := GetParamItem(Index);
 end;
 
-function TIocpHttpRequest.GetParamItem(Index: Integer): AnsiString;
+function TIocpHttpRequest.GetParamItem(Index: Integer): StringA;
 begin
   if (not Assigned(FParams)) or (Index < 0) or (Index >= FParams.Count) then
     Result := ''
@@ -2216,21 +2239,21 @@ begin
     Result := 0;
 end;
 
-function TIocpHttpRequest.GetRawURL: AnsiString;
+function TIocpHttpRequest.GetRawURL: StringA;
 begin
   Result := FRawURL.ToString;
 end;
 
-function TIocpHttpRequest.GetReferer: AnsiString;
+function TIocpHttpRequest.GetReferer: StringA;
 begin
   Result := GetHeader('Referer');
 end;
 
 const
-  CSHTTP1: AnsiString = 'HTTP/1.0';
-  CSHTTP2: AnsiString = 'HTTP/1.1';
+  CSHTTP1: StringA = 'HTTP/1.0';
+  CSHTTP2: StringA = 'HTTP/1.1';
 
-function TIocpHttpRequest.GetRequestVersionStr: AnsiString;
+function TIocpHttpRequest.GetRequestVersionStr: StringA;
 begin
   case FRequestVersion of
     hv_V1: Result := CSHTTP1;
@@ -2247,14 +2270,14 @@ begin
   Result := FOwner.GetSession(string(FSessionID));
 end;
 
-function TIocpHttpRequest.GetSessionID: AnsiString;
+function TIocpHttpRequest.GetSessionID: StringA;
 begin
   if Length(FSessionID) = 0 then
     CheckCookieSession;
   Result := FSessionID;
 end;
 
-function TIocpHttpRequest.GetURI: AnsiString;
+function TIocpHttpRequest.GetURI: StringA;
 begin
   Result := FURI.ToString;
 end;
@@ -2270,7 +2293,7 @@ begin
     FCookies := InnerGetHeader('Cookie', FRequestData.Memory, FHeaderSize);
 end;
 
-class function TIocpHttpRequest.InnerGetHeader(const Key: AnsiString;
+class function TIocpHttpRequest.InnerGetHeader(const Key: StringA;
   const Data: Pointer; DataSize: Integer): TIocpPointerStr;
 var
   I: Integer;
@@ -2376,7 +2399,7 @@ end;
 
 function TIocpHttpRequest.DecodeHttpHeaderRange: Boolean;
 var
-  S: AnsiString;
+  S: StringA;
   P, P1: PAnsiChar;
 begin
   Result := False;
@@ -2449,7 +2472,7 @@ begin
   Result := (Len = 0) or (P = nil);
 end;
 
-function TIocpPointerStr.ToString: AnsiString;
+function TIocpPointerStr.ToString: StringA;
 begin
   if (Len = 0) then
     Result := ''
@@ -2465,49 +2488,35 @@ const
 var
   Obj: TIocpHttpRequest;
 begin
-  while Assigned(Self) and Assigned(Owner) and (Self.Active) do begin
-    Lock;
-    try
-      Obj := FRequestQueue.DeQueue;
-      if Obj = nil then begin
-        FProcessRequesting := False;
-        Exit;
-      end;
-    finally
-      UnLock;
+  Obj := TIocpHttpRequest(AJob.Data);
+  try
+    // 连接已经断开, 放弃处理逻辑
+    if (Self = nil) or (Owner = nil) or (not Self.Active) then
+      Exit;
+    // 已经不是当时请求的连接，放弃处理逻辑
+    if Obj.FConnHandle <> Self.Handle then begin
+      OWner.DoStateMsgE(Self, '不是当前请求的连接，放弃处理.');
+      Exit;
     end;
-    if Obj.FConnHandle <> Self.Handle then
-      Continue;
+
+    Self.LockContext(Self, DEBUGINFO);
     try
-      Self.LockContext(Self, DEBUGINFO);
-      try
-        //OutputDebugString(PChar(Obj.FURL));
-        TIocpHttpServer(Owner).DoRequest(Obj);
-      except
-        Obj.FResponse.ServerError(StringA(Exception(ExceptObject).Message));
-      end;
-      LastActivity := GetTimestamp;
-    finally
-      Self.UnLockContext(Self, DEBUGINFO);
-      Obj.Close;
+      TIocpHttpServer(Owner).DoRequest(Obj);
+    except
+      Obj.FResponse.ServerError(StringA(Exception(ExceptObject).Message));
     end;
+    Self.UnLockContext(Self, DEBUGINFO);
+
+    // 更新激活时间
+    LastActivity := GetTimestamp;
+  finally
+    Obj.Close;
   end;
 end;
 
 procedure TIocpHttpConnection.DoRequest(ARequest: TIocpHttpRequest);
 begin
-  if Assigned(ARequest) then begin
-    Lock;
-    try
-      FRequestQueue.EnQueue(ARequest);
-      if not FProcessRequesting then begin
-        FProcessRequesting := True;
-        Workers.Post(DoJob, ARequest);
-      end;
-    finally
-      UnLock;
-    end;
-  end;
+  Workers.Post(DoJob, ARequest);
 end;
 
 procedure TIocpHttpConnection.OnRecvBuffer(buf: Pointer; len: Cardinal;
@@ -2564,18 +2573,18 @@ begin
         Inc(P);  // Inc(P), 因为后面的Inc(P)不会被执行到了，所以这里先加上。
       
         if not FRequest.DecodeHttpHeader then begin
-          FRequest.FResponse.ErrorRequest(400);
+          FRequest.FResponse.ErrorRequest(400);  // 错误的请求
           Exit;
         end else begin
           if not FRequest.DecodeHttpHeaderRange() then begin
-            FRequest.FResponse.ErrorRequest(416);
+            FRequest.FResponse.ErrorRequest(416);  // 无效的请求范围
             Exit;
           end;
           if Assigned(TIocpHttpServer(Owner).FOnHttpFilter) then begin
             B := False;
             TIocpHttpServer(Owner).FOnHttpFilter(FRequest, B);
             if B then begin
-              FRequest.FResponse.ErrorRequest(403);
+              FRequest.FResponse.ErrorRequest(403);  // 禁止访问
               Exit;
             end;
           end;
@@ -2635,50 +2644,19 @@ begin
   end;
 end;
 
-procedure TIocpHttpConnection.ClearRequestTaskObject;
-var
-  Obj: TObject;
-begin
-  Lock;
-  try
-    if not FProcessRequesting then Exit; 
-    while True do begin
-      Obj := FRequestQueue.DeQueue;
-      if Obj = nil then
-        Break;
-      if Assigned(Obj) then begin
-        try
-          FreeAndNil(Obj);
-        except
-          if Assigned(Owner) then
-            Owner.DoStateMsgE(Self, Exception(ExceptObject));
-        end;
-      end;
-    end;
-  finally
-    FProcessRequesting := False;
-    UnLock;
-  end;
-end;
-
 constructor TIocpHttpConnection.Create(AOwner: TIocpCustom);
 begin
   inherited Create(AOwner);
-  FRequestQueue := TSimpleQueue.Create();
 end;
 
 destructor TIocpHttpConnection.Destroy;
 begin
-  ClearRequestTaskObject;
-  FreeAndNil(FRequestQueue);
   inherited Destroy;
 end;
 
 procedure TIocpHttpConnection.DoCleanUp;
 begin
   inherited DoCleanUp;
-  ClearRequestTaskObject;
-  FProcessRequesting := False;
   FHttpState := hsCompleted;
   if FRequest <> nil then begin
     FRequest.Close;
@@ -2692,6 +2670,8 @@ constructor TIocpHttpServer.Create(AOwner: TComponent);
 begin
   inherited;
   FHttpRequestPool := TBaseQueue.Create;
+  FHeaderBuildPool := TBaseQueue.Create;
+  FMaxHeaderBuildPoolSize := 3072;
   FAutoDecodePostParams := True;
   FUploadMaxDataSize := 1024 * 1024 * 2;  // 2M
   FContextClass := TIocpHttpConnection;
@@ -2707,8 +2687,10 @@ begin
   inherited Destroy;
   try
     FHttpRequestPool.FreeDataObject;
+    FHeaderBuildPool.FreeDataObject;
   finally
     FreeAndNil(FHttpRequestPool);
+    FreeAndNil(FHeaderBuildPool);
     FreeSessionList; 
   end;
 end;
@@ -2726,11 +2708,22 @@ end;
 
 procedure TIocpHttpServer.DoRequest(ARequest: TIocpHttpRequest);
 begin
-  if not Assigned(ARequest) then Exit;
-  if Assigned(FOnHttpRequest) then
-    FOnHttpRequest(Self, ARequest, ARequest.FResponse);
-  if not ARequest.FKeepAlive then
-    ARequest.CloseConnection;
+  if Assigned(ARequest) then begin
+    if Assigned(FOnHttpRequest) then
+      FOnHttpRequest(Self, ARequest, ARequest.FResponse);
+    if not ARequest.FKeepAlive then
+      ARequest.CloseConnection;
+  end;
+end;
+
+procedure TIocpHttpServer.FreeHeaderBuilder(V: TStringCatHelperA);
+begin
+  if Assigned(V) then begin
+    if FHeaderBuildPool.Size > FMaxHeaderBuildPoolSize then
+      V.Free
+    else
+      FHeaderBuildPool.EnQueue(V);
+  end;
 end;
 
 procedure TIocpHttpServer.FreeHttpRequest(V: TIocpHttpRequest);
@@ -2750,13 +2743,22 @@ begin
   Result := @FAccessControlAllow;
 end;
 
+function TIocpHttpServer.GetHeaderBuilder: TStringCatHelperA;
+begin
+  Result := TStringCatHelperA(FHeaderBuildPool.DeQueue);
+  if Result = nil then
+    Result := TStringCatHelperA.Create(1024);
+  Result.Reset;
+end;
+
 function TIocpHttpServer.GetHttpRequest: TIocpHttpRequest;
 begin
   Result := TIocpHttpRequest(FHttpRequestPool.DeQueue);
-  if not Assigned(Result) then
-    Result := TIocpHttpRequest.Create(Self)
-  else
-    Result.FOwner := Self;
+  if Result = nil then
+    Result := TIocpHttpRequest.Create(Self);
+  Result.Clear;
+  Result.FOwner := Self;
+  Result.FResponse.FRequest := Result;
 end;
 
 function TIocpHttpServer.GetSession(const SID: string): Pointer;
@@ -2795,14 +2797,14 @@ begin
   FCookies.Add(Result);
 end;
 
-function TIocpHttpResponse.AddCookie(const Name, Value: AnsiString): TIocpHttpCookie;
+function TIocpHttpResponse.AddCookie(const Name, Value: StringA): TIocpHttpCookie;
 begin
   Result := AddCookie;
   Result.Name := Name;
   Result.Value := Value;
 end;
 
-function TIocpHttpResponse.AddCookie(const Name, Value: AnsiString;
+function TIocpHttpResponse.AddCookie(const Name, Value: StringA;
   MaxAge: Cardinal): TIocpHttpCookie;
 begin
   Result := AddCookie;
@@ -2860,7 +2862,7 @@ begin
   inherited;
 end;
 
-function GetResponseCodeNote(V: Word): AnsiString;
+function GetResponseCodeNote(V: Word): StringA;
 begin
   case V of
     100: Result := 'Continue';
@@ -2914,7 +2916,7 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.ServerError(const Msg: AnsiString);
+procedure TIocpHttpResponse.ServerError(const Msg: StringA);
 begin
   if (not Active) then Exit;
   Send(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
@@ -2924,12 +2926,19 @@ begin
 end;
 
 procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
+var
+  Data: TStringCatHelperA;
 begin
   if (not Active) or (ErrorCode < 400) then Exit;
-  FRequest.FConn.Send(
-    FixHeader(MakeHeader(0, StringA(IntToStr(ErrorCode)) + ' ' +
-    GetResponseCodeNote(ErrorCode))));
-  FRequest.FConn.CloseConnection;
+  Data := FRequest.FOwner.GetHeaderBuilder;
+  try
+    MakeHeader(Data, 0, StringA(IntToStr(ErrorCode)) + ' ' + GetResponseCodeNote(ErrorCode));
+    FixHeader(Data);
+    FRequest.FConn.Send(Data.Memory, Data.Position, True);
+    FRequest.FConn.CloseConnection;
+  finally
+    FRequest.FOwner.FreeHeaderBuilder(Data);
+  end;
 end;
 
 function TIocpHttpResponse.GetActive: Boolean;
@@ -2940,9 +2949,11 @@ begin
     Result := False;
 end;
 
-function TIocpHttpResponse.GetBlockHeader: AnsiString;
+function TIocpHttpResponse.GetBlockHeader: StringA;
+const
+  HStr: StringA = 'Transfer-Encoding: chunked'#13#10;
 begin
-  Result := FixHeader(MakeHeader(0) + 'Transfer-Encoding: chunked'#13#10);
+  Result := FixHeader(MakeHeader(0) + HStr);
 end;
 
 function TIocpHttpResponse.GetConnection: TIocpHttpConnection;
@@ -2953,7 +2964,7 @@ begin
     Result := nil;
 end;
 
-function TIocpHttpResponse.GetContentType: AnsiString;
+function TIocpHttpResponse.GetContentType: StringA;
 begin
   if Length(FContentType) > 0 then   
     Result := FContentType
@@ -2987,9 +2998,9 @@ begin
   Result := True;
 end;
 
-function TIocpHttpResponse.GZCompress(Buf: Pointer; Len: Cardinal): AnsiString;
+function TIocpHttpResponse.GZCompress(Buf: Pointer; Len: Cardinal): StringA;
 var
-  S: AnsiString;
+  S: StringA;
 begin
   if Len = 0 then
     Result := ''
@@ -3000,9 +3011,9 @@ begin
   end;
 end;
 
-function TIocpHttpResponse.GZCompress(const Data: WideString): AnsiString;
+function TIocpHttpResponse.GZCompress(const Data: StringW): StringA;
 var
-  S: AnsiString;
+  S: StringA;
 begin
   if Length(Data) = 0 then
     Result := ''
@@ -3015,37 +3026,71 @@ end;
 {$ENDIF}
 
 {$IFDEF UseGZip}
-function TIocpHttpResponse.GZCompress(const Data: AnsiString): AnsiString;
+function TIocpHttpResponse.GZCompress(const Data: StringA): StringA;
 begin
   Result := GZCompressStr(Data);
 end;
 {$ENDIF}
 
-function TIocpHttpResponse.MakeHeader(ContextLength: Int64; const Status: AnsiString;
-  FileDown: Boolean; const FileName: AnsiString; const LastModified: TDateTime): AnsiString;
-const
-  CSVRNAME: AnsiString = #13#10'Server: DIOCP-YXD/1.0'#13#10;
-  CSDFILE: AnsiString = 'Accept-Ranges: bytes'#13#10 +
-    'Content-Disposition: attachment;filename="%s"'#13#10'Last-Modified: %s'#13#10;
-  CSCHARSET: AnsiString = 'charset=';
-  CSContentLanguage: AnsiString = 'Content-Language: ';
+function TIocpHttpResponse.MakeFixHeader(const ContextLength: Int64;
+  const Status: StringA; FileDown: Boolean; const FileName: StringA;
+  const LastModified: TDateTime): StringA;
+begin
+  Result := MakeHeader(ContextLength, Status, FileDown, FileName,
+    LastModified, True);
+end;
+
+function TIocpHttpResponse.MakeHeader(const ContextLength: Int64;
+  const Status: StringA; FileDown: Boolean; const FileName: StringA;
+  const LastModified: TDateTime; IsFixHeader: Boolean): StringA;
 var
   Data: TStringCatHelperA;
+begin
+  Data := FRequest.FOwner.GetHeaderBuilder;
+  try
+    MakeHeader(Data, ContextLength, Status, FileDown, FileName, LastModified);
+    if IsFixHeader then
+      FixHeader(Data);
+    Result := Data.Value;
+  except
+    OutputDebugString(PChar(Exception(ExceptObject).Message));
+  end;
+  FRequest.FOwner.FreeHeaderBuilder(Data);
+end;
+
+function TIocpHttpResponse.MakeHeader(Data: TStringCatHelperA;
+  const ContextLength: Int64; const Status: StringA; FileDown: Boolean;
+  const FileName: StringA; const LastModified: TDateTime): Boolean;
+const
+  CSStatusOK: StringA = ' 200 OK';
+  CSVRNAME: StringA = #13#10'Server: DIOCP-YXD/1.0'#13#10;
+  CSDFILE: StringA = 'Accept-Ranges: bytes'#13#10 +
+    'Content-Disposition: attachment;filename="%s"'#13#10'Last-Modified: %s'#13#10;
+  CSCHARSET: StringA = 'charset=';
+  CSContentLanguage: StringA = 'Content-Language: ';
+  CSConnectionKeepAlive: StringA = 'Connection: Keep-Alive'#13#10;
+  CSConnectionClose: StringA = 'Connection: close'#13#10;
+  CSSetCookie: StringA = 'Set-Cookie:';
+  CSDate: StringA = 'Date: ';
+  CSContentType: StringA = 'Content-Type: ';
+  CSContentLength: StringA = 'Content-Length: ';
+  CSContentEncodeGzip: StringA = 'Content-Encoding: gzip'#13#10;
+  CSCacheControlMaxAge: StringA = 'Cache-Control: max-age=';
+var
   I: Integer;
 begin
-  Data := TStringCatHelperA.Create;
   Data.Cat(FRequest.RequestVersionStr);
   if (Length(Status) = 0) then begin
     // 处理区域传送 (用于断点传输)
     if FileDown and FRequest.IsRange then begin
       Data.Cat(' 206 Partial Content');
     end else
-      Data.Cat(' 200 OK');
+      Data.Cat(CSStatusOK);
   end else
-    Data.Cat(' ').Cat(Status);
+    Data.Space(1).Cat(Status);
   Data.Cat(CSVRNAME);
 
-  Data.Cat('Date: ').Cat(GetNowGMTRFC822()).Cat(HTTPLineBreak);
+  Data.Cat(CSDate).Cat(GetNowGMTRFC822()).Cat(HTTPLineBreak);
 
   // Content-Language
   if Length(FContentLanguage) > 0 then
@@ -3054,7 +3099,7 @@ begin
     Data.Cat(CSContentLanguage).Cat(FRequest.FOwner.FContentLanguage).Cat(HTTPLineBreak);
 
   // Content-Type
-  Data.Cat('Content-Type: ').Cat(GetContentType);
+  Data.Cat(CSContentType).Cat(GetContentType);
   if Length(FRequest.FOwner.FCharset) > 0 then begin
     if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
       Data.Cat('; ').Cat(CSCHARSET).Cat(FRequest.FOwner.FCharset);
@@ -3062,18 +3107,18 @@ begin
   Data.Cat(HTTPLineBreak);
 
   //if ContextLength > 0 then
-  Data.Cat('Content-Length: ').Cat(ContextLength).Cat(HTTPLineBreak);
+  Data.Cat(CSContentLength).Cat(ContextLength).Cat(HTTPLineBreak);
 
   {$IFDEF UseGZip}
   if FGZip then
-    Data.Cat('Content-Encoding: gzip'#13#10);
+    Data.Cat(CSContentEncodeGzip);
   {$ENDIF}
 
   // 跨域控制
   FRequest.FOwner.AccessControlAllow.MakerHeader(Data);
 
   if FCacheTime > 0 then
-    Data.Cat('Cache-Control: max-age=').Cat(FCacheTime).Cat(HTTPLineBreak);
+    Data.Cat(CSCacheControlMaxAge).Cat(FCacheTime).Cat(HTTPLineBreak);
     
   if FileDown then begin
     if LastModified > 0 then
@@ -3085,19 +3130,18 @@ begin
 
   if Assigned(FCookies) then begin  
     for I := 0 to FCookies.Count - 1 do
-      Data.Cat('Set-Cookie:').Cat(TIocpHttpCookie(FCookies[i]).ToString()).Cat(HTTPLineBreak);
+      Data.Cat(CSSetCookie).Cat(TIocpHttpCookie(FCookies[i]).ToString()).Cat(HTTPLineBreak);
   end;
   
   if Request.FKeepAlive then
-    Data.Cat('Connection: Keep-Alive'#13#10)
+    Data.Cat(CSConnectionKeepAlive)
   else
-    Data.Cat('Connection: close'#13#10);
+    Data.Cat(CSConnectionClose);
 
-  Result := Data.Value;
-  Data.Free;
+  Result := True;
 end;
 
-procedure TIocpHttpResponse.RedirectURL(const pvURL: AnsiString);
+procedure TIocpHttpResponse.RedirectURL(const pvURL: StringA);
 begin
   if (not Active) or (Length(pvURL) = 0) then Exit;
   FRequest.FConn.Send(
@@ -3105,12 +3149,12 @@ begin
   FRequest.FConn.CloseConnection;
 end;
 
-procedure TIocpHttpResponse.ResponeCode(Code: Word; const Data: AnsiString);
+procedure TIocpHttpResponse.ResponeCode(Code: Word; const Data: StringA);
 begin
   if (not Active) or (Code < 100) then Exit;
   FRequest.FConn.Send(
-    FixHeader(MakeHeader(Length(Data), StringA(IntToStr(Code)) + ' ' +
-    GetResponseCodeNote(Code))) + Data);
+    MakeFixHeader(Length(Data), StringA(IntToStr(Code)) + ' ' +
+      GetResponseCodeNote(Code)) + Data);
 end;
 
 const
@@ -3118,7 +3162,7 @@ const
 
 procedure TIocpHttpResponse.Send(buf: Pointer; len: Cardinal; AGZip: Boolean);
 var
-  s: AnsiString;
+  s: StringA;
 begin
   if (not Active) then Exit;
   if (len = 0) or (buf = nil) then begin
@@ -3130,30 +3174,30 @@ begin
   if AGZip then begin
     s := GZCompress(buf, len);
     if Length(s) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))));
+      FRequest.FConn.Send(MakeFixHeader(Length(s)));
       FRequest.FConn.Send(s);
     end else
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))) + s);
+      FRequest.FConn.Send(MakeFixHeader(Length(s)) + s);
   end else
   {$ENDIF}
   begin  
     if len > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(len)));
+      FRequest.FConn.Send(MakeFixHeader(len));
       FRequest.FConn.Send(buf, len);
     end else begin
       SetString(s, PAnsiChar(buf), len);
       CopyMemory(@s[1], buf, len);
-      FRequest.FConn.Send(FixHeader(MakeHeader(len)) + s);
+      FRequest.FConn.Send(MakeFixHeader(len) + s);
     end;
   end;
 end;
 
-procedure WriteStringToStream(Stream: TStream; const V: AnsiString); overload;
+procedure WriteStringToStream(Stream: TStream; const V: StringA); overload;
 begin
   Stream.Write(V[1], Length(V));
 end;
 
-procedure WriteStringToStream(Stream: TStream; const V: WideString); overload;
+procedure WriteStringToStream(Stream: TStream; const V: StringW); overload;
 begin
   Stream.Write(Pointer(V)^, Length(V) shl 1);
 end;
@@ -3189,31 +3233,31 @@ begin
     SendStream(Stream);
 end;
 
-procedure TIocpHttpResponse.SendChunk(const Data: AnsiString);
+procedure TIocpHttpResponse.SendChunk(const Data: StringA);
 begin
   if (not Active) or (not Assigned(FBlockSendBuffer)) then Exit;
   if Length(Data) = 0 then Exit;
-  WriteStringToStream(FBlockSendBuffer, AnsiString(IntToHex(Length(Data), 2) + HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(IntToHex(Length(Data), 2)) + HTTPLineBreak);
   WriteStringToStream(FBlockSendBuffer, Data);
-  WriteStringToStream(FBlockSendBuffer, AnsiString(HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(HTTPLineBreak));
 end;
 
-procedure TIocpHttpResponse.SendChunk(const Data: WideString);
+procedure TIocpHttpResponse.SendChunk(const Data: StringW);
 begin
   if (not Active) or (not Assigned(FBlockSendBuffer)) then Exit;
   if Length(Data) = 0 then Exit;
-  WriteStringToStream(FBlockSendBuffer, AnsiString(IntToHex(Length(Data) shl 1, 2) + HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(IntToHex(Length(Data) shl 1, 2)) + HTTPLineBreak);
   WriteStringToStream(FBlockSendBuffer, Data);
-  WriteStringToStream(FBlockSendBuffer, AnsiString(HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(HTTPLineBreak));
 end;
 
 procedure TIocpHttpResponse.SendChunk(buf: Pointer; len: Cardinal);
 begin
   if (not Active) or (not Assigned(FBlockSendBuffer)) then Exit;
   if len = 0 then Exit;
-  WriteStringToStream(FBlockSendBuffer, AnsiString(IntToHex(len, 2) + HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(IntToHex(len, 2)) + HTTPLineBreak);
   FBlockSendBuffer.Write(buf^, len);
-  WriteStringToStream(FBlockSendBuffer, AnsiString(HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(HTTPLineBreak));
 end;
 
 procedure TIocpHttpResponse.SendChunk(Stream: TStream);
@@ -3225,7 +3269,7 @@ begin
   if (not Active) or (not Assigned(FBlockSendBuffer)) then Exit;
   I := Stream.Size - Stream.Position;
   if I = 0 then Exit;
-  WriteStringToStream(FBlockSendBuffer, AnsiString(IntToHex(I, 2) + HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(IntToHex(I, 2)) + HTTPLineBreak);
   if (Stream is TMemoryStream) then begin
     P := Pointer(IntPtr(TMemoryStream(Stream).Memory) + Stream.Position);
     FBlockSendBuffer.Write(P^, I);
@@ -3241,13 +3285,13 @@ begin
       end;
     end;
   end;
-  WriteStringToStream(FBlockSendBuffer, AnsiString(HTTPLineBreak));
+  WriteStringToStream(FBlockSendBuffer, StringA(HTTPLineBreak));
 end;
 
 procedure TIocpHttpResponse.SendChunkEnd;
 begin
   if not Assigned(FBlockSendBuffer) then Exit;
-  WriteStringToStream(FBlockSendBuffer, AnsiString('0' + HTTPHeaderEnd));
+  WriteStringToStream(FBlockSendBuffer, StringA('0' + HTTPHeaderEnd));
   FBlockSendBuffer.Position := 0;
   FRequest.FConn.Send(FBlockSendBuffer);
   FBlockSendBuffer.Clear;
@@ -3263,7 +3307,7 @@ begin
   WriteStringToStream(FBlockSendBuffer, GetBlockHeader);
 end;
 
-procedure TIocpHttpResponse.SendContent(const Data: WideString);
+procedure TIocpHttpResponse.SendContent(const Data: StringW);
 begin
   if (not Active) then Exit;
   FRequest.FConn.Send(Data);
@@ -3350,8 +3394,8 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.SendFileData(const Data: AnsiString; const FileName,
-  AContentType: AnsiString; const LastModified: TDateTime; AGZip: Boolean);
+procedure TIocpHttpResponse.SendFileData(const Data: StringA; const FileName,
+  AContentType: StringA; const LastModified: TDateTime; AGZip: Boolean);
 var
   S: TIocpPointerStream;
 begin
@@ -3365,8 +3409,8 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.SendFileData(const Data: WideString; const FileName,
-  AContentType: AnsiString; const LastModified: TDateTime; AGZip: Boolean);
+procedure TIocpHttpResponse.SendFileData(const Data: StringW; const FileName,
+  AContentType: StringA; const LastModified: TDateTime; AGZip: Boolean);
 var
   S: TIocpPointerStream;
 begin
@@ -3381,7 +3425,7 @@ begin
 end;
 
 procedure TIocpHttpResponse.SendFileData(const Data: Pointer; DataLen: Cardinal;
-  const FileName, AContentType: AnsiString; const LastModified: TDateTime;
+  const FileName, AContentType: StringA; const LastModified: TDateTime;
   AGZip: Boolean);
 var
   S: TIocpPointerStream;
@@ -3397,7 +3441,7 @@ begin
 end;
 
 procedure TIocpHttpResponse.SendFileStream(AFileStream: TStream;
-  const FileName, AContentType: AnsiString; const LastModified: TDateTime;
+  const FileName, AContentType: StringA; const LastModified: TDateTime;
   AGZip: Boolean);
 var
   S: TMemoryStream;
@@ -3426,7 +3470,7 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.SendContent(const Data: AnsiString);
+procedure TIocpHttpResponse.SendContent(const Data: StringA);
 begin
   if (not Active) then Exit;
   FRequest.FConn.Send(Data);
@@ -3441,7 +3485,7 @@ begin
     {$IFDEF UseGZip}
     FGZip := AGZip;
     {$ENDIF}
-    FRequest.FConn.Send(FixHeader(MakeHeader(DataSize)));
+    FRequest.FConn.Send(MakeFixHeader(DataSize));
   end;
 end;
 
@@ -3459,12 +3503,12 @@ begin
 end;
 
 procedure TIocpHttpResponse.SendStream(Stream: TStream; IsDownloadFile: Boolean;
-  const AFileName, AContentType: AnsiString; const LastModified: TDateTime);
+  const AFileName, AContentType: StringA; const LastModified: TDateTime);
 var
   L: Int64;
   I: Integer;
   Buf: array [0..4095] of Byte;
-  Header: AnsiString;
+  Header: StringA;
   IsRange: Boolean;
   T: TDateTime;
 begin
@@ -3510,12 +3554,12 @@ begin
       if FRequest.FRangeStart > 0 then
         Stream.Position := Stream.Position + FRequest.FRangeStart;
     end else begin
-      Header := FixHeader(MakeHeader(L, '', IsDownloadFile,
-        ExtractFileName(AFileName), LastModified));
+      Header := MakeHeader(L, '', IsDownloadFile,
+        ExtractFileName(AFileName), LastModified, True);
     end;
 
   end else
-    Header := FixHeader(MakeHeader(L));
+    Header := MakeFixHeader(L);
   if L > MaxHttpOSS then begin
     FRequest.FConn.Send(Header);
     FRequest.FConn.Send(Stream, L);
@@ -3542,15 +3586,15 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.Send(const Data: AnsiString; AGZip: Boolean);
+procedure TIocpHttpResponse.Send(const Data: StringA; AGZip: Boolean);
 {$IFDEF UseGZip}
-var s: AnsiString;
+var s: StringA;
 {$ENDIF}
 begin
   if (not Active) then Exit;
   if Length(Data) = 0 then begin
     // 0长度的返回内容，写入一个#0，否则有些浏览器会等待
-    FRequest.FConn.Send(FixHeader(MakeHeader(0)) + #0);
+    FRequest.FConn.Send(MakeFixHeader(0) + #0);
     Exit;
   end;
   {$IFDEF UseGZip}
@@ -3558,30 +3602,30 @@ begin
   if FGZip then begin
     s := GZCompressStr(Data);
     if (Length(s)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))));
+      FRequest.FConn.Send(MakeFixHeader(Length(s)));
       FRequest.FConn.Send(s);
     end else
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))) + s);
+      FRequest.FConn.Send(MakeFixHeader(Length(s)) + s);
   end else
   {$ENDIF}
   begin
     if (Length(Data)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data))));
+      FRequest.FConn.Send(MakeFixHeader(Length(Data)));
       FRequest.FConn.Send(Data);
     end else
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data))) + Data);
+      FRequest.FConn.Send(MakeFixHeader(Length(Data)) + Data);
   end;
 end;
 
-procedure TIocpHttpResponse.Send(const Data: WideString; AGZip: Boolean);
+procedure TIocpHttpResponse.Send(const Data: StringW; AGZip: Boolean);
 {$IFDEF UseGZip}
-var s: AnsiString;
+var s: StringA;
 {$ENDIF}
 begin
   if (not Active) then Exit;
   if Length(Data) = 0 then begin
     // 0长度的返回内容，写入一个#0，否则有些浏览器会等待
-    FRequest.FConn.Send(FixHeader(MakeHeader(0)) + #0);
+    FRequest.FConn.Send(MakeFixHeader(0) + #0);
     Exit;
   end;
   {$IFDEF UseGZip}
@@ -3589,29 +3633,30 @@ begin
   if FGZip then begin
     s := GZCompress(Data);
     if (Length(s)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))));
+      FRequest.FConn.Send(MakeFixHeader(Length(s)));
       FRequest.FConn.Send(s);
-    end else
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))) + s);
+    end else begin
+      FRequest.FConn.Send(MakeFixHeader(Length(s)) + s);
+    end;
   end else
   {$ENDIF}
   begin
     if (Length(Data)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)));
+      FRequest.FConn.Send(MakeFixHeader(Length(Data) shl 1));
       FRequest.FConn.Send(Data);
     end else begin
       {$IFDEF UNICODE}
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(Data) shl 1)));
+      FRequest.FConn.Send(MakeFixHeader(Length(Data) shl 1));
       FRequest.FConn.Send(Data);
       {$ELSE}
       s := Data;
-      FRequest.FConn.Send(FixHeader(MakeHeader(Length(s))) + s);
+      FRequest.FConn.Send(MakeFixHeader(Length(s)) + s);
       {$ENDIF}
     end;
   end;
 end;
 
-procedure TIocpHttpResponse.Send(Writer: TIocpHttpWriter; AGZip, AFreeWriter: Boolean);
+procedure TIocpHttpResponse.Send(var Writer: TIocpHttpWriter; AGZip, AFreeWriter: Boolean);
 begin
   try
     if Assigned(Writer) and (not Writer.IsEmpty) then begin
@@ -3625,7 +3670,7 @@ begin
         Send(Writer.ToString, AGZip);
     end else begin
       if (not Active) then Exit;
-      FRequest.FConn.Send(FixHeader(MakeHeader(0)) + #0);
+      FRequest.FConn.Send(MakeFixHeader(0) + #0);
     end;
   finally
     if AFreeWriter then
@@ -3663,7 +3708,7 @@ begin
   end;
 end;
 
-function TIocpHttpFromDataItem.GetContentType: AnsiString;
+function TIocpHttpFromDataItem.GetContentType: StringA;
 begin
   if Len = 0 then
     Result := ''
@@ -3671,7 +3716,7 @@ begin
     Result := TIocpHttpRequest.InnerGetHeader('Content-Type', P, FC - P).ToString;
 end;
 
-function TIocpHttpFromDataItem.GetDisposition: AnsiString;
+function TIocpHttpFromDataItem.GetDisposition: StringA;
 begin
   if Len = 0 then
     Result := ''
@@ -3679,14 +3724,14 @@ begin
     Result := TIocpHttpRequest.InnerGetHeader('Content-Disposition', P, FC - P).ToString;
 end;
 
-function TIocpHttpFromDataItem.GetFileName: AnsiString;
+function TIocpHttpFromDataItem.GetFileName: StringA;
 var
   I: Integer;
   P, P1: PAnsiChar;
 begin
   Result := GetDisposition;
   if Length(Result) > 0 then begin
-    I := Pos(AnsiString('filename="'), Result);
+    I := Pos(StringA('filename="'), Result);
     if I > 0 then begin
       P := PAnsiChar(Result) + I + 9;
       P1 := StrScan(P, '"');
@@ -3706,17 +3751,17 @@ end;
 
 function TIocpHttpFromDataItem.GetIsFile: Boolean;
 begin
-  Result := Pos(AnsiString('filename="'), GetDisposition) > 0;
+  Result := Pos(StringA('filename="'), GetDisposition) > 0;
 end;
 
-function TIocpHttpFromDataItem.GetName: AnsiString;
+function TIocpHttpFromDataItem.GetName: StringA;
 var
   I: Integer;
   P, P1: PAnsiChar;
 begin
   Result := GetDisposition;
   if Length(Result) > 0 then begin
-    I := Pos(AnsiString('name="'), Result);
+    I := Pos(StringA('name="'), Result);
     if I > 0 then begin
       P := PAnsiChar(Result) + I + 5;
       P1 := StrScan(P, '"');
@@ -3732,7 +3777,7 @@ begin
     Stream.Write(FC^, Len - HeaderSize);
 end;
 
-function TIocpHttpFromDataItem.GetContent: AnsiString;
+function TIocpHttpFromDataItem.GetContent: StringA;
 begin
   if (Len > 0) and (P <> nil) or (FC > P) then
     SetString(Result, FC, Len - HeaderSize)
@@ -3744,7 +3789,7 @@ end;
 
 constructor TFileOnlyStream.Create(const AFileName: string);
 begin
-  inherited Create(_lopen(PAnsiChar(AnsiString(AFileName)), OF_READ));
+  inherited Create(_lopen(PAnsiChar(StringA(AFileName)), OF_READ));
 end;
 
 destructor TFileOnlyStream.Destroy;
@@ -3761,7 +3806,7 @@ begin
   FPath := '/';
 end;
 
-function TIocpHttpCookie.ToString: {$IFDEF UNICODE}string{$ELSE}AnsiString{$ENDIF};
+function TIocpHttpCookie.ToString: {$IFDEF UNICODE}string{$ELSE}StringA{$ENDIF};
 begin
   Result := Format('%s=%s; path=%s', [FName, FValue, FPath]);
   if FExpires > 0 then   

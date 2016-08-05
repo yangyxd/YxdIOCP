@@ -675,6 +675,50 @@ type
   TSockAddrIn = sockaddr_in;
   PSockAddrIn = ^sockaddr_in;
 
+  {IPV6 Define}
+  {$EXTERNALSYM IN6_ADDR}
+  IN6_ADDR = record
+    case Integer of
+      0: (s6_bytes: array[0..15] of u_char);
+      1: (s6_words: array[0..7] of u_short);
+  end;
+  {$EXTERNALSYM ADDRESS_FAMILY}
+  ADDRESS_FAMILY = u_short;
+  {$EXTERNALSYM SCOPE_ID}
+  SCOPE_ID = record
+//    union {
+//        struct {
+//            ULONG Zone : 28;
+//            ULONG Level : 4;
+//        };
+//        ULONG Value;
+//    };
+    Value : ULONG;
+  end;
+  {$EXTERNALSYM sockaddr_in6_union}
+  sockaddr_in6_union = record
+    case Integer of
+      0 : (sin6_scope_id : ULONG);     // Set of interfaces for a scope.
+      1 : (sin6_scope_struct : SCOPE_ID);
+  end;
+  {$EXTERNALSYM SOCKADDR_IN6_LH}
+  SOCKADDR_IN6_LH = record
+    sin6_family : ADDRESS_FAMILY; // AF_INET6.
+    sin6_port : u_short;          // Transport level port number.
+    sin6_flowinfo : u_long;       // IPv6 flow information.
+    sin6_addr : IN6_ADDR;         // IPv6 address.
+    a : sockaddr_in6_union;
+  end;
+
+  {$EXTERNALSYM PSOCKADDR_IN6_LH}
+  PSOCKADDR_IN6_LH = ^SOCKADDR_IN6_LH;
+  {$EXTERNALSYM SOCKADDR_IN6}
+  SOCKADDR_IN6 = SOCKADDR_IN6_LH;
+  {$NODEFINE TSockAddrIn6}
+  TSockAddrIn6   = SOCKADDR_IN6;
+  {$NODEFINE PSockAddrIn6}
+  PSockAddrIn6   = ^TSockAddrIn6;
+
 const
   WSADESCRIPTION_LEN = 256;
   {$EXTERNALSYM WSADESCRIPTION_LEN}
@@ -2701,7 +2745,8 @@ type
 
 function accept(s: TSocket; addr: PSockAddr; addrlen: PINT): TSocket; stdcall;
 {$EXTERNALSYM accept}
-function bind(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
+//function bind(s: TSocket; var name: TSockAddr; namelen: Integer): Integer; stdcall;
+function bind(s: TSocket; const name: PSOCKADDR; namelen: Integer): Integer; stdcall;
 {$EXTERNALSYM bind}
 function closesocket(s: TSocket): Integer; stdcall;
 {$EXTERNALSYM closesocket}

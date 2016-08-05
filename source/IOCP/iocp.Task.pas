@@ -1605,7 +1605,7 @@ initialization
   {$ENDIF}
   JobPool := TJobPool.Create(1024);
   IocpWorkers := TIocpTask.Create(4);
-  IocpWorkers.MaxWorkers := 1024;
+  IocpWorkers.MaxWorkers := 128;
 
 finalization
   try

@@ -147,33 +147,41 @@ type
     procedure SetPosition(const Value: Integer);
     procedure NeedSize(ASize: Integer);
     function GetMemory: Pointer;
+    procedure SetDest(const Value: PCharA);
+    function GetLast: PCharA;
+    function GetBytes(Index: Integer): Byte;
+    function GetValueBytes: TBytes;
   public
     constructor Create; overload;
     constructor Create(ASize: Integer); overload;
     destructor Destroy; override;
-    function Cat(p: PCharA; len: Integer): TStringCatHelperA; overload;
+    function Cat(P: PCharA; len: Integer): TStringCatHelperA; overload;
     function Cat(const s: StringA): TStringCatHelperA; overload;
     function Cat(const s: StringW): TStringCatHelperA; overload;
-    function Cat(c: CharA): TStringCatHelperA; overload;
-    function Cat(const V:Int64): TStringCatHelperA;overload;
-    function Cat(const V:Double): TStringCatHelperA;overload;
-    function Cat(const V:Boolean): TStringCatHelperA;overload;
+    function Cat(C: CharA): TStringCatHelperA; overload;
+    function Cat(const V: Int64): TStringCatHelperA; overload;
+    function Cat(const V: Double): TStringCatHelperA; overload;
+    function Cat(const V: Boolean): TStringCatHelperA; overload;
     function Space(count: Integer): TStringCatHelperA;
     function Back(ALen: Integer): TStringCatHelperA;
     procedure Reset;
+    function RightStr(const ALen: Integer): StringA;
     property Value: StringA read GetValue;
+    property ValueBytes: TBytes read GetValueBytes;
     property Chars[Index: Integer]: CharA read GetChars;
     property Start: PCharA read FStart;
-    property Current: PCharA read FDest;
+    property Current: PCharA read FDest write SetDest;
+    property Last: PCharA read GetLast;
     property Position: Integer read GetPosition write SetPosition;
     property Memory: Pointer read GetMemory;
+    property Bytes[Index: Integer]: Byte read GetBytes;
   end;
 
 type
   TStringCatHelperW = class
   private
     FValue: array of CharW;
-    FStart, FDest, FLast: PCharW;
+    FStart, FDest: PCharW;
     FBlockSize: Integer;
     FSize: Integer;
     function GetValue: StringW;
@@ -183,6 +191,7 @@ type
     procedure NeedSize(ASize: Integer);
     function GetIsEmpty: Boolean;
     procedure SetDest(const Value: PCharW);
+    function GetLast: PCharW;
   public
     constructor Create; overload;
     constructor Create(ASize: Integer); overload;
@@ -204,7 +213,7 @@ type
     property Chars[Index: Integer]: CharW read GetChars;
     property Start: PCharW read FStart;
     property Current: PCharW read FDest write SetDest;
-    property Last: PCharW read FLast;
+    property Last: PCharW read GetLast;
     property Position: Integer read GetPosition write SetPosition;
     property IsEmpty: Boolean read GetIsEmpty;
   end;
@@ -3279,7 +3288,7 @@ begin
       Inc(p);
       Inc(FDest);
     end;
-  end else begin
+  end else if len > 0 then begin
     NeedSize(-len);
     Move(p^, FDest^, len);
     Inc(FDest, len);
@@ -3328,9 +3337,19 @@ begin
   inherited;
 end;
 
+function TStringCatHelperA.GetBytes(Index: Integer): Byte;
+begin
+  Result := Ord(FValue[Index]);
+end;
+
 function TStringCatHelperA.GetChars(AIndex: Integer): CharA;
 begin
   Result := FStart[AIndex];
+end;
+
+function TStringCatHelperA.GetLast: PCharA;
+begin
+  Result := FStart + FSize;
 end;
 
 function TStringCatHelperA.GetMemory: Pointer;
@@ -3349,20 +3368,31 @@ var
 begin
   L := FDest - PCharA(FValue);
   SetLength(Result, L);
-  Move(FStart^, PCharA(Result)^, L);
+  if L > 0 then
+    Move(FStart^, PCharA(Result)^, L);
+end;
+
+function TStringCatHelperA.GetValueBytes: TBytes;
+var
+  L: Integer;
+begin
+  L := FDest - PCharA(FValue);
+  SetLength(Result, L);
+  if L > 0 then
+    Move(FStart^, Result[0], L);
 end;
 
 procedure TStringCatHelperA.NeedSize(ASize: Integer);
 var
   offset:Integer;
 begin
-  offset := FDest-FStart;
+  offset := FDest - FStart;
   if ASize < 0 then
     ASize := offset - ASize;
   if ASize > FSize then begin
-    FSize := ((ASize + FBlockSize) div FBlockSize) * FBlockSize;
+    FSize := ((ASize + FBlockSize - 1) div FBlockSize) * FBlockSize;
     SetLength(FValue, FSize);
-    FStart := PCharA(@FValue[0]);
+    FStart := @FValue[0];
     FDest := FStart + offset;
   end;
 end;
@@ -3372,11 +3402,31 @@ begin
   FDest := FStart;
 end;
 
+function TStringCatHelperA.RightStr(const ALen: Integer): StringA;
+begin
+  if ALen < 1 then
+    Result := ''
+  else begin
+    if Position <= ALen then
+      Result := Value
+    else begin
+      SetLength(Result, ALen);
+      Move(PCharA(FDest - ALen)^, Result[1], ALen);
+    end;
+  end;
+end;
+
+procedure TStringCatHelperA.SetDest(const Value: PCharA);
+begin
+  if (Value >= FStart) and (Value < (FStart + FSize)) then
+    FDest := Value;
+end;
+
 procedure TStringCatHelperA.SetPosition(const Value: Integer);
 begin
   if Value <= 0 then
     FDest := PCharA(FValue)
-  else if Value>Length(FValue) then begin
+  else if Value > Length(FValue) then begin
     NeedSize(Value);
     FDest := PCharA(FValue) + Value;
   end else
@@ -3386,11 +3436,9 @@ end;
 function TStringCatHelperA.Space(count: Integer): TStringCatHelperA;
 begin
   Result := Self;
-  if Count > 0 then begin
-    while Count>0 do begin
-      Cat(#32);
-      Dec(Count);
-    end;
+  while Count > 0 do begin
+    Cat(#32);
+    Dec(Count);
   end;
 end;
 
@@ -3525,7 +3573,7 @@ begin
   if ASize < 0 then
     ASize := Offset - ASize;
   if ASize > FSize then begin
-    FSize := ((ASize + FBlockSize) div FBlockSize) * FBlockSize;
+    FSize := ((ASize + FBlockSize - 1) div FBlockSize) * FBlockSize;
     SetLength(FValue, FSize);
     FStart := @FValue[0];
     FDest := PByte(IntPtr(FStart) + Offset);
@@ -3618,7 +3666,7 @@ begin
       Inc(p);
       Inc(FDest);
     end;
-  end else begin
+  end else if len > 0 then begin
     NeedSize(-len);
     Move(p^, FDest^, len shl 1);
     Inc(FDest, len);
@@ -3678,6 +3726,11 @@ begin
   Result := FDest <> FStart;
 end;
 
+function TStringCatHelperW.GetLast: PCharW;
+begin
+  Result := FStart + FSize;
+end;
+
 function TStringCatHelperW.GetPosition: Integer;
 begin
   Result := FDest - FStart;
@@ -3689,7 +3742,8 @@ var
 begin
   l := Position;
   SetLength(Result, l);
-  Move(FStart^, PCharW(Result)^, l shl 1);
+  if l > 0 then
+    Move(FStart^, PCharW(Result)^, l shl 1);
 end;
 
 procedure TStringCatHelperW.IncSize(ADelta: Integer);
@@ -3705,11 +3759,10 @@ begin
   if ASize < 0 then
     ASize := Offset - ASize;
   if ASize > FSize then begin
-    FSize := ((ASize + FBlockSize) div FBlockSize) * FBlockSize;
+    FSize := ((ASize + FBlockSize - 1) div FBlockSize) * FBlockSize;
     SetLength(FValue, FSize);
     FStart := PCharW(@FValue[0]);
     FDest := FStart + Offset;
-    FLast := FStart + FSize;
   end;
 end;
 
@@ -3737,7 +3790,7 @@ end;
 
 procedure TStringCatHelperW.SetDest(const Value: PCharW);
 begin
-  if (Value >= FStart) and (Value < FLast) then
+  if (Value >= FStart) and (Value < (FStart + FSize)) then
     FDest := Value;
 end;
 
@@ -3755,11 +3808,9 @@ end;
 function TStringCatHelperW.Space(count: Integer): TStringCatHelperW;
 begin
   Result := Self;
-  if Count > 0 then begin
-    while Count>0 do begin
-      Cat(#32);
-      Dec(Count);
-    end;
+  while Count > 0 do begin
+    Cat(#32);
+    Dec(Count);
   end;
 end;
 

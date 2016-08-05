@@ -76,6 +76,7 @@ begin
   FPtWebService := TIocpHttpServer.Create(nil);
   FPtWebService.ListenPort := Port;
   FPtWebService.UploadMaxDataSize := 1024 * 1024;
+  FPtWebService.MaxTaskWorker := 64;
   FPtWebService.OnHttpRequest := DoRequest;
 
   FProcList := TStringHash.Create();

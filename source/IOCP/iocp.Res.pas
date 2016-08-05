@@ -41,6 +41,7 @@ resourcestring
   strSend_PostError = '[0x%.4x]投递发送数据请求时出现了错误。错误代码:%d';
   strConn_Request   = '正在连接%s(%d)';
   strConn_TimeOut   = '建立连接超时(%s:%d)';
+  strBindingIocpError = '[%d]绑定到IOCP句柄时出现了异常, 错误代码:%d, (%s)';
 
   STooFewWorkers = '指定的最小工作者数量太少(必需大于等于1)。';   
   SBadWaitDoneParam = '未知的等待正在执行作业完成方式:%d';

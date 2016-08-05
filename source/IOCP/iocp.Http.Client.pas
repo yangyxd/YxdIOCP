@@ -25,7 +25,7 @@ interface
 
 uses
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
-  ZLibExGZ, iocp.Utils.Str, iocp.WinHttp, iocp.Utils.GMTTime,
+  ZLibExGZ, iocp.Utils.Str, iocp.WinHttp, iocp.Utils.GMTTime, iocp.Winapi.WinSock,
   SyncObjs, SysUtils, Classes, Windows;
 
 const
@@ -161,6 +161,7 @@ type
     function GetUserName: string;
     procedure SetPassword(const Value: string);
     procedure SetUserName(const Value: string);
+    function GetHostIP: string;
   public
     constructor Create(const AURIStr: string);
     class function PathRelativeToAbs(const RelPath: string; const Base: TURI): string; static;
@@ -178,6 +179,7 @@ type
     property Scheme: string read GetScheme write SetScheme;
     property UserName: string read GetUserName write SetUserName;
     property Password: string read GetPassword write SetPassword;
+    property HostIP: string read GetHostIP;
   end;
 
 type
@@ -1346,6 +1348,16 @@ function TURI.GetHost: string;
 begin
   if FPort = 0 then Analytic;
   Result := FHost;
+end;
+
+function TURI.GetHostIP: string;
+var
+  lvhostInfo: PHostEnt;
+begin
+  lvhostInfo := gethostbyname(PAnsiChar(StringA(Host)));
+  if lvhostInfo = nil then
+    RaiseLastOSError;
+  Result := StringA(inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^));
 end;
 
 function TURI.GetNewURL(haveAuthInfo: Boolean): string;

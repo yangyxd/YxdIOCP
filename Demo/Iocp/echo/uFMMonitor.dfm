@@ -2,7 +2,7 @@ object FMMonitor: TFMMonitor
   Left = 0
   Top = 0
   Width = 515
-  Height = 315
+  Height = 395
   TabOrder = 0
   object lblServerStateCaption: TLabel
     Left = 16
@@ -80,7 +80,7 @@ object FMMonitor: TFMMonitor
   end
   object lblRunTimeINfo: TLabel
     Left = 112
-    Top = 276
+    Top = 296
     Width = 72
     Height = 13
     Caption = 'lblRunTimeINfo'
@@ -110,7 +110,7 @@ object FMMonitor: TFMMonitor
   end
   object lblRunTimeCaption: TLabel
     Left = 16
-    Top = 276
+    Top = 296
     Width = 43
     Height = 13
     Caption = 'run time:'
@@ -187,7 +187,7 @@ object FMMonitor: TFMMonitor
   end
   object lblPCInfo: TLabel
     Left = 112
-    Top = 297
+    Top = 317
     Width = 43
     Height = 13
     Caption = 'lblPCInfo'
@@ -205,6 +205,20 @@ object FMMonitor: TFMMonitor
     Font.Style = []
     ParentFont = False
     Visible = False
+  end
+  object lblHandleCount: TLabel
+    Left = 112
+    Top = 275
+    Width = 72
+    Height = 13
+    Caption = 'lblHandleCount'
+  end
+  object lblHandleCaption: TLabel
+    Left = 16
+    Top = 275
+    Width = 36
+    Height = 13
+    Caption = 'handle:'
   end
   object tmrReader: TTimer
     Enabled = False

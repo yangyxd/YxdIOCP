@@ -256,7 +256,9 @@ end;
 
 function TBaseQueue.Size: Integer;
 begin
+  FLocker.Enter;
   Result := FCount;
+  FLocker.Leave;
 end;
 
 function TBaseQueue.InnerDeQueue: PQueueData;

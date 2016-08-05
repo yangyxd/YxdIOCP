@@ -219,7 +219,6 @@ type
     FPrev: TIocpRequest;
     FNext: TIocpRequest;
     FResponding: Boolean;
-    FErrorCode: Integer;
     FIocpWorker: TIocpWorker;
     FData: Pointer;
     FTag: Integer;
@@ -232,6 +231,8 @@ type
     FOverlapped: OVERLAPPEDEx;
     FBytesTransferred: NativeUInt;
     FCompletionKey: NativeUInt;
+    FErrorCode: Integer;
+    FDestroyOnResponseEnd: Boolean;
     
     // IOCP请求响应, 运行于IOCP工作线程
     procedure HandleResponse; virtual;
@@ -620,6 +621,9 @@ begin
             lvTempRequest.FOnResponseDone(lvTempRequest)
           else
             lvTempRequest.ResponseDone();
+
+          if lvTempRequest.FDestroyOnResponseEnd then
+            lvTempRequest.Free;
         end;
 
       end else
@@ -630,6 +634,7 @@ begin
         try
           FIocpCore.HandleException(E);
         except
+          OutputDebugString(PChar(Exception(ExceptObject).Message));
         end;
       end;
     end;
@@ -1010,6 +1015,7 @@ end;
 
 constructor TIocpRequest.Create;
 begin
+  FDestroyOnResponseEnd := False;
   FOverlapped.iocpRequest := Self;
   FOverlapped.refCount := 0;
 end;
