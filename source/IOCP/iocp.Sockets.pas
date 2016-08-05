@@ -1272,6 +1272,8 @@ var
 
 const
   RECONNECT_INTERVAL = 1000; // 重连间隔，避免连接过快，导致OnDisconnected还没有处理完成, 1秒
+const
+  ADDRESS_LENGTH_EX = 18;
 
 function TransByteSize(const pvByte: Int64): string;
 var
@@ -2964,7 +2966,7 @@ end;
 
 procedure TIocpAcceptExRequest.getPeerInfo;
 const
-  ADDRSIZE = SizeOf(TSockAddr) + 16;
+  ADDRSIZE = SizeOf(TSockAddr) + ADDRESS_LENGTH_EX;
 var
   localAddr: PSockAddr;
   remoteAddr: PSockAddr;
@@ -2974,7 +2976,7 @@ begin
   localAddrSize := ADDRSIZE;
   remoteAddrSize := ADDRSIZE;
   IocpGetAcceptExSockaddrs(@FAcceptBuffer[0], 0,
-    SizeOf(localAddr^) + 16, SizeOf(remoteAddr^) + 16,
+    SizeOf(localAddr^) + ADDRESS_LENGTH_EX, SizeOf(remoteAddr^) + ADDRESS_LENGTH_EX,
     localAddr, localAddrSize,
     remoteAddr, remoteAddrSize);
   TIocpClientContext(FContext).FRemoteAddr := string(inet_ntoa(TSockAddrIn(remoteAddr^).sin_addr));
@@ -3001,8 +3003,6 @@ begin
 end;
 
 function TIocpAcceptExRequest.PostRequest: Boolean;
-const
-  ADDRESS_LENGTH_EX = 18;
 var
   dwBytes: Cardinal;
   lvRet: BOOL;

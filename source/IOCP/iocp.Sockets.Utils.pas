@@ -450,7 +450,7 @@ begin
   begin
     RaiseLastOSError;
   end;
-end;  
+end;
 
 initialization
   WSAStart;
