@@ -502,6 +502,7 @@ type
     FOutWriter: TIocpHttpWriter;
     FContentType: StringA;
     FContentLanguage: StringA;
+    FCharset: StringA;
     function GetConnection: TIocpHttpConnection;
     function GetActive: Boolean;
     function GetContentType: StringA;
@@ -666,6 +667,8 @@ type
     property ContentType: StringA read GetContentType write FContentType;
     // 返回内容语言
     property ContentLanguage: StringA read FContentLanguage write FContentLanguage;
+    // 返回内容字符集(默认使用所属服务设置的字符集)
+    property Charset: StringA read FCharset write FCharset;
   end;
 
 type
@@ -1831,6 +1834,8 @@ begin
   if Assigned(FResponse) then begin
     FResponse.Clear;
     FResponse.FRequest := Self;
+    if FOwner <> nil then     
+      FResponse.FCharset := FOwner.FCharset;
   end;
   FURL := '';
   FURI.Len := 0;
@@ -3136,9 +3141,9 @@ begin
 
   // Content-Type
   Data.Cat(CSContentType).Cat(GetContentType);
-  if Length(FRequest.FOwner.FCharset) > 0 then begin
+  if Length(FCharset) > 0 then begin
     if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
-      Data.Cat('; ').Cat(CSCHARSET).Cat(FRequest.FOwner.FCharset);
+      Data.Cat('; ').Cat(CSCHARSET).Cat(FCharset);
   end;
   Data.Cat(HTTPLineBreak);
 
@@ -3375,6 +3380,7 @@ procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
   var
     I: Integer;     
   begin
+    FCharset := '';
     if Length(AContentType) = 0 then begin
       I := -1;
       if ParserContentType then
@@ -3483,6 +3489,7 @@ var
   S: TMemoryStream;
 begin
   if (not Active) then Exit;
+  FCharset := '';
   {$IFDEF UseGZip}
   FGZip := AGZip;
   if AGZip then begin
