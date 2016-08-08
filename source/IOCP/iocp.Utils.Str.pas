@@ -347,8 +347,6 @@ function RightStr(const AText: AnsiString; const ACount: Integer): AnsiString; o
 function RightStr(const AText: WideString; const ACount: Integer): WideString; overload; inline;
 function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; inline;
 function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; inline;
-function PCharToString(const P: PChar; Len: Integer): string;
-function PCharWToString(P: Pointer; Size: Integer; CodePage: Integer = 936): StringA;
 // ×Ö·û´®Ìæ»»
 function StringReplaceEx(const S, Old, New: string; AFlags: TReplaceFlags): string; overload;
 //±àÂë×ª»»
@@ -366,6 +364,10 @@ function CharInW(c, list: PWideChar; ACharLen: PInteger = nil): Boolean;
 function CharSizeA(c: PAnsiChar): Integer;
 function CharSizeU(c: PAnsiChar): Integer;
 function CharSizeW(c: PWideChar): Integer;
+// ×Ö·û´®±àÂë
+function PCharToString(const P: PChar; Len: Integer): string;
+function PCharAToStringW(const P: PCharA; Size: Integer): StringW;
+function PCharWToString(P: Pointer; Size: Integer; CodePage: Integer = 936): StringA;
 //×Ö·û´®±àÂë×ª»»
 {$IFDEF USE_STRENCODEFUNC}
 function AnsiEncode(p:PWideChar; l:Integer): AnsiString; overload;
@@ -1761,6 +1763,18 @@ begin
   if Len > 0 then
     SetString(Result, P, Len{$IFDEF UNICODE} shr 1{$ENDIF})
   else
+    Result := '';
+end;
+
+function PCharAToStringW(const P: PCharA; Size: Integer): StringW;
+var
+  S: StringA;
+begin
+  if Size > 0 then begin
+    SetLength(S, Size);
+    Move(P^, S[1], Size);
+    Result := StringW(S);
+  end else
     Result := '';
 end;
 

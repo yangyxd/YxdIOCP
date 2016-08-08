@@ -153,7 +153,7 @@ begin
   end;
   Host := Trim(Edit1.Text);
   for I := 0 to 1000 - 1 do
-    FClient.Connect(Host, StrToIntDef(edtPort.Text, 9983), True);
+    FClient.Connect(AnsiString(Host), StrToIntDef(edtPort.Text, 9983), True);
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -163,7 +163,7 @@ begin
     FClient.OnContextConnected := OnContextConnected;
     FClient.OnDataReceived := OnClientRecvBuffer;
   end;
-  FClient.Connect(Edit1.Text, StrToIntDef(edtPort.Text, 9983), True);
+  FClient.Connect(AnsiString(Edit1.Text), StrToIntDef(edtPort.Text, 9983), True);
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);

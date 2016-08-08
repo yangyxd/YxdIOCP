@@ -68,6 +68,12 @@ type
   /// </summary>
   TIocpHttpReqVer = (hv_Unknown, hv_V1, hv_V2);
 
+  /// <summary>
+  /// 支持的 Http 编译字符集
+  /// </summary>
+  TIocpHttpCharset = (hct_8859_1 {英文网站}, hct_GB2312 {简体中文},
+    hct_UTF8, hct_UTF16);
+
 type
   TIocpHttpServer = class;
   TIocpHttpRequest = class;
@@ -470,7 +476,7 @@ type
   private
     FOwner: TIocpHttpResponse;
     FData: TStringCatHelper;
-    FIsUTF8: Boolean;
+    FCharset: TIocpHttpCharset;
     function GetIsEmpty: Boolean;
   public
     constructor Create(const BufferSize: Cardinal = 1024 * 8);
@@ -484,7 +490,7 @@ type
     function ToString: string; {$IFDEF UNICODE} override; {$ENDIF}
     procedure Clear;
     procedure Flush;
-    property IsUTF8: Boolean read FIsUTF8 write FIsUTF8;
+    property Charset: TIocpHttpCharset read FCharset write FCharset;
     property IsEmpty: Boolean read GetIsEmpty;
     property Response: TIocpHttpResponse read FOwner write FOwner;
   end;
@@ -620,6 +626,7 @@ type
     procedure Send(const Data: StringA; AGZip: Boolean = False); overload;
     procedure Send(const Data: StringW; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
+    // 使用 Writer 来返回数据，可以防止乱码
     procedure Send(var Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
 
     /// <summary>
@@ -653,7 +660,7 @@ type
     procedure SendChunkEnd();
 
     /// <summary>
-    /// 获取一个输出对象
+    /// 获取一个输出对象, 使用这个对象输出数据，然后调用 Send 方法发送数据。
     /// </summary>
     function GetOutWriter(BufferSize: Cardinal = 1024 * 8): TIocpHttpWriter;
 
@@ -2037,7 +2044,8 @@ end;
 
 function TIocpHttpRequest.GetDataString(const ACharset: string): string;
 var
-  P, Data: PAnsiChar;
+  P: PChar;
+  Data: Pointer;
   DataLen: Integer;
 begin
   if (FDataSize = 0) or (not Assigned(FRequestData)) then begin
@@ -2048,16 +2056,20 @@ begin
   Data := PAnsiChar(FRequestData.Memory) + FHeaderSize;
   DataLen := FRequestData.Size - FHeaderSize;
   // 根据字符集，解码成Ansi字符串
-  if StrLIComp(P, PAnsiChar(StringA('UTF-8')), 5) = 0 then
+  if SysUtils.StrLIComp(P, 'UTF-8', 5) = 0 then
     Result := UTF8Decode(Data, DataLen)
-  else if StrLIComp(P, PAnsiChar(StringA('UTF-16')), 6) = 0 then begin
+  else if SysUtils.StrLIComp(P, 'UTF-16', 6) = 0 then begin
     {$IFDEF UNICODE}
-    Result := PChar(M.Memory);
+    Result := PChar(Data);
     {$ELSE}
     Result := PCharWToString(Data, DataLen);
     {$ENDIF}
   end else // 其它的直接返回 (比如 GB2312, GBK, ISO-8859 等)
+    {$IFDEF UNICODE}
+    Result := PCharAToStringW(Data, DataLen);
+    {$ELSE}
     Result := PCharToString(Data, DataLen);
+    {$ENDIF}
 end;
 
 function TIocpHttpRequest.GetDataStringA: StringA;
@@ -2718,7 +2730,11 @@ begin
   FContextClass := TIocpHttpConnection;
   FSessionList := TStringHash.Create(99991);
   FSessionList.OnFreeItem := DoFreeHashItem;
-  FCharset := '';
+  {$IFDEF UNICODE}
+  FCharset := 'UTF-16';  // delphi的 UnicodeString 实际上 UTF-16
+  {$ELSE}
+  FCharset := 'GB2312';
+  {$ENDIF}
   FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
 end;
@@ -3010,11 +3026,7 @@ begin
   if Length(FContentType) > 0 then   
     Result := FContentType
   else
-    {$IFDEF UNICODE}
-    Result := 'text/html; charset=UTF-16';  // delphi的 UnicodeString 实际上 UTF-16
-    {$ELSE}
     Result := 'text/html';
-    {$ENDIF}
 end;
 
 class function TIocpHttpResponse.GetFileLastModified(
@@ -3703,14 +3715,40 @@ procedure TIocpHttpResponse.Send(var Writer: TIocpHttpWriter; AGZip, AFreeWriter
 begin
   try
     if Assigned(Writer) and (not Writer.IsEmpty) then begin
-      if Writer.IsUTF8 then begin
-        {$IFDEF UNICODE}
-        Send(UTF8Encode(Writer.FData.Start, Writer.FData.Position), AGzip)
-        {$ELSE}
-        Send(UTF8Encode(Writer.ToString()), AGzip)
-        {$ENDIF}
-      end else
-        Send(Writer.ToString, AGZip);
+      case Writer.FCharset of
+        hct_8859_1:
+          begin
+            FCharset := '';
+            Send(StringA(Writer.ToString), AGZip)
+          end;
+        hct_GB2312:
+          begin
+            FCharset := 'gb2312';
+            {$IFDEF UNICODE}
+            Send(StringA(Writer.ToString), AGZip)
+            {$ELSE}
+            Send(Writer.ToString, AGZip)
+            {$ENDIF}
+          end;
+        hct_UTF8:
+          begin
+            FCharset := 'utf-8';
+            {$IFDEF UNICODE}
+            Send(UTF8Encode(Writer.FData.Start, Writer.FData.Position), AGzip)
+            {$ELSE}
+            Send(UTF8Encode(Writer.ToString()), AGzip)
+            {$ENDIF}
+          end;
+        hct_UTF16:
+          begin
+            FCharset := 'utf-16';
+            {$IFDEF UNICODE}
+            Send(Writer.ToString, AGZip)
+            {$ELSE}
+            Send(StringW(Writer.ToString), AGZip)
+            {$ENDIF}
+          end;
+      end;
     end else begin
       if (not Active) then Exit;
       FRequest.FConn.Send(MakeFixHeader(0) + #0);
@@ -3904,7 +3942,11 @@ end;
 constructor TIocpHttpWriter.Create(const BufferSize: Cardinal);
 begin
   FData := TStringCatHelper.Create(BufferSize);
-  FIsUTF8 := False;
+  {$IFDEF UNICODE}
+  FCharset := hct_UTF16;
+  {$ELSE}
+  FCharset := hct_GB2312;
+  {$ENDIF}
 end;
 
 destructor TIocpHttpWriter.Destroy;

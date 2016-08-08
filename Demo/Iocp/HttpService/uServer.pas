@@ -3,7 +3,7 @@ unit uServer;
 interface
 
 uses
-  Windows, SysUtils, Classes, SyncObjs, Iocp, iocp.Utils.Hash;
+  Windows, SysUtils, Classes, SyncObjs, Iocp, iocp.Utils.Hash, iocp.Http;
   
 type
   /// <summary>
@@ -192,9 +192,9 @@ procedure TPtHttpService.RequestDemo03(Request: TIocpHttpRequest;
 var
   O: TIocpHttpWriter;
 begin
-  //Response.ContentType := 'text/html;charset=UTF-16';
-  O := TIocpHttpWriter.Create();
-  //Out.IsUTF8 := True;
+  O := Response.GetOutWriter();
+  O.Charset := hct_GB2312;
+  O.Write('Data: ').Write(Request.GetDataString(Request.CharSet)).Write('<br>');
   O.Write('编号: ').Write(Request.GetParam('userid')).Write('<br>');
   O.Write('用户名: ').Write(Request.GetParam('username')).Write('<br>');
   O.Write('密码: ').Write(Request.GetParam('userpass')).Write('<br>');
@@ -203,7 +203,7 @@ begin
   O.Write('兴趣: ').Write(Request.GetParamValues('inst')).Write('<br>');
   O.Write('说明: ').Write(Request.GetParam('note')).Write('<br>');
   O.Write('隐藏内容: ').Write(Request.GetParam('hiddenField')).Write('<br>');
-  Response.Send(O, True);
+  O.Flush;
 end;
 
 initialization

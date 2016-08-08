@@ -653,7 +653,7 @@ begin
   FLocker.Leave;
 end;
 
-function TStringHash.ValueOf(const Key: string; const DefaultValue: Integer): Number;
+function TStringHash.ValueOf(const Key: string; const DefaultValue: Number): Number;
 var
   P: PHashItem;
 begin
