@@ -30,12 +30,16 @@ unit iocp;
 {$I 'iocp.inc'}
 //  «∑Ò∆Ù”√ TIocpHttpServer
 {$DEFINE UseHttpServer}
+{$IFDEF UseHttpServer}
+{$DEFINE UseWebSocketServer}
+{$ENDIF}
 
 interface
 
 uses
   iocp.Utils.Hash, 
   {$IFDEF UseHttpServer}iocp.Http, {$ENDIF}
+  {$IFDEF UseWebSocketServer}iocp.Http.WebSocket, {$ENDIF}
   iocp.Sockets, iocp.Task, iocp.Winapi.TlHelp32, iocp.Utils.MemPool,
   iocp.Sockets.Utils, iocp.Core.Engine, iocp.Res, iocp.RawSockets,
   iocp.Utils.Queues, iocp.Utils.ObjectPool, WinSock,
@@ -180,6 +184,25 @@ type
   TIocpHttpFromDataItem = iocp.Http.TIocpHttpFromDataItem;
   TFileOnlyStream = iocp.Http.TFileOnlyStream;
   TIocpPointerStream = iocp.Http.TIocpPointerStream;
+{$ENDIF}
+
+{$IFDEF UseWebSocketServer}
+type
+  TIocpWebSocketServer = iocp.Http.WebSocket.TIocpWebSocketServer;
+  TIocpWebSocketConnection = iocp.Http.WebSocket.TIocpWebSocketConnection;
+  TIocpWebSocketRequest = iocp.Http.WebSocket.TIocpWebSocketRequest;
+  TIocpWebSocketResponse = iocp.Http.WebSocket.TIocpWebSocketResponse;
+
+  TIocpWebSocketFrame = iocp.Http.WebSocket.TIocpWebSocketDataFrame;
+  TIocpWebSocketOpcode = iocp.Http.WebSocket.TIocpWebSocketOpcode;
+
+  TIocpWebSocketHttpRequest = iocp.Http.WebSocket.TIocpWebSocketHttpRequest;
+  TIocpWebSocketHttpResponse = iocp.Http.WebSocket.TIocpWebSocketHttpResponse;
+  
+  TOnWebSocketConnection = iocp.Http.WebSocket.TOnWebSocketConnection;
+  TOnWebSocketDisconnect = iocp.Http.WebSocket.TOnWebSocketDisconnect;
+  TOnWebSocketRecvBuffer = iocp.Http.WebSocket.TOnWebSocketRecvBuffer;
+  TOnWebSocketRequest = iocp.Http.WebSocket.TOnWebSocketRequest;
 {$ENDIF}
 
 type
@@ -354,6 +377,9 @@ begin
   RegisterComponents(ComPageName, [TIocpTcpCodecServer]);
   {$IFDEF UseHttpServer}
   RegisterComponents(ComPageName, [TIocpHttpServer]);
+  {$ENDIF}
+  {$IFDEF UseWebSocketServer}
+  RegisterComponents(ComPageName, [TIocpWebSocketServer]);
   {$ENDIF}
 end;
 

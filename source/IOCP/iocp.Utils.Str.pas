@@ -104,6 +104,7 @@ type
     procedure SetPosition(const Value: Integer);
     procedure NeedSize(ASize: Integer);
     procedure SetCapacity(const Value: Integer);
+    function GetMemory: Pointer;
   public
     constructor Create; overload;
     constructor Create(ASize: Integer); overload;
@@ -129,6 +130,7 @@ type
     property Value: TBytes read GetValue;
     property Bytes[Index: Integer]: Byte read GetBytes;
     property Start: PByte read FStart;
+    property Memory: Pointer read GetMemory;
     property Current: PByte read FDest;
     property Position: Integer read GetPosition write SetPosition;
     property Capacity: Integer read FSize write SetCapacity;
@@ -1784,12 +1786,12 @@ var
 begin
   Len := WideCharToMultiByte(CodePage,
     WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
-    P, -1, nil, 0, nil, nil);  
+    P, Size, nil, 0, nil, nil);
   SetLength(Result, Len - 1);
   if Len > 1 then
     WideCharToMultiByte(CodePage,  
       WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
-      P, -1, @Result[1], Len - 1, nil, nil);
+      P, Size, @Result[1], Len - 1, nil, nil);
 end;
 
 {$IFDEF USE_STRENCODEFUNC}
@@ -3577,6 +3579,11 @@ end;
 function TBytesCatHelper.GetBytes(AIndex: Integer): Byte;
 begin
   Result := FValue[AIndex];
+end;
+
+function TBytesCatHelper.GetMemory: Pointer;
+begin
+  Result := FStart;
 end;
 
 function TBytesCatHelper.GetPosition: Integer;

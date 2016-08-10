@@ -8,7 +8,8 @@ uses
   iocp,
   iocp.Utils.Queues,
   uServer in 'uServer.pas',
-  uFrmMain in 'uFrmMain.pas' {HttpService};
+  uFrmMain in 'uFrmMain.pas' {HttpService},
+  iocp.Http.WebSocket in '..\..\..\source\IOCP\iocp.Http.WebSocket.pas';
 
 { TServer }
 

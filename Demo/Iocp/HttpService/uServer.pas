@@ -3,7 +3,8 @@ unit uServer;
 interface
 
 uses
-  Windows, SysUtils, Classes, SyncObjs, Iocp, iocp.Utils.Hash, iocp.Http;
+  Iocp, iocp.Utils.Hash, iocp.Http, iocp.Http.Websocket,
+  Windows, SysUtils, Classes, SyncObjs;
   
 type
   /// <summary>
@@ -29,7 +30,7 @@ type
   /// </summary>
   TPtService = class(TObject)
   private
-    FPtWebService: TIocpHttpServer;
+    FPtWebService: TIocpWebSocketServer;
     FOnWriteLog: TOnWriteLog;
     HttpReqRef: Integer;
     FProcList: TStringHash;
@@ -41,6 +42,7 @@ type
     procedure DoWriteLog(Sender: TObject; AType: TXLogType; const Msg: string);
   protected
     procedure DoRequest(Sender: TIocpHttpServer; Request: TIocpHttpRequest; Response: TIocpHttpResponse);
+    procedure DoWebSocketRequest(Sender: TIocpWebSocketServer; Request: TIocpWebSocketRequest; Response: TIocpWebSocketResponse);
     procedure DoRegProc(); virtual; abstract;
     procedure DoFreeProcItem(Item: PHashItem);
   public
@@ -73,11 +75,12 @@ var
 constructor TPtService.Create(Port: Word);
 begin
   FOnWriteLog := DoWriteLog;
-  FPtWebService := TIocpHttpServer.Create(nil);
+  FPtWebService := TIocpWebSocketServer.Create(nil);
   FPtWebService.ListenPort := Port;
   FPtWebService.UploadMaxDataSize := 1024 * 1024;
   FPtWebService.MaxTaskWorker := 64;
   FPtWebService.OnHttpRequest := DoRequest;
+  FPtWebService.OnWebSocketRequest := DoWebSocketRequest;
 
   FProcList := TStringHash.Create();
   FProcList.OnFreeItem := DoFreeProcItem;
@@ -123,6 +126,25 @@ begin
     end else
       Response.ErrorRequest(404);
   end;
+end;
+
+procedure TPtService.DoWebSocketRequest(Sender: TIocpWebSocketServer;
+  Request: TIocpWebSocketRequest; Response: TIocpWebSocketResponse);
+var
+  S: TMemoryStream;
+  Data: string;
+begin
+  //OutputDebugString(PChar(Request.DataString()));
+  S := TMemoryStream.Create;
+  try
+    Data := Request.DataString(hct_8859_1);
+    S.Write(Data[1], Length(Data));
+    S.Position := 0;
+    Response.Send(S, wso_Text);
+  finally
+    S.Free;
+  end;
+  Response.Send(Request.DataString());
 end;
 
 procedure TPtService.DoWriteLog(Sender: TObject; AType: TXLogType;

@@ -122,11 +122,11 @@ type
 
   TStringHash = class
   private
-    Buckets: array of PHashItem;
     FLocker: TCriticalSection;
+    FCount: Integer;
     FOnFreeItem: TYXDStrHashItemFreeNotify;
-  protected
   public
+    Buckets: array of PHashItem;
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
     function Find(const Key: string): PPHashItem;
@@ -140,6 +140,7 @@ type
     function ValueOf(const Key: string; const DefaultValue: Number = -1): Number;
     function Exists(const Key: string): Boolean;  
     property OnFreeItem: TYXDStrHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
+    property Count: Integer read FCount;
   end;
 
 type
@@ -538,6 +539,7 @@ begin
   FLocker.Enter;
   Bucket^.Next := Buckets[Hash];
   Buckets[Hash] := Bucket;
+  Inc(FCount);
   FLocker.Leave;
 end;
 
@@ -564,12 +566,14 @@ begin
     end;
     Buckets[I] := nil;
   end;
+  FCount := 0;
   FLocker.Leave;
 end;
 
 constructor TStringHash.Create(Size: Cardinal);
 begin
   inherited Create;
+  FCount := 0;
   FLocker := TCriticalSection.Create;
   SetLength(Buckets, Size);
 end;
@@ -640,6 +644,7 @@ begin
   P := Prev^;
   if P <> nil then
   begin
+    Dec(FCount);
     Prev^ := P^.Next;
     if Assigned(FOnFreeItem) then
       FOnFreeItem(P);

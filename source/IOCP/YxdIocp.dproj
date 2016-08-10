@@ -60,7 +60,7 @@
     <DelphiCompile Include="YxdIocp.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="..\..\Demo\Iocp\httpClient\rtl.dcp" />
+    <DCCReference Include="E:\My Documents\My Projects\Delphi Project\DBINTRMService\rtl.dcp" />
     <DCCReference Include="iocp.Core.Engine.pas" />
     <DCCReference Include="iocp.Http.Client.pas" />
     <DCCReference Include="iocp.Http.pas" />

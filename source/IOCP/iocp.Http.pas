@@ -74,10 +74,16 @@ type
   TIocpHttpCharset = (hct_8859_1 {英文网站}, hct_GB2312 {简体中文},
     hct_UTF8, hct_UTF16);
 
+const
+  CS_ACAH = 'X-Requested-With, Content-Type';
+  CS_DefaultMethods = 'POST, GET, OPTIONS';
+
 type
   TIocpHttpServer = class;
   TIocpHttpRequest = class;
   TIocpHttpResponse = class;
+  TIocpHttpRequestCls = class of TIocpHttpRequest;
+  TIocpHttpResponseCls = class of TIocpHttpResponse;
   TIocpArrayString = array of String;
 
   TOnHttpFilter = procedure (Request: TIocpHttpRequest; var CancelRequest: Boolean) of object;
@@ -103,19 +109,25 @@ type
   /// <summary>
   /// Http跨域控制
   /// </summary>
-  TIocpHttpAccessControlAllow = record
-    // 是否启用跨域控制
-    Enabled: Boolean;
-    // 允许哪些url可以跨域请求到本域
-    Origin: string;  // *
-    // 允许的请求方法
-    Methods: string; // GET, POST,PUT,DELETE,OPTIONS
-    // 允许哪些请求头可以跨域
-    Headers: string; // x-requested-with,content-type
-
+  TIocpHttpAccessControlAllow = class(TPersistent)
+  public
+    FEnabled: Boolean;
+    FOrigin: string;  // *
+    FMethods: string; // GET, POST,PUT,DELETE,OPTIONS
+    FHeaders: string; // x-requested-with,content-type
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
     procedure MakerHeader(const Data: TStringCatHelperA);
+  published
+    // 是否启用跨域控制
+    property Enabled: Boolean read FEnabled write FEnabled default False;
+    // 允许哪些url可以跨域请求到本域
+    property Origin: string read FOrigin write FOrigin;
+    // 允许的请求方法
+    property Methods: string read FMethods write FMethods;
+    // 允许哪些请求头可以跨域
+    property Headers: string read FHeaders write FHeaders;
   end;
-  PIocpHttpAccessControlAllow = ^TIocpHttpAccessControlAllow;
 
   /// <summary>
   /// Http 表单数据项
@@ -213,18 +225,20 @@ type
     FGzipFileTypes: string;
     FCharset, FContentLanguage: StringA;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
+
     FOnHttpRequest: TOnHttpRequest;
     FOnHttpFilter: TOnHttpFilter;
     FOnHttpGetSession: TOnHttpGetSession;
     FOnHttpFreeSession: TOnHttpFreeSession;
-    function GetAccessControlAllow: PIocpHttpAccessControlAllow;
-    procedure SetAccessControlAllow(const Value: PIocpHttpAccessControlAllow);
+    procedure SetAccessControlAllow(const Value: TIocpHttpAccessControlAllow);
     procedure SetGzipFileTypes(const Value: string);  protected
     procedure FreeSessionList;
     procedure DoFreeHashItem(Item: PHashItem);
   protected
-    procedure DoRequest(ARequest: TIocpHttpRequest);
-    function GetHttpRequest: TIocpHttpRequest;
+    FHttpRequestClass: TIocpHttpRequestCls;
+    FHttpResponseClass: TIocpHttpResponseCls;
+    procedure DoRequest(ARequest: TIocpHttpRequest); virtual;
+    function GetHttpRequest: TIocpHttpRequest; virtual;
     procedure FreeHttpRequest(V: TIocpHttpRequest);
     function GetHeaderBuilder: TStringCatHelperA;
     procedure FreeHeaderBuilder(V: TStringCatHelperA);
@@ -237,14 +251,16 @@ type
     /// </summary>
     function GetSession(const SID: string): Pointer;
     /// <summary>
-    /// 跨域控制选项, 默认不启用
-    /// </summary>
-    property AccessControlAllow: PIocpHttpAccessControlAllow read GetAccessControlAllow write SetAccessControlAllow;
-    /// <summary>
     /// 最大Http响应头部构造器内存池大小
     /// </summary>
     property MaxHeaderBuildPoolSize: Integer read FMaxHeaderBuildPoolSize write FMaxHeaderBuildPoolSize;
   published
+    property ListenPort default 8080;
+    /// <summary>
+    /// 跨域控制选项, 默认不启用
+    /// </summary>
+    property AccessControlAllow: TIocpHttpAccessControlAllow read FAccessControlAllow
+      write SetAccessControlAllow;
     /// <summary>
     /// 默认字符集选项，会在响应客户端请求时加入 Content-Type 中。
     /// </summary>
@@ -460,6 +476,7 @@ type
     // 注意，本方法是实时解析，使用时注意效率
     property FormData[const Key: StringA]: TIocpHttpFromDataItem read GetFormDataItem;
     property Tag: Integer read FTag write FTag;
+    property Response: TIocpHttpResponse read FResponse;
   end;
 
   TIocpPointerStream = class(TCustomMemoryStream)
@@ -513,10 +530,11 @@ type
     function GetActive: Boolean;
     function GetContentType: StringA;
   protected
+    procedure MakeHeaderEx(const Data: TStringCatHelperA); virtual;
     function MakeHeader(Data: TStringCatHelperA;
       const ContextLength: Int64; const Status: StringA = '';
       FileDown: Boolean = False; const FileName: StringA = '';
-      const LastModified: TDateTime = 0): Boolean; overload;
+      const LastModified: TDateTime = 0): Boolean; overload; virtual;
     function MakeHeader(const ContextLength: Int64; const Status: StringA = '';
       FileDown: Boolean = False; const FileName: StringA = '';
       const LastModified: TDateTime = 0; IsFixHeader: Boolean = False): StringA; overload;
@@ -623,6 +641,7 @@ type
     /// 发送数据，全自动添加 Http 响应头 (异步)
     /// </summary>
     procedure Send(buf: Pointer; len: Cardinal; AGZip: Boolean = False); overload;
+    procedure Send(const Data: TBytes; AGZip: Boolean = False); overload;
     procedure Send(const Data: StringA; AGZip: Boolean = False); overload;
     procedure Send(const Data: StringW; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
@@ -692,6 +711,7 @@ type
   end;
 
 function NewSessionID(): string;
+function GetResponseCodeNote(V: Word): StringA;
 
 implementation
 
@@ -1869,7 +1889,7 @@ end;
 constructor TIocpHttpRequest.Create(AOwner: TIocpHttpServer);
 begin
   FOwner := AOwner;
-  FResponse := TIocpHttpResponse.Create;
+  FResponse := AOwner.FHttpResponseClass.Create;
   FResponse.FRequest := Self; 
   FRequestData := TMemoryStream.Create;
   FParamHash := nil;
@@ -2318,7 +2338,7 @@ end;
 
 function TIocpHttpRequest.GetSession: Pointer;
 begin
-  if Length(FSessionID) = 0 then
+  if FSessionID = '' then
     CheckCookieSession;
   Result := FOwner.GetSession(string(FSessionID));
 end;
@@ -2352,35 +2372,33 @@ var
   I: Integer;
   P, P1, P2: PAnsiChar;
 begin
-  if DataSize > 0 then
-    I := PosStr(PAnsiChar(Key), Length(Key), Data, DataSize, 0)
-  else
-    I := -1;
-  if I > -1 then begin
-    Inc(I, Length(Key));
-    P := Data;
-    P1 := P;
-    Inc(P1, DataSize);
-    Inc(P, I);
-    while (P < P1) and (P^ <> ':') and (P^ <> #13) do
-      Inc(P);
-    if P^ = ':' then begin
-      Inc(P);
-      P2 := P;
-      while (P2 < P1) and (P2^ = ' ') do Inc(P2);
-      while (P < P1) and (P^ <> #13) do Inc(P);
-      P1 := P - 1;
-      while (P1 > P2) and (P1^ = ' ') do begin
-        Dec(P);
-        Dec(P1);
+  P := Data;
+  P1 := P + DataSize;
+  Result.Len := 0;
+  if P = P1 then Exit;  
+  while P < P1 do begin
+    I := PosStr(PAnsiChar(Key), Length(Key), P, P1 - P, 0);
+    if I > -1 then begin
+      Inc(I, Length(Key));
+      Inc(P, I);
+      while (P < P1) and (P^ <> ':') and (P^ <> #13) do
+        Inc(P);
+      if P^ = ':' then begin
+        Inc(P);
+        P2 := P;
+        while (P2 < P1) and (P2^ = ' ') do Inc(P2);
+        while (P < P1) and (P^ <> #13) do Inc(P);
+        P1 := P - 1;
+        while (P1 > P2) and (P1^ = ' ') do begin
+          Dec(P);
+          Dec(P1);
+        end;
+        Result.P := P2;
+        Result.Len := P - P2;
+        Break;
       end;
-      Result.P := P2;
-      Result.Len := P - P2;
-    end else begin
-      Result.Len := 0;
-    end;
-  end else begin
-    Result.Len := 0;
+    end else
+      Break;
   end;
 end;
 
@@ -2722,6 +2740,9 @@ end;
 constructor TIocpHttpServer.Create(AOwner: TComponent);
 begin
   inherited;
+  ListenPort := 8080;
+  FHttpRequestClass := TIocpHttpRequest;
+  FHttpResponseClass := TIocpHttpResponse;
   FHttpRequestPool := TBaseQueue.Create;
   FHeaderBuildPool := TBaseQueue.Create;
   FMaxHeaderBuildPoolSize := 3072;
@@ -2730,6 +2751,7 @@ begin
   FContextClass := TIocpHttpConnection;
   FSessionList := TStringHash.Create(99991);
   FSessionList.OnFreeItem := DoFreeHashItem;
+  FAccessControlAllow := TIocpHttpAccessControlAllow.Create;
   {$IFDEF UNICODE}
   FCharset := 'UTF-16';  // delphi的 UnicodeString 实际上 UTF-16
   {$ELSE}
@@ -2748,7 +2770,8 @@ begin
   finally
     FreeAndNil(FHttpRequestPool);
     FreeAndNil(FHeaderBuildPool);
-    FreeSessionList; 
+    FreeSessionList;
+    FAccessControlAllow.Free;
   end;
 end;
 
@@ -2767,7 +2790,11 @@ procedure TIocpHttpServer.DoRequest(ARequest: TIocpHttpRequest);
 begin
   if Assigned(ARequest) then begin
     if Assigned(FOnHttpRequest) then
-      FOnHttpRequest(Self, ARequest, ARequest.FResponse);
+      FOnHttpRequest(Self, ARequest, ARequest.FResponse)
+    else begin
+      // 如果没有事件处理，则返回 404 错误
+      ARequest.FResponse.ErrorRequest(404);
+    end;
     if not ARequest.FKeepAlive then
       ARequest.CloseConnection;
   end;
@@ -2795,11 +2822,6 @@ begin
   FreeAndNil(FSessionList);
 end;
 
-function TIocpHttpServer.GetAccessControlAllow: PIocpHttpAccessControlAllow;
-begin
-  Result := @FAccessControlAllow;
-end;
-
 function TIocpHttpServer.GetHeaderBuilder: TStringCatHelperA;
 begin
   Result := TStringCatHelperA(FHeaderBuildPool.DeQueue);
@@ -2812,7 +2834,7 @@ function TIocpHttpServer.GetHttpRequest: TIocpHttpRequest;
 begin
   Result := TIocpHttpRequest(FHttpRequestPool.DeQueue);
   if Result = nil then
-    Result := TIocpHttpRequest.Create(Self);
+    Result := FHttpRequestClass.Create(Self);
   Result.Clear;
   Result.FOwner := Self;
   Result.FResponse.FRequest := Result;
@@ -2828,12 +2850,12 @@ begin
 end;
 
 procedure TIocpHttpServer.SetAccessControlAllow(
-  const Value: PIocpHttpAccessControlAllow);
+  const Value: TIocpHttpAccessControlAllow);
 begin
   if Value = nil then
     FAccessControlAllow.Enabled := False
   else
-    FAccessControlAllow := Value^;
+    FAccessControlAllow.Assign(Value);
 end;
 
 procedure TIocpHttpServer.SetGzipFileTypes(const Value: string);
@@ -3121,8 +3143,6 @@ const
     'Content-Disposition: attachment;filename="%s"'#13#10'Last-Modified: %s'#13#10;
   CSCHARSET: StringA = 'charset=';
   CSContentLanguage: StringA = 'Content-Language: ';
-  CSConnectionKeepAlive: StringA = 'Connection: Keep-Alive'#13#10;
-  CSConnectionClose: StringA = 'Connection: close'#13#10;
   CSSetCookie: StringA = 'Set-Cookie:';
   CSDate: StringA = 'Date: ';
   CSContentType: StringA = 'Content-Type: ';
@@ -3186,12 +3206,21 @@ begin
       Data.Cat(CSSetCookie).Cat(TIocpHttpCookie(FCookies[i]).ToString()).Cat(HTTPLineBreak);
   end;
   
-  if Request.FKeepAlive then
-    Data.Cat(CSConnectionKeepAlive)
-  else
-    Data.Cat(CSConnectionClose);
+  MakeHeaderEx(Data);
 
   Result := True;
+end;
+
+procedure TIocpHttpResponse.MakeHeaderEx(
+  const Data: TStringCatHelperA);
+const
+  CSConnectionKeepAlive: StringA = 'Connection: Keep-Alive'#13#10;
+  CSConnectionClose: StringA = 'Connection: close'#13#10;
+begin
+  if Request.FKeepAlive then
+    Data.Cat(CSConnectionKeepAlive)
+  else       
+    Data.Cat(CSConnectionClose);
 end;
 
 procedure TIocpHttpResponse.RedirectURL(const pvURL: StringA);
@@ -3243,6 +3272,15 @@ begin
       FRequest.FConn.Send(MakeFixHeader(len) + s);
     end;
   end;
+end;
+
+procedure TIocpHttpResponse.Send(const Data: TBytes; AGZip: Boolean);
+begin
+  if Length(Data) = 0 then begin
+    if (not Active) then Exit;
+    Send('');
+  end else
+    Send(@Data[0], Length(Data), AGZip);
 end;
 
 procedure WriteStringToStream(Stream: TStream; const V: StringA); overload;
@@ -3344,9 +3382,9 @@ end;
 procedure TIocpHttpResponse.SendChunkEnd;
 begin
   if not Assigned(FBlockSendBuffer) then Exit;
-  WriteStringToStream(FBlockSendBuffer, StringA('0' + HTTPHeaderEnd));
+  WriteStringToStream(FBlockSendBuffer, StringA(CharA('0') + HTTPHeaderEnd));
   FBlockSendBuffer.Position := 0;
-  FRequest.FConn.Send(FBlockSendBuffer);
+  FRequest.FConn.SendStream(FBlockSendBuffer);
   FBlockSendBuffer.Clear;
 end;
 
@@ -3617,7 +3655,7 @@ begin
     Header := MakeFixHeader(L);
   if L > MaxHttpOSS then begin
     FRequest.FConn.Send(Header);
-    FRequest.FConn.Send(Stream, L);
+    FRequest.FConn.SendStream(Stream, L);
   end else begin
     if not Assigned(FBlockSendBuffer) then
       FBlockSendBuffer := TMemoryStream.Create
@@ -3634,7 +3672,7 @@ begin
           Break;
       end;
       FBlockSendBuffer.Position := 0;
-      FRequest.FConn.Send(FBlockSendBuffer, FBlockSendBuffer.Size);
+      FRequest.FConn.SendStream(FBlockSendBuffer, FBlockSendBuffer.Size);
     finally
       FBlockSendBuffer.Clear;
     end;
@@ -3900,34 +3938,51 @@ end;
 
 { TIocpHttpAccessControlAllow }
 
+procedure TIocpHttpAccessControlAllow.Assign(Source: TPersistent);
+begin
+  if Source is TIocpHttpAccessControlAllow then begin
+    Self.FEnabled := TIocpHttpAccessControlAllow(Source).FEnabled;
+    Self.FOrigin := TIocpHttpAccessControlAllow(Source).FOrigin;
+    Self.FMethods := TIocpHttpAccessControlAllow(Source).FMethods;
+    Self.FHeaders := TIocpHttpAccessControlAllow(Source).FHeaders;
+  end else
+    inherited;
+end;
+
+constructor TIocpHttpAccessControlAllow.Create;
+begin
+  FOrigin := '*';
+  FMethods := CS_DefaultMethods;
+  FHeaders := CS_ACAH;
+end;
+
 procedure TIocpHttpAccessControlAllow.MakerHeader(
   const Data: TStringCatHelperA);
 const
   CS_AccessControlAllowOrigin = 'Access-Control-Allow-Origin: ';
   CS_AccessControlAllowMethods = 'Access-Control-Allow-Methods: ';
   CS_AccessControlAllowHeaders = 'Access-Control-Allow-Headers: ';
-  CS_ACAH = 'X-Requested-With, Content-Type';
 begin
   if Enabled then begin
     Data.Cat(CS_AccessControlAllowOrigin);
-    if Length(Origin) = 0 then
+    if FOrigin = '' then
       Data.Cat('*')
     else
-      Data.Cat(Origin);
+      Data.Cat(FOrigin);
     Data.Cat(HTTPLineBreak);
     
     Data.Cat(CS_AccessControlAllowMethods);
-    if Length(Methods) = 0 then
-      Data.Cat('POST, GET, OPTIONS')
+    if FMethods = '' then
+      Data.Cat(CS_DefaultMethods)
     else
-      Data.Cat(Methods);
+      Data.Cat(FMethods);
     Data.Cat(HTTPLineBreak);
 
     Data.Cat(CS_AccessControlAllowHeaders);
-    if Length(Headers) = 0 then
+    if FHeaders = '' then
       Data.Cat(CS_ACAH)
     else
-      Data.Cat(Headers);
+      Data.Cat(FHeaders);
     Data.Cat(HTTPLineBreak);
   end;
 end;

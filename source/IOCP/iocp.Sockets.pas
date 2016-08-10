@@ -211,15 +211,15 @@ type
     /// <summary>
     /// 发送数据 (异步) , 成功返回 True.
     /// </summary>
-    function Send(buf: Pointer; len: Cardinal; CopyBuf: Boolean = True): Boolean; overload; inline;
-    function Send(buf: Pointer; len: Cardinal; BufReleaseType: TDataReleaseType): Boolean; overload; inline;
+    function Send(buf: Pointer; len: Cardinal; CopyBuf: Boolean = True): Boolean; overload;
+    function Send(buf: Pointer; len: Cardinal; BufReleaseType: TDataReleaseType): Boolean; overload;
     function Send(const Data: AnsiString): Boolean; overload;
     function Send(const Data: WideString): Boolean; overload;
     {$IFDEF UNICODE}
     function Send(const Data: UnicodeString): Boolean; overload;
     {$ENDIF}
-    function Send(Stream: TStream): Boolean; overload;
-    function Send(Stream: TStream; ASize: Int64): Boolean; overload;
+    function SendStream(Stream: TStream): Boolean; overload;
+    function SendStream(Stream: TStream; ASize: Int64): Boolean; overload;
 
     /// <summary>
     /// 投递一个发送请求到Iocp队列中, 成功返回 True.
@@ -297,6 +297,7 @@ type
     FSendRequestClass: TIocpSendRequestClass;
     procedure SetName(const NewName: TComponentName); override;
     procedure SetActive(const Value: Boolean);
+    procedure Loaded; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -437,6 +438,9 @@ type
     /// 释放连接对象，归还到对象池
     /// </summary>
     function ReleaseClientContext(const pvObject: TIocpCustomContext): Boolean; virtual;
+
+    procedure DoOpen(); virtual;
+    procedure DoClose(); virtual;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -950,17 +954,18 @@ type
 
     // 当前客户端数量
     property ClientCount: Integer read GetClientCount;
+    // 接受连接管理器
     property IocpAcceptorMgr: TIocpAcceptorMgr read FIocpAcceptorMgr;
     // 每个连接最大发送队列
     property MaxSendingQueueSize: Integer read FMaxSendingQueueSize;
   published
+    property Active default False;
     property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
     property BindAddr;
     /// <summary>
     /// 默认侦听的端口
     /// </summary>
     property ListenPort: Word read FPort write FPort default 9000;
-    property MaxWorkerCount;
     /// <summary>
     /// 最大任务作业线程数量
     /// </summary>
@@ -1958,7 +1963,7 @@ begin
 end;
 {$ENDIF}
 
-function TIocpCustomContext.Send(Stream: TStream; ASize: Int64): Boolean;
+function TIocpCustomContext.SendStream(Stream: TStream; ASize: Int64): Boolean;
 var
   P: PAnsiChar;
   lvFreeType: TDataReleaseType;
@@ -2040,10 +2045,10 @@ begin
   end;
 end;
 
-function TIocpCustomContext.Send(Stream: TStream): Boolean;
+function TIocpCustomContext.SendStream(Stream: TStream): Boolean;
 begin
   if Assigned(Stream) then begin
-    Result := Send(Stream, Stream.Size - Stream.Position);
+    Result := SendStream(Stream, Stream.Size - Stream.Position);
   end else
     Result := False;
 end;
@@ -2179,6 +2184,15 @@ begin
   Result := (not Assigned(Self)) or FIsDestroying or (csDestroying in Self.ComponentState);
 end;
 
+procedure TIocpBase.Loaded;
+begin
+  inherited;
+  if FActive and (not (csDesigning in ComponentState)) then begin
+    FActive := False;
+    Active := True;
+  end;
+end;
+
 function TIocpBase.PopMem: Pointer;
 begin
   Result := FMemPool.Pop;
@@ -2307,8 +2321,11 @@ procedure TIocpCustom.Close;
 begin
   if not FActive then Exit;
   FActive := False;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
   DisconnectAll;
   WaitForContext(30000);
+  DoClose;
   // engine Stop
   FIocpEngine.Stop;
 end;
@@ -2370,6 +2387,14 @@ begin
     FOnContextError(pvClientContext, pvErrorCode);
 end;
 
+procedure TIocpCustom.DoClose;
+begin
+end;
+
+procedure TIocpCustom.DoOpen;
+begin
+end;
+
 procedure TIocpCustom.DoReceiveData(const pvContext: TIocpCustomContext;
   pvRequest: TIocpRecvRequest);
 begin
@@ -2387,7 +2412,10 @@ procedure TIocpCustom.Open;
 begin
   if FActive then Exit;
   FActive := True;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
   try
+    DoOpen;
     if Assigned(FDataMoniter) then
       FDataMoniter.Clear;
     FIocpEngine.Start;
@@ -3795,8 +3823,10 @@ procedure TIocpCustomTcpServer.Close;
 
 begin
   if not FActive then Exit;
-  DoStateMsgD(Self, 'Server Closeing...');
   FActive := False;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
+  DoStateMsgD(Self, 'Server Closeing...');
   if Assigned(FListenSocket) then
     FListenSocket.Close;
   FreeAndNil(FTimeOutClearThd);
@@ -3823,6 +3853,8 @@ begin
 
   FSendRequestPool.FreeDataObject;
   FSendRequestPool.Clear;
+
+  DoClose;
   // engine Stop
   FIocpEngine.Stop;
   DoStateMsgD(Self, 'Server Closed.');
@@ -4151,9 +4183,12 @@ procedure TIocpCustomTcpServer.Open;
 begin
   if FActive then Exit;
   FActive := True;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
   try
     if Assigned(FDataMoniter) then
       FDataMoniter.Clear;
+    DoOpen;
     // 开启IOCP引擎
     FIocpEngine.Start;
     // 创建侦听的套接字
@@ -4642,8 +4677,10 @@ end;
 procedure TIocpUdpServer.Close;
 begin
   if not FActive then Exit;
-  DoStateMsgD(Self, 'Server Closeing...');
   FActive := False;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
+  DoStateMsgD(Self, 'Server Closeing...');
   if Assigned(FListenSocket) then
     FListenSocket.Close;
   // engine Stop
@@ -4787,6 +4824,8 @@ procedure TIocpUdpServer.Open;
 begin
   if FActive then Exit;
   FActive := True;
+  if (csDesigning in ComponentState) or (csLoading in ComponentState) then
+    Exit;
   try
     if Assigned(FDataMoniter) then
       FDataMoniter.Clear;
