@@ -177,9 +177,3 @@ YxdIocp (DIOCP修改版)
   yangyxd blog: http://www.cnblogs.com/yangyxd
   DIOCP 官方网站: http://www.diocp.org
   QDAC 官方网站: http://www.qdac.cc
- 
-【下载】
-百度网盘： http://pan.baidu.com/s/1kTKgHoj
-提取密码： ma5w
-
- 

@@ -21,8 +21,8 @@
 
   DIOCP官方QQ群：320641073
   QDAC官方QQ群：250530692
-  新版本获取地址： http://pan.baidu.com/s/1kTKgHoj
-  提取密码：ma5w
+  
+  Github: https://github.com/yangyxd/YxdIOCP  
 }
 
 unit iocp;

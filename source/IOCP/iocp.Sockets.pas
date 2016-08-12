@@ -39,7 +39,7 @@ uses
   iocp.Utils.Queues, iocp.Utils.ObjectPool,
   WinSock, iocp.Winapi.WinSock,
   {$IFDEF UNICODE}System.Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
-  SyncObjs, Windows, Classes, SysUtils;
+  SyncObjs, Windows, Classes, SysUtils, ExtCtrls;
 
 const
   LF = #10;
@@ -393,7 +393,7 @@ type
 
   TIocpCustom = class(TIocpBase)
   private
-    FOnlineContextList: TYXDHashMapLinkTable;
+    FOnlineContextList: TIntHash;
     FSendRequestPool: TBaseQueue;
 
     FContextCounter: Integer;
@@ -404,7 +404,6 @@ type
     FOnContextError: TOnContextError;
 
     function GetOnlineContextCount: Integer;
-    function HashItemToContext(Item: PHashMapLinkItem): TIocpCustomContext; inline;
   protected
     function RequestContextHandle: Integer;
 
@@ -933,7 +932,7 @@ type
     FIocpAcceptorMgr: TIocpAcceptorMgr;
     FContextPool: TBaseQueue;
     FMaxContextPoolSize: Integer;
-    FTimeOutClearThd: TThread;
+    FTimeOutKickOut: TTimer;
 
     FOnContextAccept: TOnContextAcceptEvent;
     function GetClientCount: Integer;
@@ -941,7 +940,10 @@ type
     procedure SetMaxTaskWorker(const Value: Integer);
   protected
     procedure CreateSocket; virtual;
-    procedure DoCleaerTimeOutConnection();
+    /// <summary>
+    /// 定时清理超时链接
+    /// </summary>
+    procedure DoKickOutTimer(Sender: TObject);
     /// <summary>
     /// 在投递的AcceptEx请求响应时中调用
     /// </summary>
@@ -1005,7 +1007,7 @@ type
     /// <summary>
     /// 连接自动超时踢除间隔时间 (注意，为了不影响性能，每10秒执行一次自动踢除函数，所以这个值只是个参考)
     /// </summary>
-    property KickOutInterval: Integer read FKickOutInterval write FKickOutInterval default 60000;
+    property KickOutInterval: Integer read FKickOutInterval write FKickOutInterval default 30000;
     /// <summary>
     /// 当接受连接时触发事件 (并行执行)
     /// </summary>
@@ -2313,15 +2315,18 @@ end;
 
 procedure TIocpCustom.GetOnlineContextList(pvList: TList);
 var
-  Item: PHashMapLinkItem;
-  lvClientContext: TIocpCustomContext;
+  P: PIntHashItem;
+  I: Integer;
 begin
   FLocker.Enter('GetOnlineContextList');
   try
-    for Item in FOnlineContextList do begin
-      lvClientContext := HashItemToContext(Item);
-      if Assigned(lvClientContext) then
-        pvList.Add(lvClientContext);
+    for I := 0 to FOnlineContextList.BucketsCount - 1 do begin
+      P := FOnlineContextList.Buckets[I];
+      while P <> nil do begin
+        if Pointer(P.Value) <> nil then         
+          pvList.Add(Pointer(P.Value));
+        P := P.Next;
+      end;
     end;
   finally
     FLocker.Leave;
@@ -2340,14 +2345,6 @@ begin
   Result.FAlive := True;
   Result.DoCleanup;
   Result.FOwner := Self;
-end;
-
-function TIocpCustom.HashItemToContext(Item: PHashMapLinkItem): TIocpCustomContext;
-begin
-  if (Item <> nil) and (Item.Value <> nil) then
-    Result := TIocpCustomContext(Item.Value.Value.Data)
-  else
-    Result := nil;
 end;
 
 function TIocpCustom.CheckClientContextValid(const ClientContext: TIocpCustomContext): Boolean;
@@ -2371,7 +2368,7 @@ end;
 constructor TIocpCustom.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FOnlineContextList := TYXDHashMapLinkTable.Create(99991);
+  FOnlineContextList := TIntHash.Create(99991);
   // send requestPool
   FSendRequestPool := TBaseQueue.Create;
 end;
@@ -2395,17 +2392,19 @@ end;
 
 procedure TIocpCustom.DisconnectAll;
 var
-  Item: PHashMapLinkItem;
+  P: PIntHashItem;
+  I: Integer;
   lvClientContext: TIocpCustomContext;
-const
-  DEBUGINFO = 'DisconnectAll';
 begin
-  FLocker.Enter(DEBUGINFO);
+  FLocker.Enter('DisconnectAll');
   try
-    for Item in FOnlineContextList do begin
-      lvClientContext := HashItemToContext(Item);
-      if Assigned(lvClientContext) then begin
-        lvClientContext.RequestDisconnect(Self, DEBUGINFO);
+    for I := 0 to FOnlineContextList.BucketsCount - 1 do begin
+      P := FOnlineContextList.Buckets[I];
+      while P <> nil do begin
+        lvClientContext := Pointer(P.Value);
+        if lvClientContext <> nil then
+          lvClientContext.RequestDisconnect(Self);
+        P := P.Next;
       end;
     end;
   finally
@@ -3845,33 +3844,6 @@ begin
 end;
 {$ENDIF}
 
-type
-  TTimeOutClearThread = class(TThread)
-  protected
-    FOwner: TIocpCustomTcpServer;
-    procedure Execute; override;
-  end;
-
-procedure TTimeOutClearThread.Execute();
-var
-  T: Int64;
-begin
-  if not Assigned(FOwner) then Exit;
-  T := GetTimestamp;
-  while not Self.Terminated do begin
-    if Assigned(FOwner) and (GetTimestamp - T > 10000) then begin
-      T := GetTimestamp;
-      try
-        FOwner.DoCleaerTimeOutConnection();
-      except
-        if Assigned(FOwner) then
-          FOwner.DoStateMsgE(Self, Exception(ExceptObject));
-      end;
-    end;
-    Sleep(1000);
-  end;
-end;
-
 { TIocpCustomTcpServer }
 
 procedure TIocpCustomTcpServer.Close;
@@ -3893,7 +3865,7 @@ begin
   DoStateMsgD(Self, 'Server Closeing...');
   if Assigned(FListenSocket) then
     FListenSocket.Close;
-  FreeAndNil(FTimeOutClearThd);
+  FTimeOutKickOut.Enabled := False;
   DisconnectAll;
   // 等待所有的投递的AcceptEx请求回归
   FIocpAcceptorMgr.WaitForCancel(12000);
@@ -3933,12 +3905,18 @@ begin
   FPort := 9000;
   FMaxSendingQueueSize := 256;
   FMaxContextPoolSize := 8192;
-  FKickOutInterval := 60000;
+  FKickOutInterval := 30000;
   FListenSocket := TRawSocket.Create;
   FIocpAcceptorMgr := TIocpAcceptorMgr.Create(Self, FListenSocket);
   FIocpAcceptorMgr.FMaxRequest := 256;
   FIocpAcceptorMgr.FMinRequest := 8;
   FContextPool := TBaseQueue.Create;
+
+  FTimeOutKickOut := TTimer.Create(nil);
+  FTimeOutKickOut.Interval := FKickOutInterval;
+  FTimeOutKickOut.Enabled := False;
+  FTimeOutKickOut.OnTimer := DoKickOutTimer;
+  
   DoStateMsgD(Self, 'Server Created.');
 end;
 
@@ -3969,6 +3947,7 @@ end;
 destructor TIocpCustomTcpServer.Destroy;
 begin
   inherited Destroy;
+  FreeAndNil(FTimeOutKickOut);
   FreeAndNil(FListenSocket);
   FreeAndNil(FIocpAcceptorMgr);
   FreeAndNil(FContextPool);
@@ -4064,9 +4043,9 @@ begin
     FIocpAcceptorMgr.CheckAcceptExRequest;
 end;
 
-procedure TIocpCustomTcpServer.DoCleaerTimeOutConnection();
+procedure TIocpCustomTcpServer.DoKickOutTimer(Sender: TObject);
 begin
-  if not Assigned(Self) or IsDestroying then Exit;
+  if IsDestroying then Exit;
   try
     if FKickOutInterval < 1000 then
       KickOut(1000)
@@ -4074,16 +4053,16 @@ begin
       KickOut(FKickOutInterval);
   except
     DoStateMsgE(Self, Exception(ExceptObject));
-  end;
+  end;  
 end;
 
 function TIocpCustomTcpServer.FindContext(ContextHandle: Cardinal): TIocpClientContext;
 var
-  Item: PHashValue;
+  V: Number;
 begin
-  Item := FOnlineContextList.ValueOf(ContextHandle);
-  if Item <> nil then
-    Result := TIocpClientContext(Item.Data)
+  V := FOnlineContextList.ValueOf(ContextHandle, 0);
+  if V <> 0 then
+    Result := TIocpClientContext(Pointer(V))
   else
     Result := nil;
 end;
@@ -4213,32 +4192,33 @@ end;
 procedure TIocpCustomTcpServer.KickOut(pvTimeOut: Cardinal);
 var
   lvNowTickCount: Int64;
-  Item, Next: PHashMapLinkItem;
   lvContext: TIocpCustomContext;
+  P: PIntHashItem;
+  I: Integer;
 begin
   lvNowTickCount := GetTimestamp;
-  Item := nil;
-  Next := nil;
-  while True do begin
-    FLocker.Enter('KickOut');
-    try
-      if Item = nil then
-        Item := FOnlineContextList.First
-      else
-        Item := Next;
-      if Item <> nil then
-        Next := Item.Next
-      else
-        Exit;
-      lvContext := HashItemToContext(Item);
-      if Assigned(lvContext) and (lvContext.FLastActivity <> 0) then begin
-        if lvNowTickCount - lvContext.FLastActivity > pvTimeOut then
-          // 请求关闭
-          lvContext.CloseConnection;
+  FLocker.Enter('KickOut');
+  try
+    for I := 0 to FOnlineContextList.BucketsCount - 1 do begin
+      P := FOnlineContextList.Buckets[I];
+      while P <> nil do begin
+        if Pointer(P.Value) <> nil then begin
+          lvContext := Pointer(P.Value);
+          if Assigned(lvContext) and
+            (not lvContext.IsDisconnecting) and
+            (lvContext.FAlive) and
+            (lvContext.FLastActivity <> 0) then
+          begin
+            if lvNowTickCount - lvContext.FLastActivity > pvTimeOut then
+              // 请求关闭
+              lvContext.CloseConnection;
+          end;
+        end;
+        P := P.Next;
       end;
-    finally
-      FLocker.Leave;
     end;
+  finally
+    FLocker.Leave;
   end;
 end;
 
@@ -4256,16 +4236,9 @@ begin
     FIocpEngine.Start;
     // 创建侦听的套接字
     CreateSocket;
-    // 初始化一个超时清理线程
-    FreeAndNil(FTimeOutClearThd);
-    FTimeOutClearThd := TTimeOutClearThread.Create(True);
-    TTimeOutClearThread(FTimeOutClearThd).FOwner := Self;
-    {$IFDEF UNICODE}
-    FTimeOutClearThd.Start;
-    {$ELSE}
-    FTimeOutClearThd.Resume;
-    {$ENDIF}
-    FTimeOutClearThd.Suspended := False;
+    // 启用超时清理功能
+    FTimeOutKickOut.Interval := FKickOutInterval;
+    FTimeOutKickOut.Enabled := True;
   except
     FActive := False;
     FListenSocket.Close;

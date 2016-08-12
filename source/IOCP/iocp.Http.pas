@@ -528,15 +528,16 @@ type
     function GetActive: Boolean;
     function GetContentType: StringA;
   protected
-    procedure MakeHeaderEx(const Data: TStringCatHelperA); virtual;
+    procedure MakeHeaderEx(const StatusCode: Integer;
+      const Data: TStringCatHelperA); virtual;
     function MakeHeader(Data: TStringCatHelperA;
-      const ContextLength: Int64; const Status: StringA = '';
+      const ContentLength: Int64; const StatusCode: Integer = 0;
       FileDown: Boolean = False; const FileName: StringA = '';
       const LastModified: TDateTime = 0): Boolean; overload; virtual;
-    function MakeHeader(const ContextLength: Int64; const Status: StringA = '';
+    function MakeHeader(const ContentLength: Int64; const StatusCode: Integer = 0;
       FileDown: Boolean = False; const FileName: StringA = '';
       const LastModified: TDateTime = 0; IsFixHeader: Boolean = False): StringA; overload;
-    function MakeFixHeader(const ContextLength: Int64; const Status: StringA = '';
+    function MakeFixHeader(const ContentLength: Int64; const StatusCode: Integer = 0;
       FileDown: Boolean = False; const FileName: StringA = '';
       const LastModified: TDateTime = 0): StringA; overload; inline;
     function GetBlockHeader: StringA;
@@ -2651,6 +2652,8 @@ begin
       end;      
 
       if FRequest.DecodeHttpRequestMethod = http_Unknown then begin
+        FRequest.Close;
+        FRequest := nil;
         CloseConnection;  // 无效的Http请求
         Break;       
       end;
@@ -2963,7 +2966,7 @@ begin
     207: Result := 'Multi-Status';
     300: Result := 'Multiple Choices';
     301: Result := 'Moved Permanently';
-    302: Result := 'Found';
+    302: Result := 'Temporarily Moved';
     303: Result := 'See Other';
     304: Result := 'Not Modified';
     305: Result := 'Use Proxy';
@@ -2997,7 +3000,7 @@ begin
     505: Result := 'Version Not Supported';
     507: Result := 'Insufficient Storage';
   else
-    Result := 'Unknown Error';
+    Result := 'Unknown';
   end;
 end;
 
@@ -3017,7 +3020,7 @@ begin
   if (not Active) or (ErrorCode < 400) then Exit;
   Data := FRequest.FOwner.GetHeaderBuilder;
   try
-    MakeHeader(Data, 0, StringA(IntToStr(ErrorCode)) + ' ' + GetResponseCodeNote(ErrorCode));
+    MakeHeader(Data, 0, ErrorCode);
     FixHeader(Data);
     FRequest.FConn.Send(Data.Memory, Data.Position, True);
     FRequest.FConn.CloseConnection;
@@ -3113,38 +3116,34 @@ begin
 end;
 {$ENDIF}
 
-function TIocpHttpResponse.MakeFixHeader(const ContextLength: Int64;
-  const Status: StringA; FileDown: Boolean; const FileName: StringA;
+function TIocpHttpResponse.MakeFixHeader(const ContentLength: Int64;
+  const StatusCode: Integer; FileDown: Boolean; const FileName: StringA;
   const LastModified: TDateTime): StringA;
 begin
-  Result := MakeHeader(ContextLength, Status, FileDown, FileName,
+  Result := MakeHeader(ContentLength, StatusCode, FileDown, FileName,
     LastModified, True);
 end;
 
-function TIocpHttpResponse.MakeHeader(const ContextLength: Int64;
-  const Status: StringA; FileDown: Boolean; const FileName: StringA;
+function TIocpHttpResponse.MakeHeader(const ContentLength: Int64;
+  const StatusCode: Integer; FileDown: Boolean; const FileName: StringA;
   const LastModified: TDateTime; IsFixHeader: Boolean): StringA;
 var
   Data: TStringCatHelperA;
 begin
   Data := FRequest.FOwner.GetHeaderBuilder;
-  try
-    MakeHeader(Data, ContextLength, Status, FileDown, FileName, LastModified);
-    if IsFixHeader then
-      FixHeader(Data);
-    Result := Data.Value;
-  except
-    OutputDebugString(PChar(Exception(ExceptObject).Message));
-  end;
+  MakeHeader(Data, ContentLength, StatusCode, FileDown, FileName, LastModified);
+  if IsFixHeader then
+    FixHeader(Data);
+  Result := Data.Value;
   FRequest.FOwner.FreeHeaderBuilder(Data);
 end;
 
 function TIocpHttpResponse.MakeHeader(Data: TStringCatHelperA;
-  const ContextLength: Int64; const Status: StringA; FileDown: Boolean;
+  const ContentLength: Int64; const StatusCode: Integer; FileDown: Boolean;
   const FileName: StringA; const LastModified: TDateTime): Boolean;
 const
   CSStatusOK: StringA = ' 200 OK';
-  CSVRNAME: StringA = #13#10'Server: DIOCP-YXD/1.0'#13#10;
+  CSVRNAME: StringA = #13#10'Server: IOCP-YXD/1.1'#13#10;
   CSDFILE: StringA = 'Accept-Ranges: bytes'#13#10 +
     'Content-Disposition: attachment;filename="%s"'#13#10'Last-Modified: %s'#13#10;
   CSCHARSET: StringA = 'charset=';
@@ -3159,39 +3158,43 @@ var
   I: Integer;
 begin
   Data.Cat(FRequest.RequestVersionStr);
-  if (Length(Status) = 0) then begin
+  if (StatusCode <= 0) then begin
     // 处理区域传送 (用于断点传输)
     if FileDown and FRequest.IsRange then begin
       Data.Cat(' 206 Partial Content');
     end else
       Data.Cat(CSStatusOK);
   end else
-    Data.Space(1).Cat(Status);
+    Data.Space(1).Cat(IntToStr(StatusCode)).Cat(' ').Cat(GetResponseCodeNote(StatusCode));
+  
   Data.Cat(CSVRNAME);
-
   Data.Cat(CSDate).Cat(GetNowGMTRFC822()).Cat(HTTPLineBreak);
 
-  // Content-Language
-  if Length(FContentLanguage) > 0 then
-    Data.Cat(CSContentLanguage).Cat(FContentLanguage).Cat(HTTPLineBreak)
-  else if Length(FRequest.FOwner.FContentLanguage) > 0 then
-    Data.Cat(CSContentLanguage).Cat(FRequest.FOwner.FContentLanguage).Cat(HTTPLineBreak);
+  // 如果不是错误的响应或者内容长度大于0才写入这些Header
+  if (StatusCode < 400) or (ContentLength > 0) then begin
+    // Content-Language
+    if Length(FContentLanguage) > 0 then
+      Data.Cat(CSContentLanguage).Cat(FContentLanguage).Cat(HTTPLineBreak)
+    else if Length(FRequest.FOwner.FContentLanguage) > 0 then
+      Data.Cat(CSContentLanguage).Cat(FRequest.FOwner.FContentLanguage).Cat(HTTPLineBreak);
 
-  // Content-Type
-  Data.Cat(CSContentType).Cat(GetContentType);
-  if Length(FCharset) > 0 then begin
-    if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
-      Data.Cat('; ').Cat(CSCHARSET).Cat(FCharset);
+    // Content-Type
+    Data.Cat(CSContentType).Cat(GetContentType);
+    if Length(FCharset) > 0 then begin
+      if PosStr(PAnsiChar(CSCHARSET), Length(CSCHARSET), Data.Memory, Data.Position, 0) < 1 then
+        Data.Cat('; ').Cat(CSCHARSET).Cat(FCharset);
+    end;
+    Data.Cat(HTTPLineBreak);
+
+    // Content-Length
+    Data.Cat(CSContentLength).Cat(ContentLength).Cat(HTTPLineBreak);
+
+    // Content-Encode
+    {$IFDEF UseGZip}
+    if FGZip then
+      Data.Cat(CSContentEncodeGzip);
+    {$ENDIF}
   end;
-  Data.Cat(HTTPLineBreak);
-
-  //if ContextLength > 0 then
-  Data.Cat(CSContentLength).Cat(ContextLength).Cat(HTTPLineBreak);
-
-  {$IFDEF UseGZip}
-  if FGZip then
-    Data.Cat(CSContentEncodeGzip);
-  {$ENDIF}
 
   // 跨域控制
   FRequest.FOwner.AccessControlAllow.MakerHeader(Data);
@@ -3212,18 +3215,18 @@ begin
       Data.Cat(CSSetCookie).Cat(TIocpHttpCookie(FCookies[i]).ToString()).Cat(HTTPLineBreak);
   end;
   
-  MakeHeaderEx(Data);
+  MakeHeaderEx(StatusCode, Data);
 
   Result := True;
 end;
 
-procedure TIocpHttpResponse.MakeHeaderEx(
+procedure TIocpHttpResponse.MakeHeaderEx(const StatusCode: Integer;
   const Data: TStringCatHelperA);
 const
   CSConnectionKeepAlive: StringA = 'Connection: Keep-Alive'#13#10;
   CSConnectionClose: StringA = 'Connection: close'#13#10;
 begin
-  if Request.FKeepAlive then
+  if Request.FKeepAlive and (StatusCode < 400) then
     Data.Cat(CSConnectionKeepAlive)
   else       
     Data.Cat(CSConnectionClose);
@@ -3233,7 +3236,7 @@ procedure TIocpHttpResponse.RedirectURL(const pvURL: StringA);
 begin
   if (not Active) or (Length(pvURL) = 0) then Exit;
   FRequest.FConn.Send(
-    FixHeader(MakeHeader(0, '302 Temporarily Moved') + 'Location: ' + pvURL));
+    FixHeader(MakeHeader(0, 302) + 'Location: ' + pvURL));
   FRequest.FConn.CloseConnection;
 end;
 
@@ -3241,8 +3244,7 @@ procedure TIocpHttpResponse.ResponeCode(Code: Word; const Data: StringA);
 begin
   if (not Active) or (Code < 100) then Exit;
   FRequest.FConn.Send(
-    MakeFixHeader(Length(Data), StringA(IntToStr(Code)) + ' ' +
-      GetResponseCodeNote(Code)) + Data);
+    MakeFixHeader(Length(Data), Code) + Data);
 end;
 
 const
@@ -3649,11 +3651,11 @@ begin
       Header := StringA(Format('Content-Range: bytes %d-%d/%d', [
           FRequest.FRangeStart, FRequest.FRangeEnd, L]));
       L := FRequest.FRangeEnd - FRequest.FRangeStart + 1;
-      Header := FixHeader(MakeHeader(L, '', IsDownloadFile, ExtractFileName(AFileName), LastModified) + Header);
+      Header := FixHeader(MakeHeader(L, 0, IsDownloadFile, ExtractFileName(AFileName), LastModified) + Header);
       if FRequest.FRangeStart > 0 then
         Stream.Position := Stream.Position + FRequest.FRangeStart;
     end else begin
-      Header := MakeHeader(L, '', IsDownloadFile,
+      Header := MakeHeader(L, 0, IsDownloadFile,
         ExtractFileName(AFileName), LastModified, True);
     end;
 

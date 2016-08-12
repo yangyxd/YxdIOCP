@@ -125,6 +125,7 @@ type
     FLocker: TCriticalSection;
     FCount: Integer;
     FOnFreeItem: TYXDStrHashItemFreeNotify;
+    function GetBucketsCount: Integer;
   public
     Buckets: array of PHashItem;
     constructor Create(Size: Cardinal = 331);
@@ -139,8 +140,9 @@ type
     function Modify(const Key: string; Value: Number): Boolean;
     function ValueOf(const Key: string; const DefaultValue: Number = -1): Number;
     function Exists(const Key: string): Boolean;  
-    property OnFreeItem: TYXDStrHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
     property Count: Integer read FCount;
+    property BucketsCount: Integer read GetBucketsCount;
+    property OnFreeItem: TYXDStrHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
 
 type
@@ -160,11 +162,13 @@ type
 
   TIntHash = class
   private
-    Buckets: array of PIntHashItem;
+    FCount: Integer;
     FLocker: TCriticalSection;
     FOnFreeItem: TYXDIntHashItemFreeNotify;
+    function GetBucketsCount: Integer;
   protected
   public
+    Buckets: array of PIntHashItem;
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
     function Find(const Key: THashType): PPIntHashItem;
@@ -175,6 +179,8 @@ type
     function Modify(const Key: THashType; Value: Number): Boolean;
     function ValueOf(const Key: THashType; const DefaultValue: Number = -1): Number;
     function Exists(const Key: THashType): Boolean;
+    property Count: Integer read FCount;
+    property BucketsCount: Integer read GetBucketsCount;
     property OnFreeItem: TYXDIntHashItemFreeNotify read FOnFreeItem write FOnFreeItem;
   end;
 
@@ -611,6 +617,11 @@ begin
   end;
 end;
 
+function TStringHash.GetBucketsCount: Integer;
+begin
+  Result := Length(Buckets);
+end;
+
 procedure TStringHash.Lock;
 begin
   FLocker.Enter;
@@ -685,6 +696,7 @@ begin
   FLocker.Enter;
   Bucket^.Next := Buckets[Hash];
   Buckets[Hash] := Bucket;
+  Inc(FCount);
   FLocker.Leave;
 end;
 
@@ -711,6 +723,7 @@ begin
     end;
     Buckets[I] := nil;
   end;
+  FCount := 0;
   FLocker.Leave;
 end;
 
@@ -719,6 +732,7 @@ begin
   inherited Create;
   FLocker := TCriticalSection.Create;
   SetLength(Buckets, Size);
+  FCount := 0;
 end;
 
 destructor TIntHash.Destroy;
@@ -750,6 +764,11 @@ begin
   end;
 end;
 
+function TIntHash.GetBucketsCount: Integer;
+begin
+  Result := Length(Buckets);
+end;
+
 function TIntHash.Modify(const Key: THashType; Value: Number): Boolean;
 var
   P: PIntHashItem;
@@ -779,6 +798,7 @@ begin
     Prev^ := P^.Next;
     Dispose(P);
     Result := True;
+    Dec(FCount);
   end;
   FLocker.Leave;
 end;

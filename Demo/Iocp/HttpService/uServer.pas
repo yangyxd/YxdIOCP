@@ -121,7 +121,7 @@ begin
     Delete(Path, 1, 1);
   Path := SoftPath + Path;
   if FileExists(Path) then begin
-    Response.SendFile(Path, '', False, True);
+    Response.SendFile(Path, '', True, True);
   end else begin
     V := FProcList.ValueOf(LowerCase(string(Request.URI)));
     if V <> -1 then begin

@@ -252,7 +252,8 @@ type
   /// </summary>
   TIocpWebSocketHttpResponse = class(TIocpHttpResponse)
   protected
-    procedure MakeHeaderEx(const Data: TStringCatHelperA); override;
+    procedure MakeHeaderEx(const StatusCode: Integer;
+      const Data: TStringCatHelperA); override;
   public
     procedure ResponseWebSocket();
     function GetWebSocketAccept(): StringA;
@@ -908,7 +909,7 @@ begin
   {$ENDIF}
 end;
 
-procedure TIocpWebSocketHttpResponse.MakeHeaderEx(
+procedure TIocpWebSocketHttpResponse.MakeHeaderEx(const StatusCode: Integer;
   const Data: TStringCatHelperA);
 const
   CSConnectionUpgrade: StringA    = 'Connection: Upgrade'#13#10;
@@ -919,8 +920,8 @@ var
   Conn: TIocpWebSocketConnection;
 begin
   Conn := TIocpWebSocketConnection(Request.Connection);
-  if Conn.FSessionID = '' then
-    inherited MakeHeaderEx(Data)
+  if (StatusCode <> 101) or (Conn.FSessionID = '') then
+    inherited MakeHeaderEx(StatusCode, Data)
   else begin
     Data.Cat(CSUpgradeWebSocket);
     Data.Cat(CSConnectionUpgrade);
@@ -995,7 +996,7 @@ begin
         FOwner.DoStateMsgE(Self, Exception(ExceptObject));
       end;
     end;
-    Sleep(200);
+    Sleep(100);
   end;
 end;
 
