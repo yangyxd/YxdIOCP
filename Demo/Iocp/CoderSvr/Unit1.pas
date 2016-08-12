@@ -3,9 +3,18 @@ unit Unit1;
 interface
 
 uses
-  iocp,
+  iocp, 
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ExtCtrls, ComCtrls;
+
+type
+  TMsgRequest = class(TObject)
+  private
+    FValue: string;
+  public
+    procedure LoadFromStream(avIn: TIocpStream);
+    property Value: string read FValue write FValue;  
+  end;
 
 type
   TForm1 = class(TForm)
@@ -50,7 +59,6 @@ type
     procedure Button3Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
-    procedure Button4Click(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
     procedure Button5Click(Sender: TObject);
     procedure Button6Click(Sender: TObject);
@@ -65,19 +73,20 @@ type
     FClient: TIocpTcpClient;
     FSendStr: string;
 
-    procedure Msg(const s: string);
+    function CreateExecObj(AStream: TIocpStream; AData: PAnsiChar; ADataLen: Cardinal): TMsgRequest; 
   public
     { Public declarations }
+    procedure Msg(const s: string);
     procedure RefreshState;
     function GetResponseData: string;
     procedure OnContextConnected(const pvContext: TIocpContext);
     procedure OnClientRecvBuffer(const pvClientContext: TIocpContext; buf: Pointer;
         len:cardinal; errCode:Integer);
-    procedure OnRecvBuffer(const pvClientContext: TIocpContext; buf: Pointer;
-        len:cardinal; errCode:Integer);
     procedure OnAccept(pvSocket: THandle; const pvAddr: string; pvPort: Word; var
         vAllowAccept: Boolean);
 
+    procedure OnDataRecvived(const Context: TIocpContext; buf: Pointer;
+      len: Cardinal; ErrorCode: Integer);
     function OnDecode(Connection: TIocpConnection; const Stream: TIocpStream;
       var Request: TObject): Boolean;
     procedure OnRecvExecute(Sender: TIocpTcpCodecServer;
@@ -92,7 +101,7 @@ implementation
 {$R *.dfm}
 
 uses
-  uFMMonitor, utils.buffer;
+  uFMMonitor;
 
 
 procedure TForm1.btnDisconectAllClick(Sender: TObject);
@@ -127,7 +136,6 @@ procedure TForm1.btnOpenClick(Sender: TObject);
 begin
   if btnOpen.Tag = 0 then begin
     FTcpServer.ListenPort := StrToInt(edtPort.Text);
-    FTcpServer.OnDataReceived := OnRecvBuffer;
     FTcpServer.OnDecodeData := OnDecode;
     FTcpServer.OnRecvExecute := OnRecvExecute;
     FTcpServer.Active := true;
@@ -190,54 +198,6 @@ begin
   FClient.Delete(0);
 end;
 
-procedure TForm1.Button4Click(Sender: TObject);
-var
-  i: Integer;
-  t: Int64;
-  s: TIocpStream;
-  b: TBufferLink;
-  buf: array [0..255] of AnsiChar;
-begin
-  s := TIocpStream.Create();
-  s.OnPopMem := FTcpServer.PopMem;
-  s.OnPushMem := FTcpServer.PushMem;
-  s.SetCunkSize(128);
-  try
-    t := GetTimestamp;
-    for I := 0 to 1000000 - 1 do begin
-      s.Clear;
-      s.WriteBuffer('1234567890abcdefghijklmn', 24);
-      s.Skip(3);
-      s.read(buf, 5);
-      s.Write('012', 3);
-      FillChar(buf, SizeOf(buf), 0);
-      s.read(buf, 10);
-    end;
-    Msg(Format('TIocpStream %d, %d ms.', [i, GetTimestamp - t]));
-    Msg(buf);
-  finally
-    S.Free;
-  end;
-
-  b := TBufferLink.Create;
-  try
-    t := GetTimestamp;
-    for I := 0 to 1000000 - 1 do begin
-      b.clearBuffer;
-      b.AddBuffer('1234567890abcdefghijklmn', 24);
-      b.Skip(3);
-      b.readBuffer(@buf[0], 5);
-      b.AddBuffer('012', 3);
-      FillChar(buf, SizeOf(buf), 0);
-      b.readBuffer(@buf[0], 10);
-    end;
-    Msg(Format('TBufferLink %d, %d ms.', [i, GetTimestamp - t]));
-    Msg(buf);
-  finally
-    b.Free;
-  end;
-end;
-
 procedure TForm1.Button5Click(Sender: TObject);
 begin
   if not Assigned(FClient) then
@@ -260,7 +220,7 @@ begin
     TCP.RemoteHost := Edit1.Text;
     TCP.RemotePort := StrToIntDef(edtPort.Text, 9983);
     TCP.Active := True;
-    TCP.ReadTimeOut := 60000;
+    TCP.ReadTimeOut := 10000;
     TCP.Send(Memo1.Text);
     RecvData := TCP.Recv;
   finally
@@ -289,6 +249,18 @@ begin
   ShowMessage(Format('连接超时: %dms.', [T]));
 end;
 
+function TForm1.CreateExecObj(AStream: TIocpStream; AData: PAnsiChar;
+  ADataLen: Cardinal): TMsgRequest;
+begin
+  Result := TMsgRequest.Create;
+  try
+    Result.LoadFromStream(AStream);
+  finally
+    if Result.FValue = '' then
+      Result.Free;
+  end;
+end;
+
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   FStickRef := 0;
@@ -297,7 +269,7 @@ begin
 
   FTcpServer := TIocpTcpCodecServer.Create(Self);
   FTcpServer.Name := 'iocpSVR';
-  FTcpServer.OnDataReceived := OnRecvBuffer;
+  FTcpServer.OnDataReceived := OnDataRecvived;
   FTcpServer.OnContextAccept := OnAccept;
   FTcpServer.createDataMonitor;
 
@@ -332,8 +304,7 @@ end;
 procedure TForm1.OnClientRecvBuffer(const pvClientContext: TIocpContext;
   buf: Pointer; len: cardinal; errCode: Integer);
 begin
-  //pvClientContext.Send(buf, len);
-  pvClientContext.Send('123456');
+  pvClientContext.Send(buf, len);
   Sleep(1);
 end;
 
@@ -343,36 +314,38 @@ begin
 end;
 
 function TForm1.OnDecode(Connection: TIocpConnection; const Stream: TIocpStream; var Request: TObject): Boolean;
+var
+  Last: Int64;
 begin
-  Result := False;
   // 在这里解码数据包， 使用 LoadFromStream() 方式，
   // 如果Load失败数据未接收完整， Stream.WaitRecv 会被置为 True。
+  Last := Stream.Position;
+  try
+    Request := CreateExecObj(Stream, nil, 0);
+    if Stream.WaitRecv then begin
+      Stream.Position := Last;
+      Result := True;
+    end else begin
+      Result := Assigned(Request);
+    end;
+  except
+    FreeAndNil(Request);
+    Result := False;
+  end;
 end;
 
-procedure TForm1.OnRecvBuffer(const pvClientContext: TIocpContext; buf: Pointer;
-  len: cardinal; errCode: Integer);
-//var
-  //j, i:Integer;
-  //s:AnsiString;
+procedure TForm1.OnDataRecvived(const Context: TIocpContext; buf: Pointer;
+  len: Cardinal; ErrorCode: Integer);
 begin
-  if len <> 10 then begin
-    InterlockedIncrement(FStickRef);
-  end;
-  if errCode = 0 then
-  begin
-    // 如果客户端发送的为字符串，可以用下面代码进行显示
-    //    SetLength(s, len);
-    //    Move(buf^, s[1], len);
-    //    sfLogger.logMessage(s);
-    //pvClientContext.Send(buf, len);
-    pvClientContext.Send(GetResponseData());
-  end else
-    pvClientContext.Disconnect;
+  //Context.Send(buf, len);
 end;
 
 procedure TForm1.OnRecvExecute(Sender: TIocpTcpCodecServer;
   AConnection: TIocpConnection; var RequestData: TObject);
 begin
+  AConnection.Send(TMsgRequest(RequestData).Value);
+  // 用完了对象，记得释放
+  FreeAndNil(RequestData);
 end;
 
 procedure TForm1.RefreshState;
@@ -413,6 +386,19 @@ begin
   FTcpServer.IocpAcceptorMgr.MaxRequest := 2000;
   Application.ProcessMessages;
   btnOpenClick(Sender);
+end;
+
+{ TMsgRequest }
+
+procedure TMsgRequest.LoadFromStream(avIn: TIocpStream);
+var
+  buf: AnsiString;
+begin
+  SetLength(buf, avIn.Size);
+  if avIn.ReadBuffer(buf[1], Length(buf)) then
+    FValue := buf
+  else
+    FValue := '';
 end;
 
 end.

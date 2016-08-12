@@ -111,14 +111,11 @@ type
   TIocpConnection = class(TIocpClientContext)
   private
     FStream: TIocpStream;
-    FProcessRequesting: Boolean;
-    FRequestQueue: TSimpleQueue;
   protected
     procedure DoCleanUp; override;
     function PopMem: Pointer; inline;
     procedure PushMem(const V: Pointer); inline;
 
-    procedure ClearRequestTaskObject();
     procedure DoRecvExecute(const RequestObj: TObject);
     procedure DoJob(AJob: PIocpJob);
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrorCode: Integer); override;
@@ -429,106 +426,53 @@ end;
 
 { TIocpConnection }
 
-procedure TIocpConnection.ClearRequestTaskObject;
-var
-  P: PIocpAsyncExecute;
-begin
-  Lock;
-  try
-    if not FProcessRequesting then Exit;    
-    while True do begin
-      P := FRequestQueue.DeQueue;
-      if P = nil then
-        Break;
-      try
-        if Assigned(P.Request) then begin
-          try
-            FreeAndNil(P.Request);
-          except
-            if Assigned(Owner) then
-              Owner.DoStateMsgE(Self, Exception(ExceptObject));
-          end;
-        end;
-      finally
-        SMemPool.Push(P);
-      end;
-    end;
-  finally
-    FProcessRequesting := False;
-    UnLock;
-  end;
-end;
-
 constructor TIocpConnection.Create(AOwner: TIocpCustom);
 begin
   inherited Create(AOwner);
-  FRequestQueue := TSimpleQueue.Create();
+  FStream := nil;
 end;
 
 destructor TIocpConnection.Destroy;
 begin
-  // 清理待处理请求队列
-  ClearRequestTaskObject;
-  if Assigned(Workers) and FProcessRequesting then
+  if Assigned(Workers) then
     Workers.Clear(Self);
   if Assigned(Owner) and (Assigned(FStream)) then
     TIocpTcpCodecServer(Owner).FreeStream(FStream);
   FStream := nil;
-  FRequestQueue.Free;
   inherited Destroy;
 end;
 
 procedure TIocpConnection.DoCleanUp;
 begin
   inherited DoCleanUp;
-  FProcessRequesting := False;
-  // 清理待处理请求队列
-  ClearRequestTaskObject; 
   TIocpTcpCodecServer(Owner).FreeStream(FStream);
   FStream := nil;
 end;
 
 procedure TIocpConnection.DoJob(AJob: PIocpJob);
-const
-  DEBUGINFO = '业务逻辑处理...';
 var
   Data: TIocpAsyncExecute;
-  P: Pointer;
 begin
-  while Assigned(Self) and (Self.Active) do begin
-    Lock;
+  Data := PIocpAsyncExecute(AJob.Data)^;
+  SMemPool.Push(AJob.Data);
+  try
+    // 连接已经断开, 放弃处理逻辑
+    if (Self = nil) or (Owner = nil) or (not Self.Active) then
+      Exit;
+    // 已经不是当时请求的连接，放弃处理逻辑
+    if (Data.Conn = nil) or (Data.Conn.Handle <> Self.Handle) then Exit;
+
+    // 处理请求
     try
-      P := FRequestQueue.DeQueue;
-      if P = nil then begin
-        FProcessRequesting := False;
-        Exit;
-      end;
-    finally
-      UnLock;
-    end;
-    try
-      Data := PIocpAsyncExecute(P)^;
-      SMemPool.Push(P);
-      try
-        // 连接已经断开, 放弃处理逻辑
-        if (Self = nil) then Exit;
-        // 连接已经断开, 放弃处理逻辑
-        if (Owner = nil) then Exit;
-        // 已经不是当时请求的连接，放弃处理逻辑
-        if (Data.Conn = nil) or (Data.Conn.Handle <> Self.Handle) then Exit;
-        Self.LockContext(Self, DEBUGINFO);
-        try
-          TIocpTcpCodecServer(Owner).DoRecvExecute(Data.Conn, Data.Request);
-          LastActivity := GetTimestamp;
-        finally
-          Self.UnLockContext(Self, DEBUGINFO);
-        end;
-      finally
-        FreeAndNil(Data.Request);
-      end;
+      TIocpTcpCodecServer(Owner).DoRecvExecute(Data.Conn, Data.Request);
+      LastActivity := GetTimestamp;
     except
       Owner.DoStateMsgE(Self, Exception(ExceptObject));
     end;
+
+  finally
+    FreeAndNil(Data.Request);
+    Self.UnLockContext(Self, 'DoRecvExecute');
   end;
 end;
 
@@ -537,19 +481,13 @@ var
   Data: PIocpAsyncExecute;
 begin
   if Assigned(Workers) and Active then begin
-    Data := SMemPool.Pop;
-    Data.Conn := Self;
-    Data.Request := RequestObj;
-    Lock;
-    try
-      FRequestQueue.EnQueue(Data);
-      if not FProcessRequesting then begin
-        FProcessRequesting := True;
-        Workers.Post(DoJob, FRequestQueue);
-      end;
-    finally
-      UnLock;
-    end;
+    if LockContext(Self, 'DoRecvExecute') then begin    
+      Data := SMemPool.Pop;
+      Data.Conn := Self;
+      Data.Request := RequestObj;
+      Workers.Post(DoJob, Data);
+    end else
+      RequestObj.Free;
   end;
 end;
 
@@ -559,9 +497,14 @@ var
   Last: Int64;
   FRequest: TObject;
 begin
-  // 没有解码器时关闭连接
-  if (not Assigned(Owner)) or (not Assigned(TIocpTcpCodecServer(Owner).FOnDecodeData)) then begin
+  if (not Assigned(Owner)) then begin
     CloseConnection;
+    Exit;
+  end;
+  // 没有解码器时作为普通的TCP服务处理
+  if (not Assigned(TIocpTcpCodecServer(Owner).FOnDecodeData)) then begin
+    if (not Assigned(Owner.OnDataReceived)) then
+      CloseConnection;
     Exit;
   end;
 
@@ -583,6 +526,7 @@ begin
     Last := FStream.GetPosition;
 
     if not TIocpTcpCodecServer(Owner).FOnDecodeData(Self, FStream, FRequest) then begin
+      // 解码失败
       CloseConnection;
       Exit;
     end;

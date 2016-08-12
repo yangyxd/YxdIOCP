@@ -4,8 +4,7 @@ uses
   Forms,
   Unit1 in 'Unit1.pas' {Form1},
   uFrmSelRanage in 'uFrmSelRanage.pas' {FrmSelRanage},
-  uFMMonitor in 'uFMMonitor.pas' {FMMonitor: TFrame},
-  utils.buffer in '..\..\..\diocp\diocp-v5-master\source\utils.buffer.pas';
+  uFMMonitor in 'uFMMonitor.pas' {FMMonitor: TFrame};
 
 {$R *.res}
 

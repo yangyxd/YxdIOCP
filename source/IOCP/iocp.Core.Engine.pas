@@ -257,6 +257,7 @@ type
     property Data: Pointer read FData write FData;
     property Tag: Integer read FTag write FTag;
     property Worker: TIocpWorker read FIocpWorker;
+    property BytesTransferred: NativeUInt read FBytesTransferred;
     property OnResponse: TNotifyEvent read FOnResponse write FOnResponse;
     property OnResponseDone: TNotifyEvent read FOnResponseDone write FOnResponseDone;
   end;

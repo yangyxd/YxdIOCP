@@ -320,6 +320,7 @@ implementation
 const
   CSConnection: StringA             = 'Connection';
   CSUpgrade: StringA                = 'Upgrade';
+  CSUpgradeI: StringA               = 'upgrade';
   CSWebScoket: StringA              = 'websocket';
   CSSecWebSocketVersion: StringA    = 'Sec-WebSocket-Version';
   CSSecWebSocketExtensions: StringA = 'Sec-WebSocket-Extensions';
@@ -635,7 +636,7 @@ end;
 procedure TIocpWebSocketServer.DoWebSocketDisconnect(
   AConnection: TIocpWebSocketConnection);
 begin
-  if Assigned(FConnMap) then  
+  if Assigned(FConnMap) and (AConnection.FSessionID <> '') then  
     FConnMap.Remove(AConnection.FSessionID);
   if Assigned(FOnWebSocketDisconnect) then
     FOnWebSocketDisconnect(Self, AConnection);
@@ -739,12 +740,15 @@ end;
 procedure TIocpWebSocketConnection.DoCleanUp;
 begin
   inherited DoCleanUp;
-  FSessionID := '';
+  if (FSessionID <> '') and Assigned(Owner) then begin
+    TIocpWebSocketServer(Owner).DoWebSocketDisconnect(Self);
+    FSessionID := '';
+  end;
   if Assigned(FSocketRequest) then begin
     TIocpWebSocketServer(Owner).FreeWebSocketRequest(FSocketRequest);
     FSocketRequest := nil;
+    FSocketResponse.Clear;
   end;
-  FSocketResponse.Clear;
 end;
 
 procedure TIocpWebSocketConnection.DoSendPing;
@@ -844,9 +848,9 @@ end;
 
 procedure TIocpWebSocketConnection.ReleaseClientContext;
 begin
-  inherited ReleaseClientContext;
   if Assigned(Owner) then
     TIocpWebSocketServer(Owner).DoWebSocketDisconnect(Self);
+  inherited ReleaseClientContext;
 end;
 
 { TIocpWebSocketHttpRequest }
@@ -855,7 +859,7 @@ function TIocpWebSocketHttpRequest.GetIsUpgrade: Boolean;
 begin
   Result := IsGet and
     (RequestVersion > hv_V1) and
-    (Pos(CSUpgrade, GetHeader(CSConnection)) > 0) and
+    (Pos(CSUpgradeI, LowerCase(GetHeader(CSConnection))) > 0) and
     (LowerCase(GetHeader(CSUpgrade)) = CSWebScoket) and
     // 如果WebSocket版本低于13，说明是在标准化之前的协议，不支持
     (StrToIntDef(string(GetHeader(CSSecWebSocketVersion)), 0) >= 13);

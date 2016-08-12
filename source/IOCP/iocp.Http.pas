@@ -173,8 +173,6 @@ type
     procedure DoRequest(ARequest: TIocpHttpRequest);
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrorCode: Integer); override;
   public
-    constructor Create(AOwner: TIocpCustom); override;
-    destructor Destroy; override;
   end;
 
   /// <summary>
@@ -1882,7 +1880,7 @@ end;
 
 procedure TIocpHttpRequest.CloseConnection;
 begin
-  if Assigned(FConn) then
+  if Assigned(FConn) and (FConn.Active) then
     FConn.PostWSACloseRequest;
 end;
 
@@ -2369,25 +2367,26 @@ end;
 class function TIocpHttpRequest.InnerGetHeader(const Key: StringA;
   const Data: Pointer; DataSize: Integer): TIocpPointerStr;
 var
-  I: Integer;
-  P, P1, P2: PAnsiChar;
+  I, KeyLen: Integer;
+  P, P1, P2, PMax: PAnsiChar;
 begin
   P := Data;
-  P1 := P + DataSize;
+  PMax := P + DataSize;
   Result.Len := 0;
-  if P = P1 then Exit;  
-  while P < P1 do begin
-    I := PosStr(PAnsiChar(Key), Length(Key), P, P1 - P, 0);
+  if P = PMax then Exit;  
+  KeyLen := Length(Key);
+  while P < PMax do begin
+    I := PosStr(PAnsiChar(Key), KeyLen, P, PMax - P, 0);
     if I > -1 then begin
-      Inc(I, Length(Key));
+      Inc(I, KeyLen);
       Inc(P, I);
-      while (P < P1) and (P^ <> ':') and (P^ <> #13) do
+      while (P < PMax) and (P^ <> ':') and (P^ <> #13) do
         Inc(P);
       if P^ = ':' then begin
         Inc(P);
         P2 := P;
-        while (P2 < P1) and (P2^ = ' ') do Inc(P2);
-        while (P < P1) and (P^ <> #13) do Inc(P);
+        while (P2 < PMax) and (P2^ = ' ') do Inc(P2);
+        while (P < PMax) and (P^ <> #13) do Inc(P);
         P1 := P - 1;
         while (P1 > P2) and (P1^ = ' ') do begin
           Dec(P);
@@ -2403,6 +2402,11 @@ begin
 end;
 
 function TIocpHttpRequest.DecodeHttpHeader(): Boolean;
+const
+  CSKeepAlive: StringA = 'keep-alive';
+  CSContentLength: StringA = 'Content-Length';
+  CSConnection: StringA = 'Connection';
+  CSGzip: StringA = 'gzip';
 var
   P, P1, PMax: PAnsiChar;
   J: Integer;
@@ -2448,20 +2452,20 @@ begin
     
   // 读取内容长度
   if (FMethod = http_POST) or (FMethod = http_PUT) then begin   
-    FDataSize := StrToIntDef(string(GetHeader('Content-Length')), 0);
+    FDataSize := StrToIntDef(string(GetHeader(CSContentLength)), 0);
     if FDataSize > FOwner.FUploadMaxDataSize then
       Exit;
   end else
     FDataSize := 0;    
 
   // Keep-Alive
-  if LowerCase(GetHeader('Connection')) = 'keep-alive' then
+  if LowerCase(GetHeader(CSConnection)) = CSKeepAlive then
     FKeepAlive := True
   else
     FKeepAlive := False;
 
   // Accept GZip
-  FAcceptGZip := Pos(StringA('gzip'), GetAcceptEncoding()) > 0;
+  FAcceptGZip := Pos(CSGzip, GetAcceptEncoding()) > 0;
   if Assigned(FResponse) then
     FResponse.FGZip := FAcceptGZip;
 
@@ -2469,6 +2473,9 @@ begin
 end;
 
 function TIocpHttpRequest.DecodeHttpHeaderRange: Boolean;
+const
+  CSRange: StringA = 'Range';
+  CSByte: StringA = 'byte';
 var
   S: StringA;
   P, P1: PAnsiChar;
@@ -2478,10 +2485,10 @@ begin
   FRangeEnd := 0;
   FRange := False;
   if FRequestVersion = hv_V2 then begin
-    S := GetHeader('Range');
+    S := GetHeader(CSRange);
     if Length(S) > 6 then begin
       P := Pointer(S);
-      if (PDWORD(P)^ = PDWORD(PAnsiChar('byte'))^) and (S[5] = 's') and (S[6] = '=') then begin
+      if (PDWORD(P)^ = PDWORD(PAnsiChar(CSByte))^) and (S[5] = 's') and (S[6] = '=') then begin
         Inc(P, 6);
         P1 := StrScan(P, '-');
         if P1 = nil then begin
@@ -2553,41 +2560,49 @@ end;
 
 { TIocpHttpConnection }
 
-procedure TIocpHttpConnection.DoJob(AJob: PIocpJob);
 const
   DEBUGINFO = 'HTTP逻辑处理...';
+  
+procedure TIocpHttpConnection.DoJob(AJob: PIocpJob);
 var
   Obj: TIocpHttpRequest;
 begin
   Obj := TIocpHttpRequest(AJob.Data);
-  try
+  try     
     // 连接已经断开, 放弃处理逻辑
     if (Self = nil) or (Owner = nil) or (not Self.Active) then
       Exit;
+      
     // 已经不是当时请求的连接，放弃处理逻辑
     if Obj.FConnHandle <> Self.Handle then begin
       OWner.DoStateMsgE(Self, '不是当前请求的连接，放弃处理.');
       Exit;
     end;
 
-    Self.LockContext(Self, DEBUGINFO);
     try
       TIocpHttpServer(Owner).DoRequest(Obj);
     except
       Obj.FResponse.ServerError(StringA(Exception(ExceptObject).Message));
     end;
-    Self.UnLockContext(Self, DEBUGINFO);
 
     // 更新激活时间
-    LastActivity := GetTimestamp;
+    LastActivity := GetTimestamp;  
   finally
+    if Assigned(Owner.Moniter) then
+      Owner.Moniter.incHttpRequestExecCounter;
+    UnLockContext(Self, DEBUGINFO);
     Obj.Close;
   end;
 end;
 
 procedure TIocpHttpConnection.DoRequest(ARequest: TIocpHttpRequest);
 begin
-  Workers.Post(DoJob, ARequest);
+  if LockContext(Self, DEBUGINFO) then begin
+    if Assigned(Owner.Moniter) then
+      Owner.Moniter.incHttpRequestCreateCounter;
+    Workers.Post(DoJob, ARequest);
+  end else
+    ARequest.Close;
 end;
 
 procedure TIocpHttpConnection.OnRecvBuffer(buf: Pointer; len: Cardinal;
@@ -2602,10 +2617,10 @@ begin
   P1 := P;
   L := Len;
   R := 0;
-  
+
   while L > 0 do begin
 
-    if FHttpState = hsCompleted then begin
+    if (FHttpState = hsCompleted) then begin
       FRequest := TIocpHttpServer(Owner).GetHttpRequest;
       FRequest.FConn := Self;
       FRequest.FConnHandle := Self.Handle;
@@ -2637,7 +2652,7 @@ begin
 
       if FRequest.DecodeHttpRequestMethod = http_Unknown then begin
         CloseConnection;  // 无效的Http请求
-        Exit;       
+        Break;       
       end;
 
       if R = 4 then begin
@@ -2645,18 +2660,18 @@ begin
       
         if not FRequest.DecodeHttpHeader then begin
           FRequest.FResponse.ErrorRequest(400);  // 错误的请求
-          Exit;
+          Break;
         end else begin
           if not FRequest.DecodeHttpHeaderRange() then begin
             FRequest.FResponse.ErrorRequest(416);  // 无效的请求范围
-            Exit;
+            Break;
           end;
           if Assigned(TIocpHttpServer(Owner).FOnHttpFilter) then begin
             B := False;
             TIocpHttpServer(Owner).FOnHttpFilter(FRequest, B);
             if B then begin
               FRequest.FResponse.ErrorRequest(403);  // 禁止访问
-              Exit;
+              Break;
             end;
           end;
         end;
@@ -2713,16 +2728,6 @@ begin
       
     Inc(P);
   end;
-end;
-
-constructor TIocpHttpConnection.Create(AOwner: TIocpCustom);
-begin
-  inherited Create(AOwner);
-end;
-
-destructor TIocpHttpConnection.Destroy;
-begin
-  inherited Destroy;
 end;
 
 procedure TIocpHttpConnection.DoCleanUp;
@@ -2789,11 +2794,12 @@ end;
 procedure TIocpHttpServer.DoRequest(ARequest: TIocpHttpRequest);
 begin
   if Assigned(ARequest) then begin
-    if Assigned(FOnHttpRequest) then
-      FOnHttpRequest(Self, ARequest, ARequest.FResponse)
-    else begin
+    if Assigned(FOnHttpRequest) then begin
+      FOnHttpRequest(Self, ARequest, ARequest.FResponse);
+    end else begin
       // 如果没有事件处理，则返回 404 错误
       ARequest.FResponse.ErrorRequest(404);
+      Exit;
     end;
     if not ARequest.FKeepAlive then
       ARequest.CloseConnection;
@@ -2826,7 +2832,7 @@ function TIocpHttpServer.GetHeaderBuilder: TStringCatHelperA;
 begin
   Result := TStringCatHelperA(FHeaderBuildPool.DeQueue);
   if Result = nil then
-    Result := TStringCatHelperA.Create(1024);
+    Result := TStringCatHelperA.Create(512);
   Result.Reset;
 end;
 

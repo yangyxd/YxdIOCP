@@ -2,7 +2,7 @@ object Form1: TForm1
   Left = 0
   Top = 0
   Caption = 'IOCP Http '#26381#21153
-  ClientHeight = 284
+  ClientHeight = 328
   ClientWidth = 644
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -99,6 +99,13 @@ object Form1: TForm1
     Height = 13
     Caption = 'Label2'
   end
+  object Label2: TLabel
+    Left = 8
+    Top = 273
+    Width = 31
+    Height = 13
+    Caption = 'Label2'
+  end
   object Button1: TButton
     Left = 8
     Top = 8
@@ -124,7 +131,7 @@ object Form1: TForm1
     Height = 21
     ImeName = #20013#25991'('#31616#20307') - '#25628#29399#20116#31508#36755#20837#27861
     TabOrder = 2
-    Text = '9983'
+    Text = '8080'
   end
   object Button3: TButton
     Left = 449

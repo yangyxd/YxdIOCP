@@ -30,6 +30,7 @@ type
     Button5: TButton;
     Button6: TButton;
     Button7: TButton;
+    Label2: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button1Click(Sender: TObject);
@@ -258,6 +259,9 @@ var
   I: Integer;
   S: TStream;
 begin
+  Response.ErrorRequest();
+  Exit;
+
   if Request.GetParam('downfile') <> '' then begin
     //ShowMessage(Request.Header);
     Response.SendFile(Request.GetParam('downfile'));
@@ -369,6 +373,13 @@ begin
       FHttpSvr.Moniter.SendRequestReturnCounter
     ]);
   Label12.Caption := Format('运行时间'#9'%s', [GetRunTimeInfo]);
+  Label2.Caption := Format('HTTP请求'#9'创建:%d, 完成:%d, 借出:%d, 还回: %d',
+    [
+      FHttpSvr.Moniter.HttpRequestCreateCounter,
+      FHttpSvr.Moniter.HttpRequestExecCounter,
+      FHttpSvr.Moniter.HttpRequestPopCounter,
+      FHttpSvr.Moniter.HttpRequestPushCounter
+    ]);
 end;
 
 end.

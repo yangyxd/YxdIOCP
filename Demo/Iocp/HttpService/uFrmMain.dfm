@@ -13,12 +13,6 @@ object HttpService: THttpService
   Font.Name = 'Tahoma'
   Font.Style = []
   FormStyle = fsStayOnTop
-  GlassFrame.Enabled = True
-  GlassFrame.Left = 10
-  GlassFrame.Top = 10
-  GlassFrame.Right = 150
-  GlassFrame.Bottom = 16
-  GlassFrame.SheetOfGlass = True
   OldCreateOrder = True
   PrintScale = poPrintToFit
   ScreenSnap = True
@@ -26,6 +20,12 @@ object HttpService: THttpService
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
+  GlassFrame.Bottom = 16
+  GlassFrame.Enabled = True
+  GlassFrame.Left = 10
+  GlassFrame.Right = 150
+  GlassFrame.SheetOfGlass = True
+  GlassFrame.Top = 10
   object Label1: TLabel
     Left = 16
     Top = 18

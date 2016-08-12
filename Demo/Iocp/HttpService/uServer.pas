@@ -30,6 +30,7 @@ type
   /// </summary>
   TPtService = class(TObject)
   private
+    //FPtWebService: TIocpHttpServer;
     FPtWebService: TIocpWebSocketServer;
     FOnWriteLog: TOnWriteLog;
     HttpReqRef: Integer;
@@ -75,10 +76,12 @@ var
 constructor TPtService.Create(Port: Word);
 begin
   FOnWriteLog := DoWriteLog;
+  //FPtWebService := TIocpHttpServer.Create(nil);
   FPtWebService := TIocpWebSocketServer.Create(nil);
   FPtWebService.ListenPort := Port;
   FPtWebService.UploadMaxDataSize := 1024 * 1024;
   FPtWebService.MaxTaskWorker := 64;
+  FPtWebService.MaxContextPoolSize := 1;
   FPtWebService.OnHttpRequest := DoRequest;
   FPtWebService.OnWebSocketRequest := DoWebSocketRequest;
 

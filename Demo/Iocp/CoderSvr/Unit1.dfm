@@ -93,7 +93,7 @@ object Form1: TForm1
     Top = 48
     Width = 811
     Height = 395
-    ActivePage = TabSheet1
+    ActivePage = TabSheet2
     Align = alCustom
     Anchors = [akLeft, akTop, akRight, akBottom]
     TabOrder = 7
@@ -226,7 +226,6 @@ object Form1: TForm1
     Anchors = [akRight, akBottom]
     Caption = 'IOCP Stream '#27979#35797
     TabOrder = 13
-    OnClick = Button4Click
   end
   object Button5: TButton
     Left = 697
