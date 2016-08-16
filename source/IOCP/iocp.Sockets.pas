@@ -39,7 +39,8 @@ uses
   iocp.Utils.Queues, iocp.Utils.ObjectPool,
   WinSock, iocp.Winapi.WinSock,
   {$IFDEF UNICODE}System.Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
-  SyncObjs, Windows, Classes, SysUtils, ExtCtrls;
+  {$IFNDEF UNICODE}ExtCtrls, {$ELSE}VCL.ExtCtrls, {$ENDIF}
+  SyncObjs, Windows, Classes, SysUtils;
 
 const
   LF = #10;

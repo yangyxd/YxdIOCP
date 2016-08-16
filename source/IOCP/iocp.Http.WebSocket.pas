@@ -12,16 +12,14 @@
 
 unit iocp.Http.WebSocket;
 
-{$IF (RTLVersion>=26) and (not Defined(NEXTGEN))}
-{$DEFINE ANSISTRINGS}
-{$IFEND}
+{$I 'iocp.inc'}
 
 interface
 
 uses
   iocp.Http, SHA,
-  {$IFDEF UNICODE}Soap.EncdDecd, System.NetEncoding{$ELSE}Base64{$ENDIF},
-  iocp.Utils.Hash, iocp.Utils.Str, 
+  iocp.Utils.Hash, iocp.Utils.Str,
+  {$IFDEF USE_NetEncoding}Soap.EncdDecd, System.NetEncoding, {$ELSE}Base64, {$ENDIF}
   iocp.Sockets, iocp.Task, iocp.core.Engine, 
   iocp.Utils.Queues,
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
@@ -362,23 +360,34 @@ begin
   Data := Data or Value;
 end;
 
-// ×ª»»×Ö½ÚÐò
-function SwapByteOrder(const Value: Int64): Int64; overload;
+function Swap16(const Value: Word): Word; inline;
 begin
-  Result :=
-    ((Value and $00000000000000ff) shl 56) or 
-    ((Value and $000000000000ff00) shl 40) or
-    ((Value and $0000000000ff0000) shl 24) or
-    ((Value and $00000000ff000000) shl 8) or
-    ((Value and $000000ff00000000) shr 8) or
-    ((Value and $0000ff0000000000) shr 24) or
-    ((Value and $00ff000000000000) shr 40) or
-    ((Value and $ff00000000000000) shr 56);
+  Result := Swap(Value);
 end;
 
-function SwapByteOrder(const Value: Word): Word; overload;
+function Swap32(const Value: LongWord): LongWord; inline;
 begin
-  Result := ((Value and $00ff) shl 8) or ((Value and $ff00) shr 8);
+  Result := Swap(Word(Value)) shl 16 + Swap(Word(Value shr 16));
+end;
+
+function Swap64(const Value: Int64): Int64;
+{$IFDEF WIN32}
+asm
+  mov     edx, [ebp + $08]
+  mov     eax, [ebp + $0c]
+  bswap   edx
+  bswap   eax
+{$ELSE}
+{$IFDEF WIN64}
+asm
+  mov     rax, rcx
+  bswap   rax
+{$ELSE}
+begin
+  Result := Swap32(LongWord(Value));
+  Result := (Result shl 32) or Swap32(LongWord(Value shr 32));
+{$ENDIF}
+{$ENDIF}
 end;
 
 function GetDataString(ACharSet: TIocpHttpCharset; const Data: Pointer;
@@ -434,7 +443,7 @@ begin
   if Result = 126 then
     Result := Ord(SrcData[2]) shl 8 + Ord(SrcData[3])
   else if Result = 127 then
-    Result := SwapByteOrder(PInt64(@SrcData[2])^);
+    Result := Swap64(PInt64(@SrcData[2])^);
 end;
 
 function TIocpWebSocketDataFrame.GetDataLengthOffset: Integer;
@@ -902,7 +911,7 @@ var
 begin
   Key := TIocpWebSocketHttpRequest(Request).WebSocketKey + MHSTR;
   Bin := SHA1Bin(Key);
-  {$IFDEF UNICODE}
+  {$IFDEF USE_NetEncoding}
   Result := Soap.EncdDecd.EncodeBase64(@Bin[0], Length(Bin));
   {$ELSE}
   Result := Base64Encode(Bin[0], Length(Bin));
@@ -1067,10 +1076,10 @@ begin
     FSendBuffer.Cat(Byte(Len))
   else if Len <= $FFFF then begin
     FSendBuffer.Cat(Byte(126));
-    FSendBuffer.Cat(SwapByteOrder(Word(Len)));
+    FSendBuffer.Cat(Swap16(Word(Len)));
   end else begin
     FSendBuffer.Cat(Byte(127));
-    FSendBuffer.Cat(SwapByteOrder(Int64(Len)));
+    FSendBuffer.Cat(Swap64(Int64(Len)));
   end;
   // Ð´ÈëData
   if Len > 0 then

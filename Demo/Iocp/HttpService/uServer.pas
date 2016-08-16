@@ -140,8 +140,8 @@ begin
   //OutputDebugString(PChar(Request.DataString()));
   S := TMemoryStream.Create;
   try
-    Data := Request.DataString(hct_8859_1);
-    S.Write(Data[1], Length(Data));
+    Data := Request.DataString(hct_UTF8);
+    S.Write(Data[1], Length(Data) {$IFDEF UNICODE} shl 1{$ENDIF});
     S.Position := 0;
     Response.Send(S, wso_Text);
   finally

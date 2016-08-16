@@ -90,7 +90,7 @@ begin
       ppszw[i + 1] := tmp;
       inc(i, 2);
     end;
-    Result := Base64Encode(ppszW[0], High(ppszW)+1);
+    Result := string(Base64Encode(ppszW[0], High(ppszW)+1));
   finally
     SetLength(ppszW, 0);
   end;

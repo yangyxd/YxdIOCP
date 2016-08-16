@@ -1341,7 +1341,7 @@ begin
   lvhostInfo := gethostbyname(PAnsiChar(StringA(Host)));
   if lvhostInfo = nil then
     RaiseLastOSError;
-  Result := StringA(inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^));
+  Result := string(StringA(inet_ntoa(PInAddr(lvhostInfo^.h_addr_list^)^)));
 end;
 
 function TURI.GetNewURL(haveAuthInfo: Boolean): string;
@@ -3171,7 +3171,11 @@ begin
       end;
     end else
       Exit;
+    {$IFDEF UNICODE}
+    Result := PCharAToStringW(PAnsiChar(M.Memory) + M.Position, M.Size - M.Position);
+    {$ELSE}
     Result := PCharToString(PAnsiChar(M.Memory) + M.Position, M.Size - M.Position);
+    {$ENDIF}
   finally
     if AllowFree then     
       FreeAndNil(M);

@@ -40,6 +40,9 @@ uses
   SysUtils, SysConst, Classes, Variants, DateUtils, SyncObjs;
 
 type
+  {$if CompilerVersion< 18.5}
+  TBytes = array of Byte;
+  {$IFEND}
   {$IFDEF NEXTGEN}
   AnsiChar = Byte;
   PAnsiChar = ^AnsiChar;
