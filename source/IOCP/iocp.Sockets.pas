@@ -38,7 +38,7 @@ uses
   iocp.Sockets.Utils, iocp.Core.Engine, iocp.Res, iocp.RawSockets,
   iocp.Utils.Queues, iocp.Utils.ObjectPool,
   WinSock, iocp.Winapi.WinSock,
-  {$IFDEF UNICODE}System.Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
+  {$IFDEF UNICODE} {System.} Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
   {$IFNDEF UNICODE}ExtCtrls, {$ELSE}VCL.ExtCtrls, {$ENDIF}
   SyncObjs, Windows, Classes, SysUtils;
 
@@ -1309,7 +1309,6 @@ type
     property Items[Index: Integer]: TIocpRemoteContext read GetItems; default;
   published
     property Active;
-    property BindAddr;
     /// <summary>
     /// 禁止所有连接对象自动重连
     /// </summary>
