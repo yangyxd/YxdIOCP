@@ -993,6 +993,10 @@ type
     property Active default False;
     property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
     property BindAddr;
+
+    property RecvBufferSize;
+    property SendBufferSize;
+
     /// <summary>
     /// 默认侦听的端口
     /// </summary>
@@ -1171,6 +1175,7 @@ type
     property SocketHandle: TSocket read GetSocketHandle;
     property MaxSendingQueueSize: Integer read GetMaxSendingQueueSize;
   published
+    property Active;
     /// <summary>
     /// 默认侦听的端口
     /// </summary>
@@ -1179,6 +1184,7 @@ type
     /// 数据接收事件
     /// </summary>
     property OnDataReceived: TOnUdpBufferReceived read FOnReceivedBuffer write FOnReceivedBuffer;
+    property OnStateInfo;
   end;
 
 type
@@ -1287,13 +1293,26 @@ type
     /// </summary>
     property Count: Integer read GetCount;
     /// <summary>
-    /// 禁止所有连接对象自动重连
-    /// </summary>
-    property DisableAutoConnect: Boolean read FDisableAutoConnect write FDisableAutoConnect;
-    /// <summary>
     /// 通过位置索引获取其中的一个连接
     /// </summary>
     property Items[Index: Integer]: TIocpRemoteContext read GetItems; default;
+  published
+    property Active;
+    property BindAddr;
+    /// <summary>
+    /// 禁止所有连接对象自动重连
+    /// </summary>
+    property DisableAutoConnect: Boolean read FDisableAutoConnect write FDisableAutoConnect;
+
+    property RecvBufferSize;
+    property SendBufferSize;
+
+    property OnContextError;
+    property OnContextConnected;
+    property OnContextDisconnected;
+    property OnDataReceived;
+    property OnSendRequestResponse;
+    property OnStateInfo;
   end;
 
 function TransByteSize(const pvByte: Int64): string;
@@ -3032,7 +3051,7 @@ begin
   end;
   FContext.SetSocketState(ssConnecting);
   lvSockAddrIn := GetSocketAddr(lvRemoteIP, Port);
-  FContext.Socket.bind('0.0.0.0', 0);
+  FContext.Socket.bind(FContext.FOwner.FBindAddr, 0); // '0.0.0.0'
 
   lp := @FOverlapped;
   lvRet := IocpConnectEx(FContext.Socket.SocketHandle, @lvSockAddrIn,
@@ -4494,7 +4513,7 @@ procedure TIocpRemoteContext.ReCreateSocket;
 begin
   Socket.CreateTcpSocket(True);
   FSocketHandle := Socket.SocketHandle;
-  if not Socket.bind('0.0.0.0', 0) then
+  if not Socket.bind(FOwner.FBindAddr, 0) then  // '0.0.0.0'
     RaiseLastOSError;
   Owner.Engine.IocpCore.Bind(FSocketHandle, 0);
 end;

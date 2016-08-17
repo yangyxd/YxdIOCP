@@ -61,7 +61,8 @@ type
   /// <summary>
   /// ×èÈûÐÍ UDP Scoket
   /// </summary>
-  TIocpUdpSocket = iocp.Sockets.TIocpCustomBlockUdpSocket;
+  TIocpUdpSocket = class(iocp.Sockets.TIocpCustomBlockUdpSocket)
+  end;
 
 type
   /// <summary>

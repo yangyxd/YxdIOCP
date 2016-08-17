@@ -1,4 +1,5 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{6d151e08-abac-4e95-b34b-9106784d47f9}</ProjectGuid>
     <MainSource>YxdIocp.D2007.dpk</MainSource>
@@ -37,18 +38,6 @@
       
       
       
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
       <Excluded_Packages Name="$(BDS)\bin\bcbofficexp100.bpl">CodeGear C++Builder Office XP Servers Package</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\dcloffice2k100.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\dclofficexp100.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
@@ -59,8 +48,8 @@
     <DelphiCompile Include="YxdIocp.D2007.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="$(SystemRoot)\system32\rtl.dcp" />
-    <DCCReference Include="$(SystemRoot)\system32\vcl.dcp" />
+    <DCCReference Include="..\..\..\YxdJson\rtl.dcp" />
+    <DCCReference Include="..\..\..\YxdJson\vcl.dcp" />
     <DCCReference Include="iocp.Core.Engine.pas" />
     <DCCReference Include="iocp.Http.Client.pas" />
     <DCCReference Include="iocp.Http.pas" />
