@@ -109,6 +109,10 @@ object Form1: TForm1
     object TabSheet2: TTabSheet
       Caption = #21457#36865#25968#25454
       ImageIndex = 2
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       DesignSize = (
         803
         367)

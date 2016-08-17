@@ -1197,11 +1197,14 @@ type
     FAutoReConnect: Boolean;
     FConnectExRequest: TIocpConnectExRequest;
     FLastDisconnectTime: Int64;
+    FBindAddr: AnsiString;
     FHost: AnsiString;
     FPort: Word;
     function CanAutoReConnect: Boolean;
     procedure ReCreateSocket;
     procedure PostConnectRequest;
+    function GetBindAddr: AnsiString;
+    procedure SetBindAddr(const Value: AnsiString);
   protected
     procedure OnConnecteExResponse(pvObject: TObject);
     procedure OnDisconnected; override;
@@ -1223,6 +1226,7 @@ type
     /// 设置该连接对象的自动重连属性
     /// </summary>
     property AutoReConnect: Boolean read FAutoReConnect write FAutoReConnect;
+    property BindAddr: AnsiString read GetBindAddr write SetBindAddr;
     property Host: AnsiString read FHost write FHost;
     property Port: Word read FPort write FPort;
   end;
@@ -1267,11 +1271,18 @@ type
     /// 添加一个连接对象
     /// </summary>
     function Add: TIocpRemoteContext;
+    
     /// <summary>
     /// 建立一个新连接
     /// </summary>
     function Connect(const Host: AnsiString; Port: Word;
-      AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext;
+      AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext; overload;
+    
+    /// <summary>
+    /// 建立一个新连接
+    /// </summary>
+    function Connect(const Host: AnsiString; Port: Word; const BindAddr: AnsiString;
+      AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext; overload;
 
     /// <summary>
     /// 删除一个连接
@@ -3051,7 +3062,7 @@ begin
   end;
   FContext.SetSocketState(ssConnecting);
   lvSockAddrIn := GetSocketAddr(lvRemoteIP, Port);
-  FContext.Socket.bind(FContext.FOwner.FBindAddr, 0); // '0.0.0.0'
+  FContext.Socket.bind(TIocpRemoteContext(FContext).BindAddr, 0); // '0.0.0.0'
 
   lp := @FOverlapped;
   lvRet := IocpConnectEx(FContext.Socket.SocketHandle, @lvSockAddrIn,
@@ -4445,6 +4456,7 @@ end;
 constructor TIocpRemoteContext.Create(AOwner: TIocpCustom);
 begin
   inherited Create(AOwner);
+  FBindAddr := '';
   FAutoReConnect := False;
   FIsConnecting := False;
   FConnectExRequest := TIocpConnectExRequest.Create(Self);
@@ -4455,6 +4467,14 @@ destructor TIocpRemoteContext.Destroy;
 begin
   FreeAndNil(FConnectExRequest);
   inherited Destroy;
+end;
+
+function TIocpRemoteContext.GetBindAddr: AnsiString;
+begin
+  if FBindAddr = '' then
+    Result := '0.0.0.0'
+  else
+    Result := FBindAddr;
 end;
 
 procedure TIocpRemoteContext.OnConnected;
@@ -4513,7 +4533,7 @@ procedure TIocpRemoteContext.ReCreateSocket;
 begin
   Socket.CreateTcpSocket(True);
   FSocketHandle := Socket.SocketHandle;
-  if not Socket.bind(FOwner.FBindAddr, 0) then  // '0.0.0.0'
+  if not Socket.bind(BindAddr, 0) then  // '0.0.0.0'
     RaiseLastOSError;
   Owner.Engine.IocpCore.Bind(FSocketHandle, 0);
 end;
@@ -4524,6 +4544,14 @@ begin
     FOwner.ReleaseClientContext(Self)
   else
     inherited;
+end;
+
+procedure TIocpRemoteContext.SetBindAddr(const Value: AnsiString);
+begin
+  if Value = '0.0.0.0' then
+    FBindAddr := ''
+  else
+    FBindAddr := Value;
 end;
 
 procedure TIocpRemoteContext.SetSocketState(pvState: TSocketState);
@@ -4553,6 +4581,22 @@ begin
   Open;
   Result := Add();
   if not Assigned(Result) then Exit;
+  Result.Host := Host;
+  Result.Port := Port;
+  Result.AutoReConnect := AutoReConnect;
+  Result.Connect(ASync);
+end;
+
+function TIocpCustomTcpClient.Connect(const Host: AnsiString; Port: Word;
+  const BindAddr: AnsiString; AutoReConnect,
+  ASync: Boolean): TIocpRemoteContext;
+begin
+  Result := nil;
+  if Length(Host) = 0 then Exit;
+  Open;
+  Result := Add();
+  if not Assigned(Result) then Exit;
+  Result.BindAddr := BindAddr;
   Result.Host := Host;
   Result.Port := Port;
   Result.AutoReConnect := AutoReConnect;
