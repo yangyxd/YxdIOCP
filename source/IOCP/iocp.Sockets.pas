@@ -1266,6 +1266,10 @@ type
     destructor Destroy; override;
     function CreateContext: TIocpCustomContext; override;
 
+    /// <summary>
+    /// 注册一个自定义的连接类
+    /// </summary>
+    procedure RegisterContextClass(pvContextClass: TIocpContextClass);
 
     /// <summary>
     /// 添加一个连接对象
@@ -4700,6 +4704,12 @@ begin
   lvRequest.OnResponse := OnReconnectRequestResponse;
   lvRequest.Data := pvContext;
   Engine.PostRequest(lvRequest);
+end;
+
+procedure TIocpCustomTcpClient.RegisterContextClass(
+  pvContextClass: TIocpContextClass);
+begin
+  FContextClass := pvContextClass;
 end;
 
 function TIocpCustomTcpClient.ReleaseClientContext(
