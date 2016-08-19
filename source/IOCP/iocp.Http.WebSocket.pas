@@ -149,6 +149,7 @@ type
   /// <summary>
   /// WebSocket 服务 (兼容 Http 服务)
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
   TIocpWebSocketServer = class(TIocpHttpServer)
   private
     FConnMap: TStringHash;

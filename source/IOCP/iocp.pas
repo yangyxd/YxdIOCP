@@ -36,6 +36,8 @@ unit iocp;
 
 interface
 
+{$R YxdIocpIcon.res}
+
 uses
   iocp.Utils.Hash, 
   {$IFDEF UseHttpServer}iocp.Http, {$ENDIF}
@@ -44,6 +46,11 @@ uses
   iocp.Sockets.Utils, iocp.Core.Engine, iocp.Res, iocp.RawSockets,
   iocp.Utils.Queues, iocp.Utils.ObjectPool, WinSock,
   SyncObjs, Windows, Classes, SysUtils;
+
+{$IFDEF SupportEx}
+const
+  SupportCurrentPlatforms = pidWin32 or pidWin64;
+{$ENDIF}
 
 type
   TIocpStateMsgType = iocp.Sockets.TIocpStateMsgType;
@@ -61,6 +68,7 @@ type
   /// <summary>
   /// 阻塞型 UDP Scoket
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpUdpSocket = class(iocp.Sockets.TIocpCustomBlockUdpSocket)
   end;
 
@@ -68,6 +76,7 @@ type
   /// <summary>
   /// 阻塞型 TCP Scoket
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpSocket = class(TIocpCustomBlockTcpSocket)
   end;
 
@@ -75,6 +84,7 @@ type
   /// <summary>
   /// 高性能Iocp服务端 (基础功能)
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpServer = class(TIocpCustomTcpServer)
   end;
 
@@ -82,6 +92,7 @@ type
   /// <summary>
   /// 高性能多连接Iocp客户端 (异步通讯)
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpClient = class(TIocpCustomTcpClient)
   end;
 
@@ -133,6 +144,7 @@ type
   /// <summary>
   /// TCP 服务端，支持通过 OnDecodeData 事件解码数据缓冲区
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpCodecServer = class(TIocpTcpServer)
   private
     FMemPool: TIocpMemPool;
@@ -207,6 +219,7 @@ type
   /// <summary>
   /// 阻塞型 TCP Scoket 池
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpSocketPool = class(TObject)
   private
     FList: TStringHash;
@@ -266,6 +279,7 @@ type
   // 从链表中删除。
   // Proxy 内部会创建一个工作线程，不断的扫描各个连接是否有数据到达，
   // 或者出现断线、超时等情况，适时触发CallBack或清理连接接收缓冲区。
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(SupportCurrentPlatforms)]{$ENDIF}
   TIocpTcpClientProxy = class(TObject)
   private
     FPool: TIocpTcpSocketPool;

@@ -815,6 +815,7 @@ type
     procedure DoError(const Sender: TObject; const AError: string);
   end;
 
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
   TIocpHttpClient = class(THttpClient)
   published
     property AllowCookies;

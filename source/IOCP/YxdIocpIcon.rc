@@ -1,0 +1,19 @@
+TIocpTcpServer BITMAP .\icons\TIocpTcpServer.bmp
+TIocpHttpServer BITMAP .\icons\TIocpHttpServer.bmp
+TIocpWebSocketServer BITMAP .\icons\TIocpWebSocketServer.bmp
+TIocpUdpServer BITMAP .\icons\TIocpUdpServer.bmp
+TIocpTcpCodecServer BITMAP .\icons\TIocpTcpCodecServer.bmp
+TIocpTcpClient BITMAP .\icons\TIocpTcpClient.bmp
+TIocpUdpSocket BITMAP .\icons\TIocpUdpSocket.bmp
+TIocpTcpSocket BITMAP .\icons\TIocpTcpSocket.bmp
+TIocpHttpClient BITMAP .\icons\TIocpHttpClient.bmp
+TIocpTcpServer16 BITMAP .\icons\TIocpTcpServer16.bmp
+TIocpHttpServer16 BITMAP .\icons\TIocpHttpServer16.bmp
+TIocpWebSocketServer16 BITMAP .\icons\TIocpWebSocketServer16.bmp
+TIocpUdpServer16 BITMAP .\icons\TIocpUdpServer16.bmp
+TIocpTcpCodecServer16 BITMAP .\icons\TIocpTcpCodecServer16.bmp
+TIocpTcpClient16 BITMAP .\icons\TIocpTcpClient16.bmp
+TIocpUdpSocket16 BITMAP .\icons\TIocpUdpSocket16.bmp
+TIocpTcpSocket16 BITMAP .\icons\TIocpTcpSocket16.bmp
+TIocpHttpClient16 BITMAP .\icons\TIocpHttpClient16.bmp
+

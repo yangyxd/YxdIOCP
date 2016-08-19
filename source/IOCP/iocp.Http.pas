@@ -211,6 +211,7 @@ type
   /// <summary>
   /// HTTP ·þÎñ
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
   TIocpHttpServer = class(TIocpCustomTcpServer)
   private
     FSessionList: TStringHash;

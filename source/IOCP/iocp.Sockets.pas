@@ -1119,6 +1119,7 @@ type
   /// <summary>
   /// IOCP UDP ·þÎñ¶Ë
   /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
   TIocpUdpServer = class(TIocpBase)
   private
     FListenSocket: TRawSocket;

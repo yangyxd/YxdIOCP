@@ -38,6 +38,12 @@
       
       
       
+      
+      
+      
+      
+      
+      
       <Excluded_Packages Name="$(BDS)\bin\bcbofficexp100.bpl">CodeGear C++Builder Office XP Servers Package</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\dcloffice2k100.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
       <Excluded_Packages Name="$(BDS)\bin\dclofficexp100.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
@@ -48,13 +54,16 @@
     <DelphiCompile Include="YxdIocp.D2007.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="..\..\..\YxdJson\rtl.dcp" />
-    <DCCReference Include="..\..\..\YxdJson\vcl.dcp" />
+    <DCCReference Include="e:\程序分类\rtl.dcp" />
+    <DCCReference Include="e:\程序分类\vcl.dcp" />
     <DCCReference Include="iocp.Core.Engine.pas" />
     <DCCReference Include="iocp.Http.Client.pas" />
     <DCCReference Include="iocp.Http.pas" />
     <DCCReference Include="iocp.Http.WebSocket.pas" />
     <DCCReference Include="iocp.pas" />
     <DCCReference Include="iocp.Sockets.pas" />
+    <RcCompile Include="YxdIocpIcon.rc">
+      <Form>YxdIocpIcon.res</Form>
+    </RcCompile>
   </ItemGroup>
 </Project>

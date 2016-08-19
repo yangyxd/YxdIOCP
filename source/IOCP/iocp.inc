@@ -9,6 +9,12 @@
 // 使用HashTable
 {$DEFINE USE_HASHTABLE}
 
+
+// 支持更多平台
+{$IF RTLVersion>=23}
+{$DEFINE SupportEx}
+{$IFEND}
+
 {$IF (RTLVersion>=26) and (not Defined(NEXTGEN))}
 {$DEFINE ANSISTRINGS}
 {$IFEND}
