@@ -624,13 +624,14 @@ type
     FOnAcceptedEx: TNotifyEvent;
     // get socket peer info on acceptEx reponse
     procedure getPeerInfo;
+    procedure SetOnAcceptedEx(const Value: TNotifyEvent);
   protected
     procedure HandleResponse; override;
     procedure ResponseDone; override;
     function PostRequest: Boolean;
   public
     constructor Create(AOwner: TIocpCustom); reintroduce;
-    property OnAcceptedEx: TNotifyEvent read FOnAcceptedEx write FOnAcceptedEx;
+    property OnAcceptedEx: TNotifyEvent read FOnAcceptedEx write SetOnAcceptedEx;
   end;
 
   /// <summary>
@@ -3088,6 +3089,7 @@ constructor TIocpAcceptExRequest.Create(AOwner: TIocpCustom);
 begin
   FOwner := AOwner;
   inherited Create();
+  FOnAcceptedEx := nil;
 end;
 
 procedure TIocpAcceptExRequest.getPeerInfo;
@@ -3122,7 +3124,8 @@ begin
       FAcceptorMgr.FListenSocket.UpdateAcceptContext(FContext.SocketHandle);
       getPeerInfo();
     end;
-    if Assigned(FOnAcceptedEx) then FOnAcceptedEx(Self);
+    if Assigned(FOnAcceptedEx) and (TMethod(FOnAcceptedEx).Data <> nil) then
+      FOnAcceptedEx(Self);
   finally
     FOwner.DoAcceptExResponse(Self);
   end;
@@ -3203,6 +3206,11 @@ end;
 procedure TIocpAcceptExRequest.ResponseDone;
 begin
   FAcceptorMgr.ReleaseRequestObject(Self)
+end;
+
+procedure TIocpAcceptExRequest.SetOnAcceptedEx(const Value: TNotifyEvent);
+begin
+  FOnAcceptedEx := Value;
 end;
 
 { TIocpAcceptorMgr }
@@ -3326,6 +3334,7 @@ procedure TIocpAcceptorMgr.ReleaseRequestObject(
 begin
   pvRequest.FAcceptorMgr := nil;
   pvRequest.FContext := nil;
+  pvRequest.FOnAcceptedEx := nil;
   FAcceptExRequestPool.EnQueue(pvRequest);
   // 此处再次检测是否需要投递接收请求，减少因系统出错造成的连接不响应问题机率
   if InterlockedDecrement(FCount) < FMinRequest - 1 then

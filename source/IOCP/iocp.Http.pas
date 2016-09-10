@@ -71,7 +71,7 @@ type
   /// <summary>
   /// 支持的 Http 编译字符集
   /// </summary>
-  TIocpHttpCharset = (hct_8859_1 {英文网站}, hct_GB2312 {简体中文},
+  TIocpHttpCharset = (hct_Unknown, hct_8859_1 {英文网站}, hct_GB2312 {简体中文},
     hct_UTF8, hct_UTF16);
 
 const
@@ -497,6 +497,7 @@ type
   public
     constructor Create(const BufferSize: Cardinal = 1024 * 8);
     destructor Destroy; override;
+    function SetCharset(V: TIocpHttpCharset): TIocpHttpWriter;
     function Write(const Data: string): TIocpHttpWriter; overload;
     function Write(const Data: TIocpArrayString): TIocpHttpWriter; overload;
     function Write(const Data: Integer): TIocpHttpWriter; overload;
@@ -3008,9 +3009,9 @@ end;
 procedure TIocpHttpResponse.ServerError(const Msg: StringA);
 begin
   if (not Active) then Exit;
-  Send(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
+  Send(StringA(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
       'charset=gb2312"></head>'#13'<body><font color="red"><b>%s</b></font><br>'+
-      '<br>%s<br>'#13'</body></html>', [GetResponseCodeNote(500), Msg]));
+      '<br>%s<br>'#13'</body></html>', [GetResponseCodeNote(500), Msg])));
   FRequest.FConn.CloseConnection;
 end;
 
@@ -3072,6 +3073,11 @@ begin
   if not Assigned(FOutWriter) then begin
     FOutWriter := TIocpHttpWriter.Create(BufferSize);
     FOutWriter.FOwner := Self;
+    {$IFDEF UNICODE}
+    FOutWriter.Charset := hct_UTF16;
+    {$ELSE}
+    FOutWriter.Charset := hct_GB2312;
+    {$ENDIF}
   end;
   Result := FOutWriter;
 end;
@@ -4006,6 +4012,7 @@ end;
 constructor TIocpHttpWriter.Create(const BufferSize: Cardinal);
 begin
   FData := TStringCatHelper.Create(BufferSize);
+  FCharset := hct_Unknown;
   {$IFDEF UNICODE}
   FCharset := hct_UTF16;
   {$ELSE}
@@ -4032,6 +4039,12 @@ end;
 function TIocpHttpWriter.GetIsEmpty: Boolean;
 begin
   Result := FData.Position = 0;
+end;
+
+function TIocpHttpWriter.SetCharset(V: TIocpHttpCharset): TIocpHttpWriter;
+begin
+  FCharset := V;
+  Result := Self;
 end;
 
 function TIocpHttpWriter.ToString: string;

@@ -1766,7 +1766,8 @@ end;
 function PCharToString(const P: PChar; Len: Integer): string;
 begin
   if Len > 0 then
-    SetString(Result, P, Len{$IFDEF UNICODE} shr 1{$ENDIF})
+    //SetString(Result, P, Len{$IFDEF UNICODE} shr 1{$ENDIF})
+    SetString(Result, P, Len)
   else
     Result := '';
 end;

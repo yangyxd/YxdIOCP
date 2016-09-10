@@ -851,6 +851,7 @@ function HttpGet(const AURL: string; AHeaders: THttpHeaders = nil): string; over
 function HttpGet(const AURL: string; OutStream: TStream; AHeaders: THttpHeaders = nil): Boolean; overload;
 
 function HttpPost(const AURL, AData: string; ACharset: THttpCharsetType = hct_GB2312; AHeaders: THttpHeaders = nil): string; overload;
+function HttpPost(const AURL, AData: string; OutStream: TStream; ACharset: THttpCharsetType = hct_GB2312; AHeaders: THttpHeaders = nil): Boolean; overload;
 function HttpPost(const AURL: string; AData: TStream; OutStream: TStream; AHeaders: THttpHeaders = nil): Boolean; overload;
 function HttpPostFile(const AURL, AFileName: string; AHeaders: THttpHeaders = nil): string; overload;
 
@@ -970,6 +971,14 @@ begin
     Result := Resp.Response.ContentString
   else
     Result := '';
+end;
+
+function HttpPost(const AURL, AData: string; OutStream: TStream; ACharset: THttpCharsetType; AHeaders: THttpHeaders): Boolean;
+var
+  Resp: THttpResult;
+begin
+  Resp := LocalClient.Post(AURL, AData, ACharset, OutStream, AHeaders);
+  Result := Resp.StatusCode = 200;
 end;
 
 function HttpPost(const AURL: string; AData: TStream; OutStream: TStream; AHeaders: THttpHeaders = nil): Boolean;
@@ -2453,7 +2462,7 @@ begin
       case ACharset of
         hct_GB2312, hct_GBK, hct_ISO8859_1:
           begin
-            {$IFDEF UNICODE}
+            {$IFNDEF UNICODE}
             LSourceStream.Write(ASource[1], Length(ASource));
             {$ELSE}
             SA := StringA(ASource);
