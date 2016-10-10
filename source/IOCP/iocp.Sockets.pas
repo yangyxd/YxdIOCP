@@ -1277,6 +1277,7 @@ type
     /// 添加一个连接对象
     /// </summary>
     function Add: TIocpRemoteContext;
+
     
     /// <summary>
     /// 建立一个新连接
@@ -1294,10 +1295,16 @@ type
     /// 删除一个连接
     /// </summary>
     procedure Remove(const Value: TIocpRemoteContext);
+
     /// <summary>
     /// 删除指定索引连接
     /// </summary>
-    procedure Delete(Index: Integer);
+    procedure Delete(Index: Integer); overload;
+
+    /// <summary>
+    /// 直接删除一个连接，不管是否断开连接，使用时注意 (仓井很空  ~)
+    /// </summary>
+    function Delete(const pvContext: TIocpCustomContext): Integer; overload;
 
     /// <summary>
     /// 删除全部连接
@@ -3580,9 +3587,10 @@ var
 begin
   if not Assigned(FBuffer) then
     FBuffer := TMemoryStream.Create;
-  P := Pointer(Cardinal(FBuffer.Memory) + FBuffer.Position);
+  P := Pointer(NativeUInt(FBuffer.Memory) + FBuffer.Position); // Use NativeUint
   Result := ReadStream(FBuffer, AByteCount);
   if Result > 0 then begin
+    if p = nil then P := FBuffer.Memory; // jinghuai  2016-8-30
     if AAppend then begin
       J := Length(Buffer);
       SetLength(Buffer, J + Result);
@@ -3684,7 +3692,7 @@ begin
   else
     I := ReadStream(FBuffer, ABytes);
   if I > 0 then begin
-    SetString(Result, PAnsiChar(Cardinal(FBuffer.Memory) + Last), I);
+    SetString(Result, PAnsiChar(NativeUInt(FBuffer.Memory) + Last), I);
     FBuffer.Clear;
   end else
     Result := '';
@@ -4649,6 +4657,15 @@ begin
   Context := Items[index];
   Context.FAutoReConnect := False;
   Context.Disconnect;
+end;
+
+function TIocpCustomTcpClient.Delete(
+  const pvContext: TIocpCustomContext): Integer;
+begin
+  if Assigned(pvContext) then begin
+    Result := FList.Remove(TIocpRemoteContext(pvContext));
+  end else
+    Result := -1;
 end;
 
 destructor TIocpCustomTcpClient.Destroy;
