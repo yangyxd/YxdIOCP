@@ -10,6 +10,16 @@ unit iocp.Http.MVC;
 
 interface
 
+{$I 'iocp.inc'}
+
+{$IF (RTLVersion>=26)}
+{$DEFINE UseMvc}
+{$ENDIF}
+
+{$IFNDEF UseMvc}
+{$MESSAGE WARN 'iocp.Http.MVC 单元检测到当前IDE版本过低，可能无法正常使用。'}
+{$ENDIF}
+
 uses
   iocp.Http, iocp.Http.WebSocket, iocp.Sockets,
   iocp.Utils.Str,

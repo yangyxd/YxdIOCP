@@ -32,7 +32,9 @@ unit iocp;
 {$DEFINE UseHttpServer}
 {$IFDEF UseHttpServer}
 {$DEFINE UseWebSocketServer}
-{$DEFINE UseWebMvcServer}
+  {$IF (RTLVersion>=26)}
+  {$DEFINE UseWebMvcServer}
+  {$ENDIF}
 {$ENDIF}
 
 interface
