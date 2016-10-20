@@ -93,6 +93,8 @@ type
 
   TOnWebSocketConnection = procedure (Sender: TIocpWebSocketServer;
     Request: TIocpWebSocketHttpRequest; var IsAccept: Boolean) of object;
+  TOnWebSocketConnected = procedure (Sender: TIocpWebSocketServer;
+    Connection: TIocpWebSocketConnection) of object;
   TOnWebSocketDisconnect = procedure (Sender: TIocpWebSocketServer;
     Connection: TIocpWebSocketConnection) of object;
   TOnWebSocketRecvBuffer = procedure (Sender: TIocpWebSocketServer;
@@ -161,6 +163,7 @@ type
     FOnWebSocketRecvBuffer: TOnWebSocketRecvBuffer; 
     FOnWebSocketConnection: TOnWebSocketConnection;
     FOnWebSocketDisconnect: TOnWebSocketDisconnect;
+    FOnWebSocketConnected: TOnWebSocketConnected;
     function GetConnectionItem(const SessionID: string): TIocpWebSocketConnection;
     function GetConnectionCount: Integer;
   protected
@@ -169,6 +172,7 @@ type
     procedure DoWebSocketRecvBuffer(AConnection: TIocpWebSocketConnection; const Frame: TIocpWebSocketDataFrame); 
     procedure DoWebSocketConnection(Request: TIocpWebSocketHttpRequest; var IsAccept: Boolean); virtual;
     procedure DoWebSocketDisconnect(AConnection: TIocpWebSocketConnection); virtual;
+    procedure DoWebSocketConnected(AConnection: TIocpWebSocketConnection); virtual;
 
     procedure DoOpen(); override;
     procedure DoClose(); override;
@@ -209,6 +213,10 @@ type
     /// WebSocket 连接请求
     /// </summary>
     property OnWebSocketConnection: TOnWebSocketConnection read FOnWebSocketConnection write FOnWebSocketConnection;
+    /// <summary>
+    /// WebSocket 连接成功时
+    /// </summary>
+    property OnWebSocketConnected: TOnWebSocketConnected read FOnWebSocketConnected write FOnWebSocketConnected;
     /// <summary>
     /// WebSocket 连接断开
     /// </summary>
@@ -630,11 +638,20 @@ begin
         // 加入会话管理器中
         FConnMap.Add(TIocpWebSocketConnection(ARequest.Connection).FSessionID,
           iocp.Utils.Hash.Number(ARequest.Connection));
+        // 触发连接成功事件
+        DoWebSocketConnected(TIocpWebSocketConnection(ARequest.Connection));
       end else
         inherited DoRequest(ARequest);
     end else
       inherited DoRequest(ARequest);
   end;
+end;
+
+procedure TIocpWebSocketServer.DoWebSocketConnected(
+  AConnection: TIocpWebSocketConnection);
+begin
+  if Assigned(FOnWebSocketConnected) then
+    FOnWebSocketConnected(Self, AConnection);
 end;
 
 procedure TIocpWebSocketServer.DoWebSocketConnection(
@@ -859,8 +876,10 @@ end;
 
 procedure TIocpWebSocketConnection.ReleaseClientContext;
 begin
-  if Assigned(Owner) then
+  if Assigned(Owner) then begin
     TIocpWebSocketServer(Owner).DoWebSocketDisconnect(Self);
+    FSessionID := '';
+  end;
   inherited ReleaseClientContext;
 end;
 

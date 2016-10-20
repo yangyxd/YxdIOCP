@@ -39,6 +39,7 @@ contains
   iocp.Http in 'iocp.Http.pas',
   iocp.Core.Engine in 'iocp.Core.Engine.pas',
   iocp.Http.Client in 'iocp.Http.Client.pas',
-  iocp.Http.WebSocket in 'iocp.Http.WebSocket.pas';
+  iocp.Http.WebSocket in 'iocp.Http.WebSocket.pas',
+  iocp.Http.MVC in 'iocp.Http.MVC.pas';
 
 end.

@@ -360,6 +360,7 @@ type
     function GetCookieItem(const Name: StringA): StringA;
     function GetSessionID: StringA;
     function GetCharSet: StringA;
+    function GetContentType: StringA;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
     function DecodeHttpHeader(): Boolean;
@@ -391,6 +392,15 @@ type
     /// </summary>
     procedure ParsePostParams();
 
+
+    /// <summary>
+    /// 检测 ContentType 中是否存在指定的值
+    /// </summary>
+    function ExistContentType(const Text: StringA): Boolean;
+    /// <summary>
+    /// 判断客户端是否允许接收指定的数据类型
+    /// </summary>
+    function AllowAccept(const Text: StringA): Boolean;
     /// <summary>
     /// 判断参数是否存在
     /// </summary>
@@ -466,6 +476,7 @@ type
     property AcceptGzip: Boolean read FAcceptGZip;
     property Host: StringA read GetHost;
     property Referer: StringA read GetReferer;
+    property ContentType: StringA read GetContentType;
     property Session: Pointer read GetSession;
     property SessionID: StringA read GetSessionID;
     property Cookies: StringA read GetCookies;
@@ -494,6 +505,7 @@ type
     FData: TStringCatHelper;
     FCharset: TIocpHttpCharset;
     function GetIsEmpty: Boolean;
+    function GetPosition: Int64;
   public
     constructor Create(const BufferSize: Cardinal = 1024 * 8);
     destructor Destroy; override;
@@ -510,6 +522,7 @@ type
     property Charset: TIocpHttpCharset read FCharset write FCharset;
     property IsEmpty: Boolean read GetIsEmpty;
     property Response: TIocpHttpResponse read FOwner write FOwner;
+    property Position: Int64 read GetPosition;
   end;
 
   /// <summary>
@@ -529,6 +542,8 @@ type
     function GetConnection: TIocpHttpConnection;
     function GetActive: Boolean;
     function GetContentType: StringA;
+    function GetCharsetType: TIocpHttpCharset;
+    procedure SetCharsetType(const Value: TIocpHttpCharset);
   protected
     procedure MakeHeaderEx(const StatusCode: Integer;
       const Data: TStringCatHelperA); virtual;
@@ -567,7 +582,7 @@ type
     /// <summary>
     /// 返回代表请求错误的响应包，并断开连接
     /// </summary>
-    procedure ErrorRequest(ErrorCode: Word = 400);
+    procedure ErrorRequest(ErrorCode: Word = 400; const Msg: StringA = '');
     /// <summary>
     /// 返回指定响应代码
     /// </summary>
@@ -643,8 +658,9 @@ type
     /// </summary>
     procedure Send(buf: Pointer; len: Cardinal; AGZip: Boolean = False); overload;
     procedure Send(const Data: TBytes; AGZip: Boolean = False); overload;
-    procedure Send(const Data: StringA; AGZip: Boolean = False); overload;
-    procedure Send(const Data: StringW; AGZip: Boolean = False); overload;
+    procedure Send(const Data: string; AGZip: Boolean = False); overload;
+    procedure SendString(const Data: StringA; AGZip: Boolean = False); overload;
+    procedure SendString(const Data: StringW; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
     // 使用 Writer 来返回数据，可以防止乱码
     procedure Send(var Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
@@ -696,6 +712,8 @@ type
     property ContentLanguage: StringA read FContentLanguage write FContentLanguage;
     // 返回内容字符集(默认使用所属服务设置的字符集)
     property Charset: StringA read FCharset write FCharset;
+    // 返回内容字符集
+    property CharsetType: TIocpHttpCharset read GetCharsetType write SetCharsetType;
   end;
 
 type
@@ -715,6 +733,11 @@ function NewSessionID(): string;
 function GetResponseCodeNote(V: Word): StringA;
 
 implementation
+
+const
+  S_GB2312 = 'gb2312';
+  S_UTF_8 = 'utf-8';
+  S_UTF_16 = 'utf-16';
 
 var
   Workers: TIocpTask;
@@ -1998,6 +2021,25 @@ begin
   inherited Destroy;
 end;
 
+function TIocpHttpRequest.AllowAccept(const Text: StringA): Boolean;
+const
+  S_XX: StringA = '*/*';
+var
+  AValue: StringA;
+begin
+  AValue := LowerCase(Accept);
+  Result := (AValue = '') or (Pos(S_XX, AValue) > 0) or
+    (Pos(LowerCase(Text), AValue) > 0);
+end;
+
+function TIocpHttpRequest.ExistContentType(const Text: StringA): Boolean;
+var
+  AValue: StringA;
+begin
+  AValue := LowerCase(GetContentType);
+  Result := Pos(LowerCase(Text), AValue) > 0;
+end;
+
 function TIocpHttpRequest.ExistParam(const Name: StringA): Boolean;
 begin
   if not Assigned(FParamHash) then
@@ -2023,6 +2065,11 @@ end;
 function TIocpHttpRequest.GetCharSet: StringA;
 begin
   Result := GetHeaderParam('Content-Type', 'charset');
+end;
+
+function TIocpHttpRequest.GetContentType: StringA;
+begin
+  Result := GetHeader('Content-Type');
 end;
 
 function TIocpHttpRequest.GetCookieItem(const Name: StringA): StringA;
@@ -2763,9 +2810,9 @@ begin
   FSessionList.OnFreeItem := DoFreeHashItem;
   FAccessControlAllow := TIocpHttpAccessControlAllow.Create;
   {$IFDEF UNICODE}
-  FCharset := 'UTF-16';  // delphi的 UnicodeString 实际上 UTF-16
+  FCharset := S_UTF_16;  // delphi的 UnicodeString 实际上 UTF-16
   {$ELSE}
-  FCharset := 'GB2312';
+  FCharset := S_GB2312;
   {$ENDIF}
   FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
@@ -3009,21 +3056,34 @@ end;
 procedure TIocpHttpResponse.ServerError(const Msg: StringA);
 begin
   if (not Active) then Exit;
-  Send(StringA(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
+  ErrorRequest(500, StringA(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
       'charset=gb2312"></head>'#13'<body><font color="red"><b>%s</b></font><br>'+
       '<br>%s<br>'#13'</body></html>', [GetResponseCodeNote(500), Msg])));
-  FRequest.FConn.CloseConnection;
 end;
 
-procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
+procedure TIocpHttpResponse.SetCharsetType(const Value: TIocpHttpCharset);
+begin
+  case Value of
+    hct_8859_1: FCharset := '';
+    hct_GB2312: FCharset := S_GB2312;
+    hct_UTF8: FCharset := S_UTF_8;
+    hct_UTF16: FCharset := S_UTF_16;
+  end;
+end;
+
+procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word; const Msg: StringA);
 var
   Data: TStringCatHelperA;
 begin
   if (not Active) or (ErrorCode < 400) then Exit;
   Data := FRequest.FOwner.GetHeaderBuilder;
   try
-    MakeHeader(Data, 0, ErrorCode);
+    FCharSet := S_GB2312;
+    FGZip := False;
+    MakeHeader(Data, Length(Msg), ErrorCode);
     FixHeader(Data);
+    if Msg <> '' then
+      Data.Cat(Msg);
     FRequest.FConn.Send(Data.Memory, Data.Position, True);
     FRequest.FConn.CloseConnection;
   finally
@@ -3044,6 +3104,23 @@ const
   HStr: StringA = 'Transfer-Encoding: chunked'#13#10;
 begin
   Result := FixHeader(MakeHeader(0) + HStr);
+end;
+
+function TIocpHttpResponse.GetCharsetType: TIocpHttpCharset;
+var
+  S: string;
+begin
+  S := LowerCase(string(FCharset));
+  if S = '' then
+    Result := hct_8859_1
+  else if S = S_UTF_8 then
+    Result := hct_UTF8
+  else if S = S_GB2312 then
+    Result := hct_GB2312
+  else if S = S_UTF_16 then
+    Result := hct_UTF16
+  else
+    Result := hct_Unknown;
 end;
 
 function TIocpHttpResponse.GetConnection: TIocpHttpConnection;
@@ -3073,11 +3150,14 @@ begin
   if not Assigned(FOutWriter) then begin
     FOutWriter := TIocpHttpWriter.Create(BufferSize);
     FOutWriter.FOwner := Self;
-    {$IFDEF UNICODE}
-    FOutWriter.Charset := hct_UTF16;
-    {$ELSE}
-    FOutWriter.Charset := hct_GB2312;
-    {$ENDIF}
+    if FCharset = '' then begin
+      {$IFDEF UNICODE}
+      FOutWriter.Charset := hct_UTF16;
+      {$ELSE}
+      FOutWriter.Charset := hct_GB2312;
+      {$ENDIF}
+    end else
+      FOutWriter.Charset := CharsetType;
   end;
   Result := FOutWriter;
 end;
@@ -3694,7 +3774,7 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.Send(const Data: StringA; AGZip: Boolean);
+procedure TIocpHttpResponse.SendString(const Data: StringA; AGZip: Boolean);
 {$IFDEF UseGZip}
 var s: StringA;
 {$ENDIF}
@@ -3725,7 +3805,7 @@ begin
   end;
 end;
 
-procedure TIocpHttpResponse.Send(const Data: StringW; AGZip: Boolean);
+procedure TIocpHttpResponse.SendString(const Data: StringW; AGZip: Boolean);
 {$IFDEF UseGZip}
 var s: StringA;
 {$ENDIF}
@@ -3772,33 +3852,33 @@ begin
         hct_8859_1:
           begin
             FCharset := '';
-            Send(StringA(Writer.ToString), AGZip)
+            SendString(StringA(Writer.ToString), AGZip)
           end;
         hct_GB2312:
           begin
-            FCharset := 'gb2312';
+            FCharset := S_GB2312;
             {$IFDEF UNICODE}
-            Send(StringA(Writer.ToString), AGZip)
+            SendString(StringA(Writer.ToString), AGZip)
             {$ELSE}
-            Send(Writer.ToString, AGZip)
+            SendString(Writer.ToString, AGZip)
             {$ENDIF}
           end;
         hct_UTF8:
           begin
-            FCharset := 'utf-8';
+            FCharset := S_UTF_8;
             {$IFDEF UNICODE}
-            Send(UTF8Encode(Writer.FData.Start, Writer.FData.Position), AGzip)
+            SendString(UTF8Encode(Writer.FData.Start, Writer.FData.Position), AGzip)
             {$ELSE}
-            Send(UTF8Encode(Writer.ToString()), AGzip)
+            SendString(UTF8Encode(Writer.ToString()), AGzip)
             {$ENDIF}
           end;
         hct_UTF16:
           begin
-            FCharset := 'utf-16';
+            FCharset := S_UTF_16;
             {$IFDEF UNICODE}
-            Send(Writer.ToString, AGZip)
+            SendString(Writer.ToString, AGZip)
             {$ELSE}
-            Send(StringW(Writer.ToString), AGZip)
+            SendString(StringW(Writer.ToString), AGZip)
             {$ENDIF}
           end;
       end;
@@ -3809,6 +3889,43 @@ begin
   finally
     if AFreeWriter then
       FreeAndNil(Writer);
+  end;
+end;
+
+procedure TIocpHttpResponse.Send(const Data: string; AGZip: Boolean);
+begin
+  if (not Active) then Exit;
+  case CharsetType of
+    hct_8859_1:
+      begin
+        SendString(StringA(Data), AGZip)
+      end;
+    hct_GB2312:
+      begin
+        {$IFDEF UNICODE}
+        SendString(StringA(Data), AGZip)
+        {$ELSE}
+        SendString(Data, AGZip)
+        {$ENDIF}
+      end;
+    hct_UTF8:
+      begin
+        {$IFDEF UNICODE}
+        SendString(StringA(iocp.Utils.Str.UTF8Encode(Data)), AGzip);
+        {$ELSE}
+        SendString(UTF8Encode(Writer.ToString()), AGzip)
+        {$ENDIF}
+      end;
+    hct_UTF16:
+      begin
+        {$IFDEF UNICODE}
+        SendString(Data, AGZip)
+        {$ELSE}
+        SendString(StringW(Data), AGZip)
+        {$ENDIF}
+      end;
+    else
+      SendString(Data, AGzip);
   end;
 end;
 
@@ -4031,7 +4148,7 @@ begin
   if Assigned(FOwner) then begin
     if FOwner.FOutWriter = Self then
       FOwner.FOutWriter := nil;
-    FOwner.Send(Self, FOwner.FRequest.AcceptGzip, True)
+    FOwner.Send(Self, FOwner.FRequest.AcceptGzip and (FData.Position > 32), True)
   end else
     Exception.Create(strConnectNonExist);
 end;
@@ -4039,6 +4156,11 @@ end;
 function TIocpHttpWriter.GetIsEmpty: Boolean;
 begin
   Result := FData.Position = 0;
+end;
+
+function TIocpHttpWriter.GetPosition: Int64;
+begin
+  Result := FData.Position;
 end;
 
 function TIocpHttpWriter.SetCharset(V: TIocpHttpCharset): TIocpHttpWriter;

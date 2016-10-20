@@ -1342,16 +1342,23 @@ function TransByteSize(const pvByte: Int64): string;
 function BytesToString(const ABytes: TBytes; const AStartIndex: Integer = 0;
   AMaxCount: Integer = MaxInt): string;
 function GetRunTimeInfo: string;
+procedure ResetRunTime;
 
 implementation
 
 var
   Workers: TIocpTask;
+  StartRunTime: Int64 = 0;
 
 const
   RECONNECT_INTERVAL = 1000; // 重连间隔，避免连接过快，导致OnDisconnected还没有处理完成, 1秒
 const
   ADDRESS_LENGTH_EX = 18;
+
+procedure ResetRunTime();
+begin
+  StartRunTime := GetTimestamp;
+end;
 
 function TransByteSize(const pvByte: Int64): string;
 var
@@ -1375,7 +1382,7 @@ var
   lvMSec, lvRemain: Int64;
   lvDay, lvHour, lvMin, lvSec: Integer;
 begin
-  lvMSec := GetTimestamp;
+  lvMSec := GetTimestamp - StartRunTime;
   lvDay := Trunc(lvMSec / MSecsPerDay);
   lvRemain := lvMSec mod MSecsPerDay;
 

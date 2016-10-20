@@ -87,7 +87,7 @@ type
   );
   TSystemInformationClass = _SYSTEM_INFORMATION_CLASS;
 
-  _PROCESS_MEMORY_COUNTERS = PsAPI._PROCESS_MEMORY_COUNTERS;
+  _PROCESS_MEMORY_COUNTERS = PsAPI.TProcessMemoryCounters;
 
   PSYSTEM_THREAD_INFORMATION = ^TSystemThreadInfo;
   _SYSTEM_THREAD_INFORMATION = packed record
@@ -256,9 +256,9 @@ function NtQueryInformationProcess(ProcessHandle: Cardinal;
 
 
 function GetProcessHandleCount(PID: Cardinal): Cardinal;
-function GetProcessMemUse(PID: Cardinal): Cardinal;
+function GetProcessMemUse(PID: Cardinal): NativeUInt;
 function GetProcessMemoryInfo(Process: THandle;
-  ppsmemCounters: PPROCESS_MEMORY_COUNTERS; cb: DWORD): BOOL;
+  ppsmemCounters: PPROCESS_MEMORY_COUNTERS; cb: Cardinal): BOOL;
 
 implementation
 
@@ -294,7 +294,7 @@ begin
 end;
 
 function GetProcessMemoryInfo(Process: THandle;
-  ppsmemCounters: PPROCESS_MEMORY_COUNTERS; cb: DWORD): BOOL;
+  ppsmemCounters: PPROCESS_MEMORY_COUNTERS; cb: Cardinal): BOOL;
 begin
   Result := PsAPI.GetProcessMemoryInfo(Process, ppsmemCounters, cb);
 end;
@@ -332,7 +332,7 @@ begin
   FLocker.Leave;
 end;
 
-function GetProcessMemUse(PID: Cardinal): Cardinal;
+function GetProcessMemUse(PID: Cardinal): NativeUInt;
 var
   pmc: _PROCESS_MEMORY_COUNTERS; //uses psApi
   ProcHandle: HWND;

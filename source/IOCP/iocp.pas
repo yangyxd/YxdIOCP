@@ -32,6 +32,7 @@ unit iocp;
 {$DEFINE UseHttpServer}
 {$IFDEF UseHttpServer}
 {$DEFINE UseWebSocketServer}
+{$DEFINE UseWebMvcServer}
 {$ENDIF}
 
 interface
@@ -42,6 +43,7 @@ uses
   iocp.Utils.Hash, 
   {$IFDEF UseHttpServer}iocp.Http, {$ENDIF}
   {$IFDEF UseWebSocketServer}iocp.Http.WebSocket, {$ENDIF}
+  {$IFDEF UseWebMvcServer}iocp.Http.MVC, {$ENDIF}
   iocp.Sockets, iocp.Task, iocp.Winapi.TlHelp32, iocp.Utils.MemPool,
   iocp.Sockets.Utils, iocp.Core.Engine, iocp.Res, iocp.RawSockets,
   iocp.Utils.Queues, iocp.Utils.ObjectPool, WinSock,
@@ -215,6 +217,11 @@ type
   TOnWebSocketRequest = iocp.Http.WebSocket.TOnWebSocketRequest;
 {$ENDIF}
 
+{$IFDEF UseWebMvcServer}
+type
+  TIocpHttpMvcServer = iocp.Http.MVC.TIocpHttpMvcServer;
+{$ENDIF}
+
 type
   /// <summary>
   /// 阻塞型 TCP Scoket 池
@@ -371,6 +378,8 @@ function GetFileLastWriteTime(const AFileName: AnsiString): TDateTime;
 function TransByteSize(const pvByte: Int64): string;
 // 获取当前运行信息
 function GetRunTimeInfo: string;
+// 重置运行时间
+procedure ResetRunTime;
 
 procedure Register;
 
@@ -392,6 +401,9 @@ begin
   {$ENDIF}
   {$IFDEF UseWebSocketServer}
   RegisterComponents(ComPageName, [TIocpWebSocketServer]);
+  {$ENDIF}
+  {$IFDEF UseWebMvcServer}
+  RegisterComponents(ComPageName, [TIocpHttpMvcServer]);
   {$ENDIF}
 end;
 
@@ -437,6 +449,11 @@ end;
 function GetRunTimeInfo: string;
 begin
   Result := iocp.Sockets.GetRunTimeInfo;
+end;
+
+procedure ResetRunTime;
+begin
+  iocp.Sockets.ResetRunTime;
 end;
 
 { TIocpConnection }

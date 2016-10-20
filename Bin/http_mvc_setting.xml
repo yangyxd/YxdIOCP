@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+    <ListenPort>8081</ListenPort>
+    <Active>true</Active>
+    <Charset>UTF-8</Charset>
+    <UseWebSocket>false</UseWebSocket>
+    <ContentLanguage/>
+    <WebPath>.\Web\</WebPath>
+    <GzipFileTypes>.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;</GzipFileTypes>
+    <AutoDecodePostParams>true</AutoDecodePostParams>
+    <UploadMaxDataSize>2097152</UploadMaxDataSize>
+    <AccessControlAllow>
+        <Enabled>false</Enabled>
+        <Origin>*</Origin>
+        <Methods>POST, GET, OPTIONS</Methods>
+        <Headers>X-Requested-With, Content-Type</Headers>
+    </AccessControlAllow>
+</xml>
