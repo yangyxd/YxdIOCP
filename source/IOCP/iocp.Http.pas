@@ -3913,7 +3913,7 @@ begin
         {$IFDEF UNICODE}
         SendString(StringA(iocp.Utils.Str.UTF8Encode(Data)), AGzip);
         {$ELSE}
-        SendString(UTF8Encode(Writer.ToString()), AGzip)
+        SendString(UTF8Encode(Data), AGzip)
         {$ENDIF}
       end;
     hct_UTF16:
