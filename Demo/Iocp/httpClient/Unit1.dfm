@@ -23,6 +23,7 @@ object Form1: TForm1
     Height = 25
     Caption = 'HttpHeader'
     TabOrder = 0
+    OnClick = Button1Click
   end
   object Button2: TButton
     Left = 120
@@ -175,6 +176,7 @@ object Form1: TForm1
     RecvTimeOut = 0
     ConnectionTimeOut = 30000
     MaxRedirects = 5
+    DefautlCharset = hct_GB2312
     Left = 232
     Top = 64
   end

@@ -532,6 +532,7 @@ type
     FSourceStream: TStream;
     FHeaders: THttpHeaders;
     FLocalCredential: TCredential;
+    FLastError: Cardinal;
 
     FWConnect: HINTERNET;
     FWRequest: HINTERNET;
@@ -571,6 +572,7 @@ type
     property SourceStream: TStream read FSourceStream write FSourceStream;
     property SourceString: string read GetSourceString;
     property Headers: string read GetHeaders;
+    property LastError: Cardinal read FLastError write FLastError;
   end;
 
   THttpResponse = class(TInterfacedObject, IHttp)
@@ -1437,13 +1439,60 @@ end;
 
 class function TURI.PathRelativeToAbs(const RelPath: string;
   const Base: TURI): string;
+
+  function ResetRelationPath(): string;
+  var
+    P, PMax, PU, PUMax: PChar;
+  begin
+    P := PChar(RelPath);
+    PMax := P + Length(RelPath);
+    PU := PChar(Base.Path);
+    PUMax := PU + Length(Base.FPath);
+    while (P < PMax) and (P^ = '.') do begin
+      Inc(P);
+      if P^ = '/' then begin // ./ 本级
+        while (PUMax > PU) and (PUMax^ <> '/') do Dec(PUMax);
+        Result := Base.GetURLBase + PCharToString(PU, PUMax - PU) +
+          PCharToString(P, PMax - P);
+        Exit;
+      end else if (P < PMax) and (P^ = '.') then begin
+        Inc(P);
+        if P^ = '/' then begin // ../ 上一级
+          while (PUMax > PU) and (PUMax^ <> '/') do Dec(PUMax);
+          if (PUMax > PU) and (PUMax^ = '/') then begin
+            Dec(PUMax);
+            while (PUMax > PU) and (PUMax^ <> '/') do Dec(PUMax);
+            Inc(PUMax);
+          end;
+        end;
+      end;
+      Inc(P);
+    end;
+    if PUMax <= PU then
+      Result := Base.GetURLBase + PCharToString(P, PMax - P)
+    else
+      Result := Base.GetURLBase + PCharToString(PU, PUMax - PU) + PCharToString(P, PMax - P);
+  end;
+
 var
   P, PMax, P1, P2: PChar;
 begin
   Result := '';
   P := PChar(RelPath);
   PMax := P + Length(RelPath);
-  if P = PMax then Exit;
+  if P = PMax then begin
+    Result := Base.URL;
+    Exit;
+  end;
+  // 相对路径
+  if (P^ = '.') then begin
+    P2 := P + 1;
+    if (P2^ = '.') then Inc(P2);
+    if P2^ = '/' then begin
+      Result := ResetRelationPath();
+      Exit;
+    end;
+  end;
   P1 := P;
   P2 := P;
   while (P < PMax) and (P^ <> ':') do Inc(P);
@@ -2333,7 +2382,6 @@ var
   DataLength: Cardinal;
   OptionValue: DWORD;
   Res: Boolean;
-  LastError: Cardinal;
   Buffer: TBytes;
   ToRead, LastSrcPosition: Int64;
   BytesWritten: Cardinal;
@@ -2368,8 +2416,8 @@ begin
     WINHTTP_NO_REQUEST_DATA, 0, DataLength, 0);
   if not Res then
   begin
-    LastError := GetLastError;
-    case LastError of
+    ARequest.FLastError := GetLastError;
+    case ARequest.FLastError of
       ERROR_WINHTTP_SECURE_FAILURE:
         Result := resp_ServerCertificateInvalid;
       ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED:
@@ -2402,8 +2450,8 @@ begin
   Res := WinHttpReceiveResponse(ARequest.FWRequest, nil);
   if not Res then
   begin
-    LastError := GetLastError;
-    case LastError of
+    ARequest.FLastError := GetLastError;
+    case ARequest.FLastError of
       ERROR_WINHTTP_SECURE_FAILURE:
           Result := resp_ServerCertificateInvalid;
       ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED:
@@ -3534,7 +3582,7 @@ begin
     if FRequest.FClient.FAutoDecodeStr then begin
       case FCharSet of
         hct_GB2312, hct_GBK, hct_ISO8859_1:
-          Result := PCharToString(M.Memory, M.Size);
+          Result := PCharAToStringW(M.Memory, M.Size);
         hct_UTF8:
           Result := Utf8Decode(M.Memory, M.Size);
         hct_UTF16:
@@ -3543,8 +3591,12 @@ begin
           {$ELSE}
           Result := PCharWToString(M.Memory, M.Size);
           {$ENDIF}
-        hct_BIG5: // 这个暂时不处理
+        hct_BIG5:
+          {$IFDEF UNICODE}
+          Result := PCharAToStringW(M.Memory, M.Size);     //161011 amu
+          {$ELSE}
           Result := PCharToString(M.Memory, M.Size);
+         {$ENDIF}
       end;
     end else
       Result := PCharToString(M.Memory, M.Size);

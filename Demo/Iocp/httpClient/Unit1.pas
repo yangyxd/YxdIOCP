@@ -35,6 +35,7 @@ type
     procedure Button12Click(Sender: TObject);
     procedure Button7Click(Sender: TObject);
     procedure Button10Click(Sender: TObject);
+    procedure Button1Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -84,6 +85,11 @@ begin
   ShowMessage(B.PathRelativeToAbs('foo/stuff.do', A));
   ShowMessage(B.PathRelativeToAbs('/foo/stuff.do', A));
   ShowMessage(B.PathRelativeToAbs('http://niye.name', A));
+end;
+
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+  Memo1.Text := HttpGet('http://192.168.1.1');
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);

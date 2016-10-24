@@ -4,7 +4,7 @@ interface
 
 uses
   MvcDemo,
-  iocp, iocp.http, iocp.Http.MVC, iocp.Utils.GMTTime,
+  iocp, iocp.http, iocp.Http.MVC, iocp.Utils.GMTTime, iocp.Http.Client,
   Rtti, YxdRtti, YxdJson,
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ExtCtrls, iocp.Sockets, iocp.Http.WebSocket;
@@ -20,13 +20,15 @@ type
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
-    procedure Button4Click(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure DoWebSocketConnected(
       Sender: TIocpWebSocketServer; Connection: TIocpWebSocketConnection);
   private
     function DoSerializeData(Sender: TObject; const Value: TValue): string;
+    function DoDeSerializeData(Sender: TObject; const Value: string;
+      const Dest: TValue; IsGet: Boolean): Boolean;
+    procedure DoReadedItem(const Name, Value: string; Data: Pointer);
   public
   end;
 
@@ -62,16 +64,41 @@ begin
   HttpMvc.Server.DisconnectAll;
 end;
 
-procedure TForm1.Button4Click(Sender: TObject);
+// 反序列化处理
+function TForm1.DoDeSerializeData(Sender: TObject; const Value: string;
+  const Dest: TValue; IsGet: Boolean): Boolean;
 var
-  Mvc: TMvcDemo;
+  Json: JSONObject;
+  S: AnsiString;
 begin
-  Mvc := TMvcDemo.Create;
-  if Mvc.ExistAttribute('service') then
-    ShowMessage(Mvc.ClassName);
-  Mvc.Free;
+  if not IsGet then begin
+    Json := JSONObject.ParseObject(Value, False);
+    try
+      if Assigned(Json) then
+        TYxdSerialize.ReadValue(Json, Dest);
+    finally
+      FreeAndNil(Json);
+    end;
+  end else begin
+    // Get 请求单独处理
+    Json := JSONObject.Create;
+    try
+      S := AnsiString(Value);
+      HttpMvc.Server.DecodeParam(PAnsiChar(S), Length(S), DoReadedItem, Json);
+      TYxdSerialize.ReadValue(Json, Dest);
+    finally
+      FreeAndNil(Json);
+    end;
+  end;
+  Result := True;
 end;
 
+procedure TForm1.DoReadedItem(const Name, Value: string; Data: Pointer);
+begin
+  JSONObject(Data).Put(Name, Value);
+end;
+
+// 序列化处理
 function TForm1.DoSerializeData(Sender: TObject; const Value: TValue): string;
 var
   Json: JSONObject;
@@ -88,7 +115,9 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   InitHttpMvcServer;
+  JSONObject.SetJsonCaseSensitive(False);
   HttpMvc.OnSerializeData := DoSerializeData;
+  HttpMvc.OnDeSerializeData := DoDeSerializeData;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);

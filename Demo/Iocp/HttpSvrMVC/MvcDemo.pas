@@ -2,8 +2,10 @@ unit MvcDemo;
 
 interface
 
+{$R+}
+
 uses
-  Iocp.Http, Iocp.Http.WebSocket, iocp.Http.MVC,
+  Iocp.Http, Iocp.Http.WebSocket, iocp.Http.MVC, DB,
   SysUtils, Classes;
 
 type
@@ -14,6 +16,17 @@ type
     Nick: string;
   end;
 
+  TPerson = record
+    UID: Integer;
+    Name: string;
+    Status: Integer;
+  end;
+
+  TRegState = record
+    Status: Integer;
+    Msg: string;
+  end;
+
 type
   [Service]
   [RequestMapping('/demo')]
@@ -22,6 +35,8 @@ type
     [Autowired]
     FServer: TIocpHttpServer;
   public
+    class procedure Hello;
+
     // 直接处理请求，并主动使用 Response 返回数据
     // 处理 URL: /demo/view
     [RequestMapping('/view', http_GET)]
@@ -53,12 +68,26 @@ type
     // 返回一个记录，会自动序列化
     // 处理 URL: /demo/view5
     [RequestMapping('/view5', http_GET)]
+    [ResponseBody]
     function ViewTest5(): TUserData;
 
     // 返回一个对象，会自动序列化。返回的对象会自动释放
     // 处理 URL: /demo/view6
     [RequestMapping('/view6', http_GET)]
+    [ResponseBody]
     function ViewTest6(): TStrings;
+
+    // 根据UID查询用户信息。
+    // 处理 URL: /demo/person/profile/123456
+    [RequestMapping('/person/profile/{id}', http_GET)]
+    [ResponseBody]
+    function Porfile([PathVariable('id')] UID: Integer): TPerson;
+
+    // 提交用户数据
+    // 处理 URL: /demo/person/profile/reguser
+    [RequestMapping('/person/profile/reguser')]
+    [ResponseBody]
+    function RegUser([RequestBody] Data: TUserData): TRegState;
 
     // WebSocket 请求处理，直接返回字符串内容
     [WebSocket]
@@ -67,11 +96,16 @@ type
     // WebSocket 请求处理, 只有接收到文本信息且内容是 'hello' 时才响应
     [WebSocket('hello')]
     procedure HelloWebSocket2(Response: TIocpWebSocketResponse);
+
   end;
 
 implementation
 
 { TMvcDemo }
+
+class procedure TMvcDemo.Hello;
+begin
+end;
 
 function TMvcDemo.HelloWebSocket: string;
 begin
@@ -81,6 +115,19 @@ end;
 procedure TMvcDemo.HelloWebSocket2(Response: TIocpWebSocketResponse);
 begin
   Response.Send('你好。');
+end;
+
+function TMvcDemo.Porfile(UID: Integer): TPerson;
+begin
+  Result.UID := UID;
+  Result.Name := 'Admin';
+  Result.Status := 100;
+end;
+
+function TMvcDemo.RegUser(Data: TUserData): TRegState;
+begin
+  Result.Status := 0;
+  Result.Msg := '注册成功，用户名是: ' + Data.Name;
 end;
 
 procedure TMvcDemo.ViewTest(Request: TIocpHttpRequest;
@@ -127,5 +174,11 @@ begin
   Result.Add('bbb');
   Result.Add('cccc');
 end;
+
+initialization
+  // 因为 TMvcDemo 在其它任何地方都没有用到，所以要
+  // 防止编译优化，写这一段无用代码
+  // 也可以直接调用 RegMvcClass 进行注册
+  TMvcDemo.Hello;
 
 end.

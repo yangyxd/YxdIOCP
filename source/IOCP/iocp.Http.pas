@@ -208,6 +208,8 @@ type
     property MaxAge: Cardinal read FMaxAge write FMaxAge;
   end;
 
+  TDoReadedParam = procedure (const Name, Value: string; Data: Pointer) of object;
+
   /// <summary>
   /// HTTP 服务
   /// </summary>
@@ -244,6 +246,11 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    /// <summary>
+    /// 解析请求参数
+    /// </summary>
+    procedure DecodeParam(P: PAnsiChar; Len: Cardinal;
+      DoCallBack: TDoReadedParam; DoCallBackData: Pointer = nil; DecodeURL: Boolean = False);
     /// <summary>
     /// 获取指定ID的Session数据。Session数据由外部程序维护，Http服务只是由
     /// HashMap记录SessionID与Data的关联。
@@ -340,7 +347,6 @@ type
     function GetParamsCount: Integer;
     function GetRequestVersionStr: StringA;
     function DecodeStr(const S: StringA): StringA;
-    procedure DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean = False);
     procedure DecodeParams();
     function GetDataStringA: StringA;
     function GetHeaderStr: StringA;
@@ -361,6 +367,7 @@ type
     function GetSessionID: StringA;
     function GetCharSet: StringA;
     function GetContentType: StringA;
+    function GetGetParamData: StringA;
   protected
     function DecodeHttpRequestMethod(): TIocpHttpMethod; 
     function DecodeHttpHeader(): Boolean;
@@ -368,6 +375,7 @@ type
     function GetWaitRecvSize: Int64;
     procedure Clear;
     procedure WriteBuffer(P: Pointer; Len: Cardinal);        
+    procedure DoReadParamItem(const Name, Value: string; Data: Pointer);
   public
     constructor Create(AOwner: TIocpHttpServer);
     destructor Destroy; override;
@@ -424,7 +432,8 @@ type
     /// <summary>
     /// 获取指定字符集字符串形式的请求参数
     /// </summary>
-    function GetDataString(const ACharset: string): string;
+    function GetDataString(const ACharset: string): string; overload;
+    function GetDataString(): string; overload;
 
     property Owner: TIocpHttpServer read FOwner;
     property Connection: TIocpHttpConnection read FConn;
@@ -483,6 +492,7 @@ type
     property Cookie[const Name: StringA]: StringA read GetCookieItem;
     property ParamsCount: Integer read GetParamsCount;
     property Params[Index: Integer]: StringA read GetParamIndex;
+    property ParamData: StringA read GetGetParamData;
     // 注意，本方法是实时解析，使用时注意效率
     property FormData[const Key: StringA]: TIocpHttpFromDataItem read GetFormDataItem;
     property Tag: Integer read FTag write FTag;
@@ -1919,48 +1929,6 @@ begin
   FParamHash := nil;
 end;
 
-procedure TIocpHttpRequest.DecodeParam(P: PAnsiChar; Len: Cardinal; DecodeURL: Boolean);
-var
-  P1: PAnsiChar;
-  Key, Value: string;
-  ReadValue: Boolean;
-begin
-  if Len = 0 then Exit;
-  while (Len > 0) and ((P^ = #13) or (P^ = #10) or (P^ = #32)) do begin
-    Inc(P);
-    Dec(Len);
-  end;
-  P1 := P;
-  ReadValue := False;
-  while (P <> nil) do begin
-    if (P^ = '=') and (not ReadValue) then begin
-      SetString(Key, P1, P - P1);
-      P1 := P + 1;
-      ReadValue := True;
-    end else if (P^ = '&') or (P^ = #0) or (Len = 0) then begin
-      if Length(Key) > 0 then begin
-        SetString(Value, P1, P - P1);
-        if Length(Value) > 0 then begin
-          if not Assigned(FParams) then
-            FParams := TStringList.Create;
-          FParamHash.Add(LowerCase(Key), FParams.Count);
-          if DecodeURL then 
-            Value := string(DecodeStr(StringA(Value)));
-          FParams.Add(Value);
-        end;
-        if (P^ = #0) or (Len = 0) then
-          Break;
-        Key := '';
-        P1 := P + 1;
-      end else if P^ = #0 then
-        Break;
-      ReadValue := False;
-    end;
-    Dec(Len);
-    Inc(P);
-  end;
-end;
-
 procedure TIocpHttpRequest.DecodeParams;
 var
   P: PAnsiChar;
@@ -1971,7 +1939,7 @@ begin
     P := Pointer(FURL);
     Inc(P, FURI.Len);
     Inc(P);
-    DecodeParam(P, Length(FURL) - FURI.Len);
+    FOwner.DecodeParam(P, Length(FURL) - FURI.Len, DoReadParamItem);
   end;
   if FOwner.AutoDecodePostParams then
     ParsePostParams;
@@ -1983,7 +1951,7 @@ begin
   if (FMethod = http_POST) and (FDataSize > 0) then begin
     if not Assigned(FParamHash) then
       DecodeParams;
-    DecodeParam(PAnsiChar(FRequestData.Memory) + FHeaderSize, FDataSize, True);
+    FOwner.DecodeParam(PAnsiChar(FRequestData.Memory) + FHeaderSize, FDataSize, DoReadParamItem, nil, True);
   end;
 end;
 
@@ -2019,6 +1987,14 @@ begin
   FreeAndNil(FResponse);
   FreeAndNil(FRequestData);
   inherited Destroy;
+end;
+
+procedure TIocpHttpRequest.DoReadParamItem(const Name, Value: string; Data: Pointer);
+begin
+  if not Assigned(FParams) then
+    FParams := TStringList.Create;
+  FParamHash.Add(LowerCase(Name), FParams.Count);
+  FParams.Add(Value);
 end;
 
 function TIocpHttpRequest.AllowAccept(const Text: StringA): Boolean;
@@ -2124,9 +2100,9 @@ begin
   Data := PAnsiChar(FRequestData.Memory) + FHeaderSize;
   DataLen := FRequestData.Size - FHeaderSize;
   // 根据字符集，解码成Ansi字符串
-  if SysUtils.StrLIComp(P, 'UTF-8', 5) = 0 then
+  if SysUtils.StrLIComp(P, S_UTF_8, 5) = 0 then
     Result := UTF8Decode(Data, DataLen)
-  else if SysUtils.StrLIComp(P, 'UTF-16', 6) = 0 then begin
+  else if SysUtils.StrLIComp(P, S_UTF_16, 6) = 0 then begin
     {$IFDEF UNICODE}
     Result := PChar(Data);
     {$ELSE}
@@ -2138,6 +2114,16 @@ begin
     {$ELSE}
     Result := PCharToString(Data, DataLen);
     {$ENDIF}
+end;
+
+function TIocpHttpRequest.GetDataString: string;
+var
+  LCharSet: StringA;
+begin
+  LCharSet := CharSet;
+  if LCharSet = '' then
+    LCharSet := Owner.FCharset;
+  Result := GetDataString(string(LCharSet));
 end;
 
 function TIocpHttpRequest.GetDataStringA: StringA;
@@ -2155,9 +2141,9 @@ begin
   Data := PAnsiChar(FRequestData.Memory) + FHeaderSize;
   DataLen := FRequestData.Size - FHeaderSize;
   // 根据字符集，解码成Ansi字符串
-  if StrLIComp(P, PAnsiChar(StringA('UTF-8')), 5) = 0 then
+  if StrLIComp(P, PAnsiChar(StringA(S_UTF_8)), 5) = 0 then
     Result := StringA(UTF8Decode(Data, DataLen))
-  else if StrLIComp(P, PAnsiChar(StringA('UTF-16')), 6) = 0 then
+  else if StrLIComp(P, PAnsiChar(StringA(S_UTF_16)), 6) = 0 then
     Result := PCharWToString(Data, DataLen)
   else // 其它的直接返回 (比如 GB2312, GBK, ISO-8859 等)
     SetString(Result, Data, DataLen);
@@ -2226,6 +2212,22 @@ begin
   Result.P := nil;
   Result.FC := nil;
   Result.Len := 0;
+end;
+
+function TIocpHttpRequest.GetGetParamData: StringA;
+var
+  P: PAnsiChar;
+  Len: Integer;
+begin
+  if FURI.Len < Length(FURL) then begin
+    P := Pointer(FURL);
+    Inc(P, FURI.Len + 1);
+    Len := Length(FURL) - FURI.Len - 1;
+    SetLength(Result, Len);
+    if Len > 0 then
+      Move(P^, Result[1], Len);
+  end else
+    Result := '';
 end;
 
 function TIocpHttpRequest.GetHeaderStr: StringA;
@@ -2816,6 +2818,43 @@ begin
   {$ENDIF}
   FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
+end;
+
+procedure TIocpHttpServer.DecodeParam(P: PAnsiChar; Len: Cardinal;
+  DoCallBack: TDoReadedParam; DoCallBackData: Pointer; DecodeURL: Boolean);
+var
+  P1: PAnsiChar;
+  Key, Value: string;
+  ReadValue: Boolean;
+begin
+  if (Len = 0) or (not Assigned(DoCallBack)) then Exit;
+  while (Len > 0) and ((P^ = #13) or (P^ = #10) or (P^ = #32)) do begin
+    Inc(P);
+    Dec(Len);
+  end;
+  P1 := P;
+  ReadValue := False;
+  while (P <> nil) do begin
+    if (P^ = '=') and (not ReadValue) then begin
+      SetString(Key, P1, P - P1);
+      P1 := P + 1;
+      ReadValue := True;
+    end else if (P^ = '&') or (P^ = #0) or (Len = 0) then begin
+      if Length(Key) > 0 then begin
+        SetString(Value, P1, P - P1);
+        if Length(Value) > 0 then
+          DoCallBack(LowerCase(Key), Value, DoCallBackData);
+        if (P^ = #0) or (Len = 0) then
+          Break;
+        Key := '';
+        P1 := P + 1;
+      end else if P^ = #0 then
+        Break;
+      ReadValue := False;
+    end;
+    Dec(Len);
+    Inc(P);
+  end;
 end;
 
 destructor TIocpHttpServer.Destroy;
@@ -3913,7 +3952,7 @@ begin
         {$IFDEF UNICODE}
         SendString(StringA(iocp.Utils.Str.UTF8Encode(Data)), AGzip);
         {$ELSE}
-        SendString(UTF8Encode(Data), AGzip)
+        SendString(UTF8Encode(Writer.ToString()), AGzip)
         {$ENDIF}
       end;
     hct_UTF16:

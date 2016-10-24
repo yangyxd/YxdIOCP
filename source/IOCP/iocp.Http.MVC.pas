@@ -99,6 +99,9 @@ type
     /// </summary>
     procedure StartScan;
     procedure Clear;
+
+    procedure RegClass(AClass: TClass); overload;
+    procedure RegClass(AClass: TRttiType); overload;
   end;
 
 type
@@ -114,6 +117,7 @@ type
   public
     URI: string;
     DownMode: Boolean;
+    ResponseBody: Boolean;
     Method: TIocpHttpMethod;
     Consumes, Produces, Params, Headers: string;
     // 控制器实例对象
@@ -134,6 +138,7 @@ type
   TWebSocketMapData = record
     // 必须是文本消息，且与Data相符时才触发命令. 是否大小写敏感由 MvcServer 控制。
     Data: string;
+    ResponseBody: Boolean;
     // 控制器实例对象
     Controller: TObject;
     // 方法索引号
@@ -146,7 +151,12 @@ type
   /// 序列化请求 - 用于在事件中序列化对象
   /// </summary>
   TOnSerializeRequest = function (Sender: TObject; const Value: TValue): string of object;
-  
+  /// <summary>
+  /// 反序列化请求 - 用于在事件中反序列化对象
+  /// </summary>
+  TOnDeSerializeRequest = function (Sender: TObject; const Value: string;
+    const Dest: TValue; IsGet: Boolean): Boolean of object;
+
 type
   /// <summary>
   /// 支持 MVC 功能的 Http 服务
@@ -163,6 +173,7 @@ type
     FWebSocketMap: TList<TWebSocketMapData>;
 
     FOnSerializeData: TOnSerializeRequest;
+    FOnDeSerializeData: TOnDeSerializeRequest;
     
     procedure SetUseWebSocket(const Value: Boolean);
     function GetAccessControlAllow: TIocpHttpAccessControlAllow;
@@ -202,6 +213,11 @@ type
     /// 序列化对象
     /// </summary>
     function SerializeData(const Value: TValue): string;
+
+    /// <summary>
+    /// 反序列化对象
+    /// </summary>
+    function DeSerializeData(const SrcData: string; const DestValue: TValue; IsGet: Boolean): Boolean;
     
     /// <summary>
     /// 加载配置
@@ -291,6 +307,10 @@ type
     /// 序列化请求事件
     /// </summary>
     property OnSerializeData: TOnSerializeRequest read FOnSerializeData write FOnSerializeData;
+    /// <summary>
+    /// 反序列化请求事件
+    /// </summary>
+    property OnDeSerializeData: TOnDeSerializeRequest read FOnDeSerializeData write FOnDeSerializeData;
   end;
 
 type
@@ -416,6 +436,21 @@ type
     property Name: string read FName;
   end;
 
+type
+  /// <summary>
+  /// 1. 读取Request请求的body部分数据，使用系统默认配置的Converter进行解析，
+  ///    然后把相应的数据绑定到要返回的对象上；
+  /// 2. 再把Converter返回的对象数据绑定到controller中方法的参数上。
+  /// </summary>
+  RequestBodyAttribute = class(TCustomAttribute);
+
+type
+  /// <summary>
+  /// 将Controller的方法返回的对象，通过适当的Converter的Adapter转换对象,
+  /// 将内容转换为指定格式后，写入到Response对象的body数据区。
+  /// </summary>
+  ResponseBodyAttribute = class(TCustomAttribute);
+
 var
   HttpMvc: TIocpHttpMvcServer = nil;
 
@@ -426,7 +461,17 @@ var
 /// </summary>
 procedure InitHttpMvcServer;
 
+/// <summary>
+/// 注册
+/// </summary>
+procedure RegMvcClass(AClass: TClass); overload;
+procedure RegMvcClass(AClass: TRttiType); overload;
+
+
 implementation
+
+resourcestring
+  S_BadRequestBody = 'Request Body Parse Failed.';
 
 var
   AppPath: string;
@@ -437,6 +482,18 @@ procedure InitHttpMvcServer;
 begin
   if not Assigned(HttpMvc) then
     MvcScanner.StartScan;
+end;
+
+procedure RegMvcClass(AClass: TClass);
+begin
+  if Assigned(MvcScanner) then
+    MvcScanner.RegClass(AClass);
+end;
+
+procedure RegMvcClass(AClass: TRttiType);
+begin
+  if Assigned(MvcScanner) then
+    MvcScanner.RegClass(AClass);
 end;
 
 /// <summary>
@@ -752,11 +809,29 @@ begin
   Result := FRttiContext.GetTypes;
 end;
 
+procedure TIocpMvcScanner.RegClass(AClass: TRttiType);
+var
+  Obj: TObject;
+begin
+  if not FClassMap.ContainsKey(AClass.Name) then begin
+    Obj := CreateObject(AClass, []);
+    FClassMap.Add(AClass.Name, Obj);
+    Log('Initial success: ' + AClass.QualifiedName);
+  end;
+end;
+
+procedure TIocpMvcScanner.RegClass(AClass: TClass);
+var
+  AType: TRttiType;
+begin
+  AType := FRttiContext.GetType(AClass);
+  RegClass(AType);
+end;
+
 procedure TIocpMvcScanner.StartScan;
 var
   tl: TArray<TRttiType>;
   Item: TRttiType;
-  Obj: TObject;
   J: Integer;
 begin
   if FScannerOK then
@@ -774,14 +849,12 @@ begin
     then begin 
       Log('Scanner: ' + Item.QualifiedName);
       // 初始化
-      Obj := CreateObject(Item, []);
-      FClassMap.Add(Item.Name, Obj);
-      Log('Initial success: ' + Item.QualifiedName);
+      RegClass(Item);
     end;      
   end;
   
   // 初始化服务
-  if (FClassMap.Count > 0) and (HttpMvc = nil) then begin
+  if (HttpMvc = nil) then begin
     HttpMvcAllowFree := True;
     HttpMvc := TIocpHttpMvcServer.Create(nil);
     HttpMvc.LoadConfig;
@@ -877,6 +950,15 @@ begin
   Result := AppPath + 'http_mvc_setting.xml';
 end;
 
+function TIocpHttpMvcServer.DeSerializeData(const SrcData: string;
+  const DestValue: TValue; IsGet: Boolean): Boolean;
+begin
+  if Assigned(FOnDeSerializeData) then begin
+    Result := FOnDeSerializeData(Self, SrcData, DestValue, IsGet);
+  end else
+    Result := False;
+end;
+
 destructor TIocpHttpMvcServer.Destroy;
 begin
   FreeAndNil(FServer);
@@ -967,6 +1049,8 @@ procedure TIocpHttpMvcServer.DoHttpRequest(Sender: TIocpHttpServer;
     end;
   end;
 
+const
+  CS_Mltipart_FormData: StringA = 'multipart/form-data';
 var
   Key, URI: string;
   Item: TUriMapData;
@@ -975,8 +1059,10 @@ var
   ARttiType: TRttiType;
   AParams: TArray<TRttiParameter>;
   APathVariable: TDictionary<string, string>;
+  AParamObjs: TObject;
   Args: array of TValue;
   ResultValue: TValue;
+  IsOK: Boolean;
   I: Integer;
 begin
   try
@@ -986,7 +1072,7 @@ begin
       URI := LowerCase(string(Request.URI));
     FillChar(Item, SizeOf(Item), 0);
     APathVariable := nil;
-
+    AParamObjs := nil;
     try
       // 检测 URI 映射
       if not FUriMap.ContainsKey(URI) then begin
@@ -1042,11 +1128,63 @@ begin
               // RequestParam 标注的字段
               Result := True;
               Args[I] := GetArgsValue(AParams[I], Request.GetParam(StringA(PathVariableAttribute(Item).FName)));
+            end else if (Item.ClassType = RequestBodyAttribute) and (AParamObjs = nil) then begin
+              // RequestBody 绑定请求参数到对象中
+              Result := True;
+              case AParams[I].ParamType.TypeKind of
+                tkString, tkLString, tkWString, tkUString:
+                  begin
+                    // 字符串，直接赋值
+                    if Request.Method <> http_GET then
+                      Args[I] := Request.GetDataString()
+                    else
+                      Args[I] := string(Request.ParamData);
+                  end;
+                tkClass:
+                  begin
+                    // 类，实例化后通过序列化事件赋值
+                    Args[I] := nil;
+                    AClass := AParams[I].ParamType.AsInstance.MetaclassType;
+                    try
+                      if AClass.InheritsFrom(TComponent) then
+                        Args[I] := CreateObject(AClass.ClassName, [Owner])
+                      else
+                        Args[I] := CreateObject(AClass.ClassName, []);
+                      // 如果不是二进制数据
+                      if not Request.ExistContentType(CS_Mltipart_FormData) then begin
+                        if Request.Method <> http_GET then
+                          IsOK := DeSerializeData(Request.GetDataString(), Args[I], False)
+                        else
+                          IsOK := DeSerializeData(string(Request.ParamData), Args[I], True);
+                        if not IsOK then
+                          raise Exception.Create(S_BadRequestBody);
+                      end;
+                    finally
+                      if (not Args[I].IsEmpty) and (Args[I].IsObject) then
+                        AParamObjs := Args[I].AsObject; // 将对象类加入到列表，待使用完后释放
+                    end;
+                  end;
+                tkRecord:
+                  begin
+                    // 记录，实例化后通过序列化事件赋值
+                    TValue.Make(nil, AParams[I].ParamType.Handle, Args[I]);
+                    // 如果不是二进制数据
+                    if not Request.ExistContentType(CS_Mltipart_FormData) then begin
+                      if Request.Method <> http_GET then
+                        IsOK := DeSerializeData(Request.GetDataString(), Args[I], False)
+                      else
+                        IsOK := DeSerializeData(string(Request.ParamData), Args[I], True);
+                      if not IsOK then
+                        raise Exception.Create(S_BadRequestBody);
+                    end;
+                  end;
+              end;
             end else
               Result := False;
           end
         ) then
           Continue;
+
         // 检测字段绑定，自动注入参数
         case AParams[I].ParamType.TypeKind of
           tkClass:
@@ -1095,14 +1233,20 @@ begin
             tkClass:
               begin
                 try
-                  Response.Send(SerializeData(ResultValue));
+                  if Item.ResponseBody then
+                    Response.Send(SerializeData(ResultValue))
+                  else
+                    Response.ResponeCode(200);
                 finally
                   ResultValue.AsObject.Free;
                 end;
               end;
             tkRecord:
               begin
-                Response.Send(SerializeData(ResultValue));
+                if Item.ResponseBody then
+                  Response.Send(SerializeData(ResultValue))
+                else
+                  Response.ResponeCode(200);
               end;
           else
             Response.ResponeCode(200);
@@ -1115,6 +1259,7 @@ begin
         AMethod.Invoke(Item.Controller, Args);
     finally
       FreeAndNil(APathVariable);
+      FreeAndNil(AParamObjs);
     end;
   except
     Log(Exception(ExceptObject).Message);
@@ -1201,7 +1346,7 @@ begin
               begin
                 Response.Send(ResultValue.AsString);
               end;
-            // 返回类型为数字时，认为是错误代码
+            // 返回类型为数字时，转为字符串
             tkInteger, tkInt64:
               begin
                 Response.Send(IntToStr(ResultValue.AsInt64));
@@ -1209,14 +1354,16 @@ begin
             tkClass:
               begin
                 try
-                  Response.Send(SerializeData(ResultValue));
+                  if FWebSocketMap[J].ResponseBody then
+                    Response.Send(SerializeData(ResultValue))
                 finally
                   ResultValue.AsObject.Free;
                 end;
               end;
             tkRecord:
               begin
-                Response.Send(SerializeData(ResultValue));
+                if FWebSocketMap[J].ResponseBody then
+                  Response.Send(SerializeData(ResultValue))
               end;
           end;
         end;
@@ -1388,6 +1535,7 @@ begin
         AMethods[I].IsClassMethod
       then
         Continue;
+
       // RequestMapping
       if CheckAttribute(AMethods[I].GetAttributes,
         function(const Item: TCustomAttribute; const Data: Pointer): Boolean
@@ -1419,6 +1567,7 @@ begin
         DataItem.URI := BaseUri + ChildUri;
         DataItem.DownMode := BaseDataItem.DownMode or
           ExistAttribute(AMethods[I].GetAttributes, DownloadAttribute);
+        DataItem.ResponseBody := ExistAttribute(AMethods[I].GetAttributes, ResponseBodyAttribute);
 
         // 判断 Uri 中是否有 PathVariable 字段
         L := Pos('{', ChildUri);
@@ -1451,6 +1600,7 @@ begin
       then begin 
         WebSocketDataItem.Controller := ClassItem.Value;
         WebSocketDataItem.MethodIndex := I;
+        WebSocketDataItem.ResponseBody := ExistAttribute(AMethods[I].GetAttributes, ResponseBodyAttribute);
         FWebSocketMap.Add(WebSocketDataItem);
       end;
     end;
