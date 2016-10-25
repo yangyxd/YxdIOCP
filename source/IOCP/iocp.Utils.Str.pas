@@ -86,16 +86,22 @@ type
   NativeUInt = Cardinal;
   IntPtr = NativeInt;
   {$ifend}
-  CharWS = array of CharW;
-  CharAS = array of CharA;
 
-type
-  TTextEncoding = (teUnknown, {未知的编码} teAuto,{自动检测} teAnsi, { Ansi编码 }
+  CharWS = array of CharW;
+
+  CharAS = array of CharA;
+
+
+type
+
+  TTextEncoding = (teUnknown, {未知的编码} teAuto,{自动检测} teAnsi, { Ansi编码 }
     teUnicode16LE, { Unicode LE 编码 } teUnicode16BE, { Unicode BE 编码 }
     teUTF8 { UTF8编码 } );
 
-type
-  TBytesCatHelper = class
+
+type
+
+  TBytesCatHelper = class
   private
     FValue: TBytes;
     FStart, FDest: PByte;
@@ -139,8 +145,10 @@ type
     property Capacity: Integer read FSize write SetCapacity;
   end;
 
-type
-  TStringCatHelperA = class
+
+type
+
+  TStringCatHelperA = class
   private
     FValue: array of CharA;
     FStart, FDest: PCharA;
@@ -275,7 +283,8 @@ type
     property OnFilter: TOnFilterEvent read FOnFilter write FOnFilter;
   end;
 
-// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
 //  基本字符串处理函数，类型转换
 // --------------------------------------------------------------------------
 function StrDupX(const s: PChar; ACount:Integer): String;
@@ -338,8 +347,11 @@ function TextIsSame(const A1, A2: string): Boolean; inline;
 // URL编码
 function UrlEncode(const AUrl: StringA): StringA; overload;
 function UrlEncode(const AUrl: StringW): StringW; overload;
-function UrlEncodeA(const AStr: PCharA; OutBuf: PCharA): Integer; overload;
-function UrlEncodeW(const AStr: PCharW; OutBuf: PCharW): Integer; overload;
+function UrlEncode(const AStr: PChar; Len: Integer): string; overload;
+function UrlEncodeA(const AStr: PCharA; OutBuf: PCharA; Len: Integer = -1): Integer; overload;
+function UrlEncodeW(const AStr: PCharW; OutBuf: PCharW; Len: Integer = -1): Integer; overload;
+function UrlEncodeEx(const AUrl: string): string; overload; inline;
+function UrlEncodeEx(const AStr: PChar; Len: Integer): string; overload;
 // URL解码
 function UrlDecode(const Src: PCharA; OutBuf: PCharA; RaiseError: Boolean = True): Integer; overload;
 function UrlDecode(const AStr: StringA; RaiseError: Boolean = True): StringA; overload;
@@ -1306,7 +1318,7 @@ begin
     Result := '';
 end;
 
-function UrlEncodeA(const AStr: PCharA; OutBuf: PCharA): Integer;
+function UrlEncodeA(const AStr: PCharA; OutBuf: PCharA; Len: Integer): Integer;
 const
   HTTP_CONVERT: array[0..255] of PCharA = (
     ' %00#','%01#','%02#','%03#','%04#','%05#','%06#','%07#'
@@ -1343,11 +1355,15 @@ const
     ,'%F8#','%F9#','%FA#','%FB#','%FC#','%FD#','%FE#','%FF#'
   );
 var
-  Sp, Rp, P: PCharA;
+  Sp, Rp, P, PM: PCharA;
 begin
   Sp := AStr;
   Rp := OutBuf;
-  while Sp^ <> #0 do begin
+  if Len > 0 then
+    PM := Sp + Len
+  else
+    PM := nil;
+  while ((PM = nil) or (Sp < PM)) and (Sp^ <> #0) do begin
     if Sp^ = ' ' then
       Rp^ := '+'
     else begin
@@ -1365,7 +1381,7 @@ begin
   Result := Rp - OutBuf;
 end;
 
-function UrlEncodeW(const AStr: PCharW; OutBuf: PCharW): Integer;
+function UrlEncodeW(const AStr: PCharW; OutBuf: PCharW; Len: Integer): Integer;
 const
   HTTP_CONVERT: array[0..255] of PCharW = (
     ' %00#','%01#','%02#','%03#','%04#','%05#','%06#','%07#'
@@ -1402,13 +1418,17 @@ const
     ,'%F8#','%F9#','%FA#','%FB#','%FC#','%FD#','%FE#','%FF#'
   );
 var
-  Sp, Rp, P: PCharW;
+  Sp, Rp, P, PM: PCharW;
   Buf: array [0..4] of Byte;
   I, J: Integer;
 begin
   Sp := AStr;
   Rp := OutBuf;
-  while Sp^ <> #0 do begin
+  if Len > 0 then
+    PM := Sp + Len
+  else
+    PM := nil;
+  while ((PM = nil) or (Sp < PM)) and (Sp^ <> #0) do begin
     if Sp^ = ' ' then
       Rp^ := '+'
     else begin
@@ -1443,7 +1463,7 @@ var
 begin
   if Length(AUrl) > 0 then begin
     SetLength(Result, Length(AUrl) * 3);
-    I := UrlEncodeA(PAnsiChar(AUrl), @Result[1]);
+    I := UrlEncodeA(PAnsiChar(AUrl), @Result[1], Length(AUrl));
     if Length(Result) <> I then
       SetLength(Result, I);
   end else
@@ -1456,11 +1476,66 @@ var
 begin
   if Length(AUrl) > 0 then begin
     SetLength(Result, Length(AUrl) * 3);
-    I := UrlEncodeW(PWideChar(AUrl), @Result[1]);
+    I := UrlEncodeW(PWideChar(AUrl), @Result[1], Length(AUrl));
     if Length(Result) <> I then
       SetLength(Result, I);
   end else
     Result := '';
+end;
+
+function UrlEncode(const AStr: PChar; Len: Integer): string;
+var
+  I: Integer;
+begin
+  if Len > 0 then begin
+    SetLength(Result, Len * 3);
+    {$IFDEF UNICODE}
+    I := UrlEncodeW(AStr, @Result[1], Len);
+    {$ELSE}
+    I := UrlEncodeA(AStr, @Result[1], Len);
+    {$ENDIF}
+    if Length(Result) <> I then
+      SetLength(Result, I);
+  end else
+    Result := '';
+end;
+
+function UrlEncodeEx(const AUrl: string): string;
+begin
+  Result := UrlEncodeEx(PChar(AUrl), Length(AUrl));
+end;
+
+function UrlEncodeEx(const AStr: PChar; Len: Integer): string;
+var
+  P, P1, PMax: PChar;
+  SB: TStringCatHelper;
+begin
+  if Len < 1 then
+    Result := ''
+  else begin
+    SB := TStringCatHelper.Create;
+    try
+      P := AStr;
+      PMax := P + Len;
+      P1 := P;
+      while P < PMax do begin
+        {$IFDEF UNICODE}
+        if CharInSet(P^, ['/',':','=','?','&','#','%']) then begin
+        {$ELSE}
+        if P^ in ['/',':','=','?','&','#','%'] then begin
+        {$ENDIF}
+          SB.Cat(UrlEncode(P1, P - P1));
+          SB.Cat(P^);
+          P1 := P + 1;
+        end;
+        Inc(P);
+      end;
+      if (P1 < P) then
+        SB.Cat(UrlEncode(P1, P - P1));
+    finally
+      Result := SB.Value;
+    end;
+  end;
 end;
 {$ENDIF}
 

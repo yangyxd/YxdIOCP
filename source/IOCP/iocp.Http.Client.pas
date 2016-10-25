@@ -120,10 +120,13 @@ type
   NativeUInt = Cardinal;
   IntPtr = NativeInt;
   {$ifend}
-  CharWS = array of CharW;
-  CharAS = array of CharA;
 
-type
+  CharWS = array of CharW;
+
+  CharAS = array of CharA;
+
+
+type
   /// <summary>
   /// URI
   /// </summary>
@@ -2320,7 +2323,7 @@ begin
 
   FConnectionTimeOut := 30000;    // 默认连接超时 30 秒
   FRecvTimeOut := 0;              // 默认无接收数据超时
-  FDefautlCharset := hct_GB2312;  // 默认使用GB2312
+  FDefautlCharset := hct_UTF8;    // 默认使用UTF-8
   
   FMaxRedirects := DefaultMaxRedirects;
   FHandleRedirects := True;

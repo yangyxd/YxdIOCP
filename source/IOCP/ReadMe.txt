@@ -11,6 +11,13 @@ YxdIocp (DIOCP修改版)
 
 【主要更改】
  - -----------------------------------
+ - 2016.10.25
+ - -----------------------------------
+ * iocp.Http.Mvc.pas 进一步完善 MVC 功能，加入 RequestBody 和 ResponseBody 标注。
+ * iocp.Utils.Str 增加 UrlEncodeEx 函数
+ * iocp.Http.Client 中已知bug修复，TURI.PathRelativeToAbs 增加到相对路径的支持；THttpClient 的默认字符集改为UTF-8.（感谢：阿木）
+ + iocp.Http.client：THttpRequest 增加 LastError 属性
+ - -----------------------------------
  - 2016.10.20
  - -----------------------------------
  + 增加 iocp.Http.MVC 单元，TIocpHttpMvcServer 类实现了轻量级的MVC封装，可以通过注解轻松实现 Web服务开发

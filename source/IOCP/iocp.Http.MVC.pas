@@ -42,6 +42,7 @@ type
   private
     function GetRealAttrName(const AttrName: string): string;
   public
+    class procedure RegToMVC();
     function CheckAttribute(ARttiType: TRttiType; ACompare: TCompareAttributeItem;
       const Data: Pointer = nil): Boolean; overload;
     function CheckAttribute(const Attributes: TArray<TCustomAttribute>;
@@ -384,7 +385,7 @@ type
     /// <param name="Params">指定request中必须包含某些参数值是，才让该方法处理。</param>
     /// <param name="Headers">指定request中必须包含某些指定的header值，才能让该方法处理请求。</param>
     /// </summary>
-    constructor Create(const Value: string; Method: TIocpHttpMethod; const Consumes, Produces, Params, Headers: string); overload;
+    constructor Create(const Value: string; Method: TIocpHttpMethod; const Consumes, Produces, Params: string; const Headers: string = ''); overload;
     /// <summary>
     /// <param name="Value">指定请求的实际地址</param>
     /// <param name="Method">指定请求的method类型， GET、POST、PUT、DELETE等</param>
@@ -539,7 +540,7 @@ begin
       if GetName then
         Result := Value.Substring(0, I - 1)
       else
-        Result := Value.Substring(I + 1);
+        Result := Value.Substring(I);
     end else
       Result := '';
   end;
@@ -754,6 +755,10 @@ begin
   {$IFDEF MSWINDOWS}
   OutputDebugString(PChar(Msg));
   {$ENDIF}
+end;
+
+class procedure TObjectHelper.RegToMVC;
+begin
 end;
 
 procedure TObjectHelper.SetRttiValue<T>(const Name: string; const Value: T);
@@ -1200,7 +1205,7 @@ begin
                 Args[I] := Response.GetOutWriter()
               else if (AClass = TIocpHttpConnection) or (AClass = TIocpClientContext) or (AClass = TIocpCustomContext) then
                 Args[I] := Request.Connection
-              else if AClass = TMemoryStream then
+              else if AClass.InheritsFrom(TStream) then
                 Args[I] := Request.Data
               else
                 Args[I] := nil;
@@ -1254,9 +1259,11 @@ begin
         end else
           // 返回内容为空时，直接返回一个Http 200状态
           Response.ResponeCode(200);
-      end else
+      end else begin
         // 无返回值调用
         AMethod.Invoke(Item.Controller, Args);
+        Response.ResponeCode(200);
+      end;
     finally
       FreeAndNil(APathVariable);
       FreeAndNil(AParamObjs);
@@ -1667,6 +1674,7 @@ begin
     BindAddr := StringA(GetString('BindAddr'));
     Prefix := GetString('Prefix');
     Suffix := GetString('Suffix');
+    UriCaseSensitive := GetBoolean('UriCaseSensitive');
     ContentLanguage := StringA(GetString('ContentLanguage')); 
     WebPath := GetAbsolutePathEx(AppPath, GetString('WebPath'));
     GzipFileTypes := GetString('GzipFileTypes');
@@ -1726,6 +1734,7 @@ begin
     SetBoolean('UseWebSocket', UseWebSocket);
     SetString('Prefix', Prefix);
     SetString('Suffix', Suffix);
+    SetBoolean('UriCaseSensitive', FUriCaseSensitive);
     SetString('ContentLanguage', string(ContentLanguage));
     SetString('WebPath', GetRelativePath(AppPath, WebPath));
     SetString('GzipFileTypes', GzipFileTypes);
