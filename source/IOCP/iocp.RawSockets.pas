@@ -115,6 +115,11 @@ type
     function SetReadTimeOut(const pvTimeOut: Cardinal): Integer;
 
     /// <summary>
+    /// 设置发数据超时值
+    /// </summary>
+    function SetSendTimeOut(const pvTimeOut: Cardinal): Integer;
+
+    /// <summary>
     /// 取消当前 IO 操作
     /// </summary>
     function Cancel: Boolean;
@@ -462,6 +467,12 @@ end;
 function TRawSocket.SetReadTimeOut(const pvTimeOut: Cardinal): Integer;
 begin
   Result := setsockopt(FSocketHandle, SOL_SOCKET, SO_RCVTIMEO,
+    PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
+end;
+
+function TRawSocket.SetSendTimeOut(const pvTimeOut: Cardinal): Integer;
+begin
+  Result := setsockopt(FSocketHandle, SOL_SOCKET, SO_SNDTIMEO,
     PAnsiChar(@pvTimeOut), SizeOf(Cardinal));
 end;
 

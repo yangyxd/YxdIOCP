@@ -1218,16 +1218,23 @@ type
     destructor Destroy; override;
     /// <summary>
     /// 建立连接（Async 是否使用异步）
+    /// <param name="ASync">是否使用异步</param>
+    /// <param name="pvTimeOut">超时值，当Async为False时，> 0 时超时有效。默认为 -1，无超时设置。</param>
     /// </summary>
-    procedure Connect(ASync: Boolean = False); overload;
+    procedure Connect(ASync: Boolean = False; pvTimeOut: Integer = -1); overload;
     /// <summary>
     /// 建立连接（Async 是否使用异步）
+    /// <param name="ASync">是否使用异步</param>
+    /// <param name="pvTimeOut">超时值，当Async为False时，> 0 时超时有效。默认为 -1，无超时设置。</param>
     /// </summary>
-    procedure Connect(const AHost: AnsiString; APort: Word; ASync: Boolean = False); overload;
+    procedure Connect(const AHost: AnsiString; APort: Word; ASync: Boolean = False;
+      pvTimeOut: Integer = -1); overload;
+
     /// <summary>
     /// 设置该连接对象的自动重连属性
     /// </summary>
     property AutoReConnect: Boolean read FAutoReConnect write FAutoReConnect;
+
     property BindAddr: AnsiString read GetBindAddr write SetBindAddr;
     property Host: AnsiString read FHost write FHost;
     property Port: Word read FPort write FPort;
@@ -1239,6 +1246,7 @@ type
   TIocpCustomTcpClient = class(TIocpCustom)
   private
     FDisableAutoConnect: Boolean;
+    FConnectTimeOut: Integer;
     FReconnectRequestPool: TObjectPool;
     {$IFDEF UNICODE}
     FList: TObjectList<TIocpRemoteContext>;
@@ -1326,6 +1334,11 @@ type
     /// 禁止所有连接对象自动重连
     /// </summary>
     property DisableAutoConnect: Boolean read FDisableAutoConnect write FDisableAutoConnect;
+
+    /// <summary>
+    /// 连接超时设置, < 1 时或使用异步连接时，无效 (毫秒ms)
+    /// </summary>
+    property ConnectTimeOut: Integer read FConnectTimeOut write FConnectTimeOut default -1;
 
     property RecvBufferSize;
     property SendBufferSize;
@@ -4449,7 +4462,7 @@ begin
     (not TIocpCustomTcpClient(Owner).DisableAutoConnect);
 end;
 
-procedure TIocpRemoteContext.Connect(ASync: Boolean);
+procedure TIocpRemoteContext.Connect(ASync: Boolean; pvTimeOut: Integer);
 var
   lvRemoteIP: AnsiString;
 begin
@@ -4467,18 +4480,18 @@ begin
     except
       lvRemoteIP := FHost;
     end;
-    if not Socket.Connect(lvRemoteIP, FPort) then
+    if not Socket.Connect(lvRemoteIP, FPort, pvTimeOut) then
       RaiseLastOSError;
     DoConnected;
   end;
 end;
 
 procedure TIocpRemoteContext.Connect(const AHost: AnsiString; APort: Word;
-  ASync: Boolean);
+  ASync: Boolean; pvTimeOut: Integer);
 begin
   FHost := AHost;
   FPort := APort;
-  Connect(ASync);
+  Connect(ASync, pvTimeOut);
 end;
 
 constructor TIocpRemoteContext.Create(AOwner: TIocpCustom);
@@ -4612,7 +4625,7 @@ begin
   Result.Host := Host;
   Result.Port := Port;
   Result.AutoReConnect := AutoReConnect;
-  Result.Connect(ASync);
+  Result.Connect(ASync, FConnectTimeOut);
 end;
 
 function TIocpCustomTcpClient.Connect(const Host: AnsiString; Port: Word;
@@ -4628,7 +4641,7 @@ begin
   Result.Host := Host;
   Result.Port := Port;
   Result.AutoReConnect := AutoReConnect;
-  Result.Connect(ASync);
+  Result.Connect(ASync, FConnectTimeOut);
 end;
 
 constructor TIocpCustomTcpClient.Create(AOwner: TComponent);
@@ -4640,6 +4653,7 @@ begin
   FList := TObjectList.Create();
   {$ENDIF}
   FDisableAutoConnect := False;
+  FConnectTimeOut := -1;
   FReconnectRequestPool := TObjectPool.Create(CreateReconnectRequest);
 end;
 

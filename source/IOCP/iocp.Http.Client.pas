@@ -3585,7 +3585,11 @@ begin
     if FRequest.FClient.FAutoDecodeStr then begin
       case FCharSet of
         hct_GB2312, hct_GBK, hct_ISO8859_1:
+          {$IFDEF UNICODE}
           Result := PCharAToStringW(M.Memory, M.Size);
+          {$ELSE}
+          Result := PCharToString(M.Memory, M.Size);
+          {$ENDIF}
         hct_UTF8:
           Result := Utf8Decode(M.Memory, M.Size);
         hct_UTF16:
