@@ -37,7 +37,7 @@ uses
   iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime,
   iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues, iocp.Utils.MemPool,
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
-  SyncObjs, Windows, Classes, SysUtils, DateUtils;
+  SyncObjs, Windows, ShlwApi, Classes, SysUtils, DateUtils;
 
 const
   HTTPLineBreak: StringA = #13#10;
@@ -232,7 +232,9 @@ type
     FOnHttpGetSession: TOnHttpGetSession;
     FOnHttpFreeSession: TOnHttpFreeSession;
     procedure SetAccessControlAllow(const Value: TIocpHttpAccessControlAllow);
-    procedure SetGzipFileTypes(const Value: string);  protected
+    procedure SetGzipFileTypes(const Value: string);
+    function GetWebBasePath: string;
+    procedure SetWebBasePath(const Value: string);  protected
     procedure FreeSessionList;
     procedure DoFreeHashItem(Item: PHashItem);
   protected
@@ -278,7 +280,7 @@ type
     /// <summary>
     /// WEB文件夹的根目录。默认为程序所在目录下Web文件夹
     /// </summary>
-    property WebPath: string read FWebBasePath write FWebBasePath;
+    property WebPath: string read GetWebBasePath write SetWebBasePath;
     /// <summary>
     /// 下载文件时，自动使用GZip进行压缩的文件类型 (以";"进行分隔)
     /// 如：'.htm;.html;.css;.js;'
@@ -739,8 +741,22 @@ type
     property FileName: string read FFileName;
   end;
 
+var
+  /// <summary>
+  /// 当前执行程序路径
+  /// </summary>
+  AppPath: string;
+
 function NewSessionID(): string;
 function GetResponseCodeNote(V: Word): StringA;
+/// <summary>
+/// 取绝对路径的函数。需要引用 ShlwApi.pas
+/// </summary>
+function GetAbsolutePathEx(const BasePath, RelativePath: string): string;
+/// <summary>
+/// 取相对路径的函数
+/// </summary>
+function GetRelativePath(const Path, AFile: string): string;
 
 implementation
 
@@ -783,6 +799,61 @@ begin
       Result := Header + HTTPHeaderEnd;
   end else
     Result := Header;
+end;
+
+/// <summary>
+/// 取绝对路径的函数。需要引用 ShlwApi.pas
+/// </summary>
+function GetAbsolutePathEx(const BasePath, RelativePath: string): string;
+var
+  Dest:array [0..MAX_PATH] of char;
+begin
+  FillChar(Dest,MAX_PATH+1,0);
+  PathCombine(Dest,PChar(BasePath), PChar(RelativePath));
+  Result:=string(Dest);
+end;
+
+/// <summary>
+/// 取相对路径的函数
+/// </summary>
+function GetRelativePath(const Path, AFile: string): string;
+  function GetAttr(IsDir: Boolean): DWORD;
+  begin
+    if IsDir then
+      Result := FILE_ATTRIBUTE_DIRECTORY
+    else
+      Result := FILE_ATTRIBUTE_NORMAL;
+  end;
+var
+   p: array[0..MAX_PATH] of Char;
+begin
+  PathRelativePathTo(p, PChar(Path), GetAttr(False), PChar(AFile), GetAttr(True));
+  Result := StrPas(p);
+end;
+
+function ReplaceSlashFromURI(const Value: string; const NewChar: Char = '\'): string;
+var
+  P, P1, P2, PMax: PChar;
+begin
+  P := PChar(Value);
+  PMax := P + Length(Value);
+  SetLength(Result, PMax - P);
+  P1 := PChar(Result);
+  P2 := P1;
+  while P < PMax do begin
+    if (P^ <> '/') then begin
+      P1^ := P^;
+      Inc(P);
+      Inc(P1);
+    end else begin
+      if P1 > P2 then begin
+        P1^ := NewChar;
+        Inc(P1);
+      end;
+      while (P < PMax) and (P^ = '/') do Inc(P);            
+    end;
+  end;
+  SetLength(Result, P1 - P2);
 end;
 
 type
@@ -2946,6 +3017,14 @@ begin
   end;
 end;
 
+function TIocpHttpServer.GetWebBasePath: string;
+begin
+  if csDesigning in ComponentState then
+    Result := GetRelativePath(AppPath, FWebBasePath)
+  else
+    Result := FWebBasePath;  
+end;
+
 procedure TIocpHttpServer.SetAccessControlAllow(
   const Value: TIocpHttpAccessControlAllow);
 begin
@@ -2958,6 +3037,14 @@ end;
 procedure TIocpHttpServer.SetGzipFileTypes(const Value: string);
 begin
   FGzipFileTypes := LowerCase(Value);
+end;
+
+procedure TIocpHttpServer.SetWebBasePath(const Value: string);
+begin
+  if csDesigning in ComponentState then
+    FWebBasePath := GetAbsolutePathEx(AppPath, Value)
+  else
+    FWebBasePath := Value;
 end;
 
 { TIocpHttpResponse }
@@ -3549,12 +3636,8 @@ procedure TIocpHttpResponse.SendFileByURI(const URI, AContentType: string;
 var
   Path: string;
 begin
-  Path := StringReplaceEx(URI, '/', '\', [rfReplaceAll]);
-  if (Length(Path) > 0) and (Path[1] = '\') then begin
-    SendFile(Request.FOwner.FWebBasePath + Copy(Path, 2, Length(Path) - 1),
-      AContentType, IsDownFile, ParserContentType)
-  end else
-    SendFile(Request.FOwner.FWebBasePath + Path, AContentType, IsDownFile, ParserContentType);
+  Path := ReplaceSlashFromURI(URI);
+  SendFile(Request.FOwner.FWebBasePath + Path, AContentType, IsDownFile, ParserContentType);
 end;
 
 procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
@@ -4258,6 +4341,7 @@ begin
 end;
 
 initialization
+  AppPath := ExtractFilePath(Paramstr(0));
   Workers := TIocpTask.GetInstance;
   InitMimeMap();
 

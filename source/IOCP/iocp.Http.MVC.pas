@@ -24,7 +24,7 @@ uses
   iocp.Http, iocp.Http.WebSocket, iocp.Sockets,
   iocp.Utils.Str,
   
-  XML, ShlwApi,
+  XML,
   
   {$IFDEF MSWINDOWS}Windows, {$ENDIF}
   Generics.Collections, Rtti, System.Generics.Defaults,
@@ -475,7 +475,6 @@ resourcestring
   S_BadRequestBody = 'Request Body Parse Failed.';
 
 var
-  AppPath: string;
   MvcScanner: TIocpMvcScanner = nil;
   HttpMvcAllowFree: Boolean = False;
 
@@ -495,36 +494,6 @@ procedure RegMvcClass(AClass: TRttiType);
 begin
   if Assigned(MvcScanner) then
     MvcScanner.RegClass(AClass);
-end;
-
-/// <summary>
-/// 取绝对路径的函数。需要引用 ShlwApi.pas
-/// </summary>
-function GetAbsolutePathEx(const BasePath, RelativePath: string): string;
-var
-  Dest:array [0..MAX_PATH] of char;
-begin
-  FillChar(Dest,MAX_PATH+1,0);
-  PathCombine(Dest,PChar(BasePath), PChar(RelativePath));
-  Result:=string(Dest);
-end;
-
-/// <summary>
-/// 取相对路径的函数
-/// </summary>
-function GetRelativePath(const Path, AFile: string): string;
-  function GetAttr(IsDir: Boolean): DWORD;
-  begin
-    if IsDir then
-      Result := FILE_ATTRIBUTE_DIRECTORY
-    else
-      Result := FILE_ATTRIBUTE_NORMAL;
-  end;
-var
-   p: array[0..MAX_PATH] of Char;
-begin
-  PathRelativePathTo(p, PChar(Path), GetAttr(False), PChar(AFile), GetAttr(True));
-  Result := StrPas(p);
 end;
 
 // 获取 Name=Value 字符串中的 Name 或 Value
@@ -1088,7 +1057,8 @@ begin
 
       // 没有找到页面
       if (not Assigned(Item.Controller)) then begin
-        Response.ErrorRequest(404);
+        Response.SendFileByURI(URI, '', False, True);
+        //Response.ErrorRequest(404);
         Exit;
       end;
 
@@ -1866,7 +1836,6 @@ begin
 end;
 
 initialization
-  AppPath := ExtractFilePath(Paramstr(0));
   MvcScanner := TIocpMvcScanner.Create();
 
 finalization
