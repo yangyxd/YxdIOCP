@@ -612,10 +612,16 @@ type
     function GZCompress(inStream, outStream: TStream): Boolean; overload;
     {$ENDIF}
 
+
     /// <summary>
     /// 获取文件修改时间
     /// </summary>
     class function GetFileLastModified(const AFileName: string): TDateTime;
+
+    /// <summary>
+    /// 获取文件 Mime 类型
+    /// </summary>
+    class function GetFileMimeType(const AFileName: string): string;
 
     /// <summary>
     /// 发送文件, FileName 需要包含文件路径
@@ -671,11 +677,12 @@ type
     procedure Send(buf: Pointer; len: Cardinal; AGZip: Boolean = False); overload;
     procedure Send(const Data: TBytes; AGZip: Boolean = False); overload;
     procedure Send(const Data: string; AGZip: Boolean = False); overload;
-    procedure SendString(const Data: StringA; AGZip: Boolean = False); overload;
-    procedure SendString(const Data: StringW; AGZip: Boolean = False); overload;
     procedure Send(Stream: TStream; AGZip: Boolean = False); overload;
     // 使用 Writer 来返回数据，可以防止乱码
     procedure Send(var Writer: TIocpHttpWriter; AGZip: Boolean = False; AFreeWriter: Boolean = True); overload;
+
+    procedure SendString(const Data: StringA; AGZip: Boolean = False); overload;
+    procedure SendString(const Data: StringW; AGZip: Boolean = False); overload;
 
     /// <summary>
     /// 发送HTTP响应数据头部 (异步)
@@ -3271,6 +3278,17 @@ begin
   Result := GetFileLastWriteTime(StringA(AFileName));
 end;
 
+class function TIocpHttpResponse.GetFileMimeType(const AFileName: string): string;
+var
+  I: Integer;
+begin
+  I := MimeMap.ValueOf(LowerCase(ExtractFileExt(AFileName)));
+  if I < 0 then
+    Result := HTTPCTTypeStream
+  else
+    Result := MimeTypes[I].Value;
+end;
+
 function TIocpHttpResponse.GetOutWriter(BufferSize: Cardinal): TIocpHttpWriter;
 begin
   if not Assigned(FOutWriter) then begin
@@ -3536,13 +3554,13 @@ begin
     try
       GZCompressStream(Stream, S);
       S.Position := 0;
-      SendStream(S);
+      SendStream(S, False, '', FContentType);
     finally
       S.Free;
     end;
   end else
   {$ENDIF}
-    SendStream(Stream);
+    SendStream(Stream, False, '', FContentType);
 end;
 
 procedure TIocpHttpResponse.SendChunk(const Data: StringA);
@@ -3645,7 +3663,7 @@ procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
 
   procedure SendData(S: TStream; const FileExt: string; const Last: TDateTime);
   var
-    I: Integer;     
+    I: Integer;
   begin
     FCharset := '';
     if Length(AContentType) = 0 then begin
@@ -3659,7 +3677,7 @@ procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
     end else
       SendStream(S, IsDownFile, StringA(FileName), StringA(AContentType), Last);
   end;
-  
+
 var
   S: TFileOnlyStream;
   MS: TMemoryStream;
