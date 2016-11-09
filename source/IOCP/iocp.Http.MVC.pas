@@ -1058,7 +1058,6 @@ begin
       // 没有找到页面
       if (not Assigned(Item.Controller)) then begin
         Response.SendFileByURI(URI, '', False, True);
-        //Response.ErrorRequest(404);
         Exit;
       end;
 

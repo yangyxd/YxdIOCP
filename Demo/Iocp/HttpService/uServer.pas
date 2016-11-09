@@ -35,6 +35,7 @@ type
     FOnWriteLog: TOnWriteLog;
     HttpReqRef: Integer;
     FProcList: TStringHash;
+    FHtmlFileExts: TStringHash;
   protected
     function IsDestroying: Boolean;
     procedure Log(Sender: TObject; AType: TXLogType; const Msg: string);
@@ -88,6 +89,13 @@ begin
   FProcList := TStringHash.Create();
   FProcList.OnFreeItem := DoFreeProcItem;
 
+  FHtmlFileExts := TStringHash.Create();
+  FHtmlFileExts.Add('.html', 1);
+  FHtmlFileExts.Add('.htm', 1);
+  FHtmlFileExts.Add('.xml', 1);
+  FHtmlFileExts.Add('.xmls', 1);
+  FHtmlFileExts.Add('.json', 1);
+
   DoRegProc(); 
 end;
 
@@ -97,6 +105,7 @@ begin
     Stop;
     FreeAndNil(FPtWebService);
     FreeAndNil(FProcList);
+    FreeAndNil(FHtmlFileExts);
   except
     LogE(Self, 'DoDestroy', Exception(ExceptObject));  
   end;
@@ -120,8 +129,13 @@ begin
   if (Length(Path) > 0) and (Path[1] = '\') then
     Delete(Path, 1, 1);
   Path := SoftPath + Path;
+  // 如果是一个文件
   if FileExists(Path) then begin
-    Response.SendFile(Path, '', True, True);
+    // 如果是网页，就不使用下载方式
+    if FHtmlFileExts.Exists(LowerCase(ExtractFileExt(Path))) then
+      Response.SendFile(Path, '', False, True)
+    else
+      Response.SendFile(Path, '', True, True);
   end else begin
     V := FProcList.ValueOf(LowerCase(string(Request.URI)));
     if V <> -1 then begin

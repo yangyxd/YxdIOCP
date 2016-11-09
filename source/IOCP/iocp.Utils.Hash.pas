@@ -1627,7 +1627,7 @@ var
   P, P1: PHashList;
   Prev: PPHashList;
 begin
-  Prev := @ListBuckets[Cardinal(AData) mod Cardinal(Length(ListBuckets))];
+  Prev := @ListBuckets[NativeUInt(AData) mod Cardinal(Length(ListBuckets))];
   P := Prev^;
   P1 := nil;
   Result := nil;
