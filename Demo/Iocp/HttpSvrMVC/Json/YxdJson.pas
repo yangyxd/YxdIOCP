@@ -92,7 +92,7 @@ interface
 {$DEFINE USERTTI}       // 是否使用RTTI功能
 {.$DEFINE USERegEx}      // 是否使用正则表达式搜索功能，D2010之前版本需要引用相关单元
 {$IFDEF USERTTI}
-{.$DEFINE USEDBRTTI}     // 是否使用DataSet序列化功能，必须先启用USERTTI
+{$DEFINE USEDBRTTI}     // 是否使用DataSet序列化功能，必须先启用USERTTI
 {$ENDIF}
 
 (* Delphi 版本控制条件编译 *)
@@ -118,7 +118,7 @@ interface
       {$DEFINE JSON_RTTI}
       {$DEFINE JSON_RTTI_NAMEFIELD}
     {$ENDIF}
-  {$ENDIF}
+  {$IFEND}
 {$ENDIF}
 
 {$IFNDEF JSON_SUPPORT}
@@ -232,6 +232,11 @@ type
     property Position: Integer read GetPosition write SetPosition;
   end;
 {$ENDIF}
+
+type
+  TJsonStringSerialize = class(TStringCatHelper)
+
+  end;
 
 type
   JSONBase = class;
@@ -403,6 +408,7 @@ type
 
     function TryParse(const text: JSONString): Boolean; overload;
     function TryParse(p: PJSONChar; len: Integer = -1): Boolean; overload;
+    
     /// <summary>
     /// 解析字符串， IgnoreZero 为 True时，将源字符串中的 #0 转为 #32 后再解析
     /// </summary>
@@ -522,9 +528,26 @@ type
     procedure DeleteIf(const ATag: Pointer; ANest: Boolean; AFilter: JSONFilterEvent); overload;
 
     // 解析指定的JSON字符串
+    class function Parser(const Text: JSONString; RaiseError: Boolean = True): JSONBase; overload;
+    class function Parser(P: PJSONChar; Len: Integer = -1; RaiseError: Boolean = True): JSONBase; overload;
+    // 解析指定的JSON字符串
     class function ParseObject(const Text: JSONString; RaiseError: Boolean = True): JSONObject; overload;
     // 解析指定的JSON字符串
     class function ParseArray(const Text: JSONString; RaiseError: Boolean = True): JSONArray; overload;
+
+    /// <summary>
+    /// 序列化
+    /// </summary>
+    class function Serialize(ASource: TObject): JSONString; overload;
+    class function Serialize(ASource: Pointer; AType: PTypeInfo): JSONString; overload;
+    {$IFDEF USEDBRTTI}
+    class function Serialize(ADataSet: TDataSet; const PageIndex: Integer = 0;
+      const PageSize: Integer = 0; Base64Blob: Boolean = True): JSONString; overload;
+    {$ENDIF}
+    {$IFDEF JSON_RTTI}
+    class function Serialize(AInstance: TValue): JSONString; overload;
+    class function Serialize<T>(AInstance: T): JSONString; overload;
+    {$ENDIF}
 
     /// <summary>
     /// 强制一个路径存在,如果不存在,则依次创建需要的结点
@@ -794,6 +817,16 @@ type
     property V[Index: Integer]: Variant read GetVariant write SetVariant; 
   end;
 
+const
+  //日期类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
+  JsonDateFormat: JSONString = 'yyyy-mm-dd';
+  //时间类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
+  JsonTimeFormat: JSONString = 'hh:nn:ss.zzz';
+  //日期时间类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
+  JsonDateTimeFormat: JSONString = 'yyyy-mm-dd hh:nn:ss.zzz';
+  //浮点数精度
+  JsonFloatDigits: Integer = 6;
+
 var
   // 是否启用严格检查模式，在严格模式下：
   // 1.名称或字符串必需使用双引号包含起来,如果为False，则名称可以没有引号或使用单引号。
@@ -895,6 +928,32 @@ function Utf8Decode(p: PAnsiChar; l: Integer): JSONStringW; overload;
 function ParseDateTime(s: PJSONChar; var AResult:TDateTime):Boolean;
 function ParseJsonTime(p: PJSONChar; var ATime: TDateTime): Boolean;
 function ParseWebTime(p:PJSONChar; var AResult:TDateTime):Boolean;
+function FloatToStr(const value: Extended): string; inline;
+
+const
+  CharStringStart:  PJSONChar = '"';
+  CharStringEnd:    PJSONChar = '",';
+  CharNameEnd:      PJSONChar = '":';
+  CharArrayStart:   PJSONChar = '[';
+  CharArrayEnd:     PJSONChar = '],';
+  CharObjectStart:  PJSONChar = '{';
+  CharObjectEnd:    PJSONChar = '},';
+  CharObjectEmpty:  PJSONChar = '{} ';
+  CharNull:         PJSONChar = 'null,';
+  CharFalse:        PJSONChar = 'false,';
+  CharTrue:         PJSONChar = 'true,';
+  CharComma:        PJSONChar = ',';
+  CharNum0:         PJSONChar = '0';
+  CharNum1:         PJSONChar = '1';
+  Char7:            PJSONChar = '\b';
+  Char9:            PJSONChar = '\t';
+  Char10:           PJSONChar = '\n';
+  Char12:           PJSONChar = '\f';
+  Char13:           PJSONChar = '\r';
+  CharQuoter:       PJSONChar = '\"';
+  CharBackslash:    PJSONChar = '\\';
+  CharCode:         PJSONChar = '\u00';
+  CharEscape:       PJSONChar = '\u';
 
 implementation
 
@@ -931,16 +990,6 @@ resourcestring
   SParamMissed = '参数 %s 同名的结点未找到.';
   SMethodMissed = '指定的函数 %s 不存在.';
   SObjectChildNeedName = '对象 %s 的第 %d 个子结点名称未赋值, 编码输出前必需赋值.';
-
-const
-  //日期类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
-  JsonDateFormat: JSONString = 'yyyy-mm-dd';
-  //时间类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
-  JsonTimeFormat: JSONString = 'hh:nn:ss.zzz';
-  //日期时间类型转换为Json数据时会转换成字符串，这个变量控制如何格式化
-  JsonDateTimeFormat: JSONString = 'yyyy-mm-dd hh:nn:ss.zzz';
-  //浮点数精度
-  JsonFloatDigits: Integer = 6;
 
 const
   JsonTypeName: array [0 .. 8] of JSONString = ('Unknown', 'Null', 'String',
@@ -1640,30 +1689,75 @@ begin
 end;
 {$ENDIF}
 
-function HashOf(const Key: Pointer; KeyLen: Cardinal): Cardinal;
-var
-  ps: PCardinal;
-  lr: Cardinal;
+//function HashOf(const Key: Pointer; KeyLen: Cardinal): Cardinal;
+//var
+//  ps: PCardinal;
+//  lr: Cardinal;
+//begin
+//  Result := 0;
+//  if KeyLen > 0 then begin
+//    ps := Key;
+//    lr := (KeyLen and $03);//检查长度是否为4的整数倍
+//    KeyLen := (KeyLen and $FFFFFFFC);//整数长度
+//    while KeyLen > 0 do begin
+//      Result := ((Result shl 5) or (Result shr 27)) xor ps^;
+//      Inc(ps);
+//      Dec(KeyLen, 4);
+//    end;
+//    if lr <> 0 then begin
+//      case lr of
+//        1: KeyLen := PByte(ps)^;
+//        2: KeyLen := PWORD(ps)^;
+//        3: KeyLen := PWORD(ps)^ or (PByte(Cardinal(ps) + 2)^ shl 16);
+//      end;
+//      Result := ((Result shl 5) or (Result shr 27)) xor KeyLen;
+//    end;
+//  end;
+//end;
+
+function HashOf(P: Pointer; L: Integer): Cardinal;
+{$IFDEF WIN32}
+label A00, A01;
 begin
-  Result := 0;
-  if KeyLen > 0 then begin
-    ps := Key;
-    lr := (KeyLen and $03);//检查长度是否为4的整数倍
-    KeyLen := (KeyLen and $FFFFFFFC);//整数长度
-    while KeyLen > 0 do begin
-      Result := ((Result shl 5) or (Result shr 27)) xor ps^;
-      Inc(ps);
-      Dec(KeyLen, 4);
-    end;
-    if lr <> 0 then begin
-      case lr of
-        1: KeyLen := PByte(ps)^;
-        2: KeyLen := PWORD(ps)^;
-        3: KeyLen := PWORD(ps)^ or (PByte(Cardinal(ps) + 2)^ shl 16);
-      end;
-      Result := ((Result shl 5) or (Result shr 27)) xor KeyLen;
-    end;
+  asm
+    push ebx
+    mov eax,l
+    mov ebx,0
+    cmp eax,ebx
+    jz A01
+    xor    eax, eax
+    mov    edx, p
+    mov    ebx,edx
+    add    ebx,l
+    A00:
+    imul   eax,131
+    movzx  ecx, BYTE ptr [edx]
+    inc    edx
+    add    eax, ecx
+    cmp   ebx, edx
+    jne    A00
+    A01:
+    pop ebx
+    mov Result,eax
   end;
+{$ELSE}
+var
+  pe: PByte;
+  ps: PByte absolute p;
+const
+  seed = 131;
+  // 31 131 1313 13131 131313 etc..
+begin
+  pe := p;
+  Inc(pe, l);
+  Result := 0;
+  while IntPtr(ps) < IntPtr(pe) do
+  begin
+    Result := Result * seed + ps^;
+    Inc(ps);
+  end;
+  Result := Result and $7FFFFFFF;
+{$ENDIF}
 end;
 
 {$IFNDEF USEYxdStr}
@@ -3821,30 +3915,6 @@ end;
 
 class function JSONBase.InternalEncode(Obj: JSONBase; ABuilder: TStringCatHelper;
   AIndent: Integer; ADoEscape: Boolean): TStringCatHelper;
-const
-  CharStringStart:  PJSONChar = '"';
-  CharStringEnd:    PJSONChar = '",';
-  CharNameEnd:      PJSONChar = '":';
-  CharArrayStart:   PJSONChar = '[';
-  CharArrayEnd:     PJSONChar = '],';
-  CharObjectStart:  PJSONChar = '{';
-  CharObjectEnd:    PJSONChar = '},';
-  CharObjectEmpty:  PJSONChar = '{} ';
-  CharNull:         PJSONChar = 'null,';
-  CharFalse:        PJSONChar = 'false,';
-  CharTrue:         PJSONChar = 'true,';
-  CharComma:        PJSONChar = ',';
-  CharNum0:         PJSONChar = '0';
-  CharNum1:         PJSONChar = '1';
-  Char7:            PJSONChar = '\b';
-  Char9:            PJSONChar = '\t';
-  Char10:           PJSONChar = '\n';
-  Char12:           PJSONChar = '\f';
-  Char13:           PJSONChar = '\r';
-  CharQuoter:       PJSONChar = '\"';
-  CharBackslash:    PJSONChar = '\\';
-  CharCode:         PJSONChar = '\u00';
-  CharEscape:       PJSONChar = '\u';
 
   procedure CatValue(const AValue: JSONString);
   var
@@ -3912,11 +3982,10 @@ const
   var
     I: Integer;
     Item: PJSONValue;
-    ArrayWraped, IsArray: Boolean;
+    IsArray: Boolean;
   begin
     if ANode.FItems.Count > 0 then begin
 
-      ArrayWraped := False;
       if ANode.GetIsArray then begin
         IsArray := True;
         ABuilder.Cat(CharArrayStart, 1);
@@ -3928,7 +3997,7 @@ const
       for I := 0 to ANode.FItems.Count - 1 do begin
         Item := ANode.FItems[I];
         if Item = nil then Continue;
-        if (AIndent > 0) and ((not IsArray) or (Item.FType = jdtObject)) then begin
+        if (AIndent > 0) then begin
           ABuilder.Cat(SLineBreak);
           ABuilder.Space(AIndent * (ALevel + 1));
         end;
@@ -3943,9 +4012,8 @@ const
               if Item.FObject <> nil then begin
                 if not Item.FObject.GetIsArray then begin
                   if (not IsArray) and (Length(Item.FName) = 0) then
-                    raise Exception.CreateFmt(SObjectChildNeedName, [Item.FName, I]);
-                end else
-                  ArrayWraped := True;
+                    raise Exception.CreateFmt(SObjectChildNeedName, [Item.FName, I]); 
+                end;
                 DoEncode(Item.FObject, ALevel+1);
               end;
             end;
@@ -3993,17 +4061,14 @@ const
       Exit;
     end;
 
+    if AIndent > 0 then begin
+      ABuilder.Cat(SLineBreak);
+      ABuilder.Space(AIndent * ALevel);
+    end;
+
     if IsArray then begin
-      if ArrayWraped and (AIndent > 0) then begin
-        ABuilder.Cat(SLineBreak);
-        ABuilder.Space(AIndent * ALevel);
-      end;
       ABuilder.Cat(CharArrayEnd, 2);
     end else begin
-      if AIndent > 0 then begin
-        ABuilder.Cat(SLineBreak);
-        ABuilder.Space(AIndent * ALevel);
-      end;
       ABuilder.Cat(CharObjectEnd, 2);
     end;
   end;
@@ -4334,7 +4399,7 @@ begin
     end
 
   end else if p^ = '[' then begin
-    if (not Assigned(FParent)) or (not FParent.GetIsArray) then begin
+    if (Assigned(FParent)) and (not FParent.GetIsArray) then begin
       if Length(GetName) = 0 then begin
         Result := NewChildArray('unknown').ParseJsonPair(ABuilder, p);
         Exit;
@@ -4422,6 +4487,54 @@ begin
     if RaiseError then raise;
   end;
 end;  
+
+class function JSONBase.Parser(P: PJSONChar; Len: Integer;
+  RaiseError: Boolean): JSONBase;
+var
+  P1, PMax: PJSONChar;
+begin
+  P1 := P;
+  if Len >= 0 then
+    PMax := P + Len
+  else
+    PMax := nil;
+  {$IFDEF JSON_UNICODE}SkipSpaceW(P);{$ELSE}SkipSpaceA(P);{$ENDIF}
+  if (PMax <> nil) and (P > PMax) then begin
+    Result := nil;
+    if RaiseError then
+      raise Exception.Create(SBadJson);
+    Exit;
+  end;
+  if P^ = '[' then
+    Result := JSONArray.Create
+  else
+    Result := JSONObject.Create;
+  try
+    Result.Parse(P1, Len);
+  except
+    FreeAndNil(Result);
+    if RaiseError then raise;
+  end;
+end;
+
+class function JSONBase.Parser(const Text: JSONString;
+  RaiseError: Boolean): JSONBase;
+var
+  P: PJSONChar;
+begin
+  P := PJSONChar(Text);
+  {$IFDEF JSON_UNICODE}SkipSpaceW(P);{$ELSE}SkipSpaceA(P);{$ENDIF}
+  if P^ = '[' then
+    Result := JSONArray.Create
+  else
+    Result := JSONObject.Create;
+  try
+    Result.Parse(P);
+  except
+    FreeAndNil(Result);
+    if RaiseError then raise;
+  end;
+end;
 
 function JSONBase.FindIf(const ATag: Pointer; ANest: Boolean;
   AFilter: JSONFilterEvent): PJSONValue;
@@ -4765,6 +4878,68 @@ procedure JSONBase.SaveToStream(AStream: TStream; AIndent: Integer);
 begin
   SaveToStream(AStream, AIndent, {$IFDEF JSON_UNICODE}teUTF8{$ELSE}teAnsi{$ENDIF}, False);
 end;
+
+class function JSONBase.Serialize(ASource: TObject): JSONString;
+var
+  Writer: TSerializeWriter; 
+begin
+  Writer := TJsonSerializeWriter.Create();
+  try
+    TYxdSerialize.Serialize(Writer, '', ASource);
+    Result := Writer.ToString;
+  finally
+    FreeAndNil(Writer);
+  end;
+end;
+
+class function JSONBase.Serialize(ASource: Pointer; AType: PTypeInfo): JSONString;
+var
+  Writer: TSerializeWriter; 
+begin
+  Writer := TJsonSerializeWriter.Create();
+  try
+    TYxdSerialize.Serialize(Writer, '', ASource, AType);
+    Result := Writer.ToString;
+  finally
+    FreeAndNil(Writer);
+  end;
+end;
+
+{$IFDEF USEDBRTTI}
+class function JSONBase.Serialize(ADataSet: TDataSet;
+  const PageIndex, PageSize: Integer; Base64Blob: Boolean): JSONString;
+var
+  Writer: TSerializeWriter; 
+begin
+  Writer := TJsonSerializeWriter.Create();
+  try
+    TYxdSerialize.Serialize(Writer, '', ADataSet, PageIndex, PageSize, Base64Blob);
+    Result := Writer.ToString;
+  finally
+    FreeAndNil(Writer);
+  end;
+end;
+{$ENDIF}
+
+{$IFDEF JSON_RTTI}
+class function JSONBase.Serialize(AInstance: TValue): JSONString;
+var
+  Writer: TSerializeWriter;
+begin
+  Writer := TJsonSerializeWriter.Create();
+  try
+    TYxdSerialize.Serialize(Writer, '', AInstance);
+    Result := Writer.ToString;
+  finally
+    FreeAndNil(Writer);
+  end;
+end;
+
+class function JSONBase.Serialize<T>(AInstance: T): JSONString;
+begin
+  Result := Serialize(@AInstance, TypeInfo(T));
+end;
+{$ENDIF}
 
 class procedure JSONBase.SetJsonCaseSensitive(v: Boolean);
 begin

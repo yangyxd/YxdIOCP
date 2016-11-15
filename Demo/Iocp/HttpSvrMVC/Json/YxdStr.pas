@@ -18,14 +18,14 @@ interface
 //Delphi XE
 {$IF (RTLVersion>=26)}
 {$DEFINE USE_UNICODE}
-{$ENDIF}
+{$IFEND}
 
 //ÊÇ·ñÊ¹ÓÃInline
 {$DEFINE INLINE}
 
 {$IF (RTLVersion>=26) and (not Defined(NEXTGEN))}
 {$DEFINE ANSISTRINGS}
-{$ENDIF}
+{$IFEND}
 
 uses
   {$IFNDEF UNICODE}Windows, {$ELSE} {$IFDEF MSWINDOWS}Windows, {$ENDIF}{$ENDIF}
@@ -97,6 +97,7 @@ type
     function GetChars(AIndex:Integer): Char;
     procedure SetPosition(const Value: Integer);
     procedure NeedSize(ASize:Integer);
+    function GetLast: PChar;
   public
     constructor Create; overload;
     constructor Create(ASize: Integer); overload;
@@ -120,6 +121,7 @@ type
     property Chars[Index: Integer]: Char read GetChars;
     property Start: PChar read FStart;
     property Current: PChar read FDest;
+    property Last: PChar read GetLast;
     property Position: Integer read GetPosition write SetPosition;
   end;
 
@@ -2296,6 +2298,14 @@ end;
 function TStringCatHelper.GetChars(AIndex: Integer): Char;
 begin
   Result := FStart[AIndex];
+end;
+
+function TStringCatHelper.GetLast: PChar;
+begin
+  if FDest > FStart then
+    Result := FDest - 1
+  else
+    Result := nil;
 end;
 
 function TStringCatHelper.GetPosition: Integer;

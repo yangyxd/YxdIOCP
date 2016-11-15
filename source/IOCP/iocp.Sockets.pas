@@ -39,7 +39,7 @@ uses
   iocp.Utils.Queues, iocp.Utils.ObjectPool,
   WinSock, iocp.Winapi.WinSock,
   {$IFDEF UNICODE} {System.} Types, Generics.Collections, {$ELSE}Contnrs, {$ENDIF}
-  {$IFNDEF UNICODE}ExtCtrls, {$ELSE}VCL.ExtCtrls, {$ENDIF}
+  {$IF CompilerVersion>22}VCL.ExtCtrls, {$ELSE}ExtCtrls, {$IFEND}
   SyncObjs, Windows, Classes, SysUtils;
 
 const

@@ -100,16 +100,8 @@ end;
 
 // 序列化处理
 function TForm1.DoSerializeData(Sender: TObject; const Value: TValue): string;
-var
-  Json: JSONObject;
 begin
-  Json := JSONObject.Create;
-  try
-    TYxdSerialize.WriteValue(Json, '', Value);
-  finally
-    Result := Json.ToString();
-    Json.Free;
-  end;
+  Result := JSONObject.Serialize(Value);
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
