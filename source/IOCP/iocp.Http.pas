@@ -208,7 +208,8 @@ type
     property MaxAge: Cardinal read FMaxAge write FMaxAge;
   end;
 
-  TDoReadedParam = procedure (const Name, Value: string; Data: Pointer) of object;
+  TDoReadedParam = procedure (const Name, Value: string; Data: Pointer;
+    DecodeURL: Boolean) of object;
 
   /// <summary>
   /// HTTP 服务
@@ -377,7 +378,7 @@ type
     function GetWaitRecvSize: Int64;
     procedure Clear;
     procedure WriteBuffer(P: Pointer; Len: Cardinal);        
-    procedure DoReadParamItem(const Name, Value: string; Data: Pointer);
+    procedure DoReadParamItem(const Name, Value: string; Data: Pointer; DecodeURL: Boolean);
   public
     constructor Create(AOwner: TIocpHttpServer);
     destructor Destroy; override;
@@ -594,8 +595,7 @@ type
     /// <summary>
     /// 返回代表请求错误的响应包，并断开连接
     /// </summary>
-    procedure ErrorRequest(ErrorCode: Word = 400); overload;
-    procedure ErrorRequest(ErrorCode: Word; const Msg: StringA); overload;
+    procedure ErrorRequest(ErrorCode: Word = 400; const Msg: StringA = '');
     /// <summary>
     /// 返回指定响应代码
     /// </summary>
@@ -653,7 +653,7 @@ type
     /// </summary>
     procedure SendFileByURI(const URI: string; const AContentType: string = '';
       IsDownFile: Boolean = True; ParserContentType: Boolean = False);
-
+      
     /// <summary>
     /// 发送文件, FileName用于指定文件名称，可以不是完整路径
     ///  * 文件服务器建议将文件加载到内存，然后使用本函数来发送数据，直接用
@@ -772,14 +772,6 @@ const
   S_GB2312 = 'gb2312';
   S_UTF_8 = 'utf-8';
   S_UTF_16 = 'utf-16';
-
-  S_IfModifiedSince: StringA = 'If-Modified-Since';
-  S_IfRange: StringA = 'If-Range';
-  S_IfUnmodifiedSince: StringA = 'If-Unmodified-Since';
-
-  S_RequestErrorBody = '<html><head><meta http-equiv="Content-Type" ' +
-    'content="text/html; charset=gb2312"></head>'#13'<body><font color="red"><b>%d: %s</b>'+
-    '</font><br><br>%s<br>'#13'</body></html>';
 
 var
   Workers: TIocpTask;
@@ -2061,7 +2053,7 @@ begin
       else
         Result := AStr;
     except
-      Result := '';
+      Result := S;
     end;
   end else
     Result := S;
@@ -2076,12 +2068,15 @@ begin
   inherited Destroy;
 end;
 
-procedure TIocpHttpRequest.DoReadParamItem(const Name, Value: string; Data: Pointer);
+procedure TIocpHttpRequest.DoReadParamItem(const Name, Value: string; Data: Pointer; DecodeURL: Boolean);
 begin
   if not Assigned(FParams) then
     FParams := TStringList.Create;
   FParamHash.Add(LowerCase(Name), FParams.Count);
-  FParams.Add(Value);
+  if DecodeURL and (Value <> '') then
+    FParams.Add(DecodeStr(Value))
+  else
+    FParams.Add(Value);
 end;
 
 function TIocpHttpRequest.AllowAccept(const Text: StringA): Boolean;
@@ -2930,7 +2925,7 @@ begin
       if Length(Key) > 0 then begin
         SetString(Value, P1, P - P1);
         if Length(Value) > 0 then
-          DoCallBack(LowerCase(Key), Value, DoCallBackData);
+          DoCallBack(LowerCase(Key), Value, DoCallBackData, DecodeURL);
         if (P^ = #0) or (Len = 0) then
           Break;
         Key := '';
@@ -3098,7 +3093,7 @@ var
 begin
   if (Last > 0) and (not Request.IsRange) then begin
     // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
-    T := GMTRFC822ToDateTime(Request.GetHeader(S_IfModifiedSince));
+    T := GMTRFC822ToDateTime(Request.GetHeader('If-Modified-Since'));
     if (T > 0) and (SecondsBetween(T, Last) = 0) then begin
       Result := False;
       ResponeCode(304);
@@ -3198,7 +3193,9 @@ end;
 procedure TIocpHttpResponse.ServerError(const Msg: StringA);
 begin
   if (not Active) then Exit;
-  ErrorRequest(500, StringA(Format(S_RequestErrorBody, [500, GetResponseCodeNote(500), Msg])));
+  ErrorRequest(500, StringA(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
+      'charset=gb2312"></head>'#13'<body><font color="red"><b>%s</b></font><br>'+
+      '<br>%s<br>'#13'</body></html>', [GetResponseCodeNote(500), Msg])));
 end;
 
 procedure TIocpHttpResponse.SetCharsetType(const Value: TIocpHttpCharset);
@@ -3209,13 +3206,6 @@ begin
     hct_UTF8: FCharset := S_UTF_8;
     hct_UTF16: FCharset := S_UTF_16;
   end;
-end;
-
-procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
-begin
-  if (not Active) or (ErrorCode < 400) then Exit;
-  ErrorRequest(ErrorCode, StringA(Format(S_RequestErrorBody,
-    [ErrorCode, GetResponseCodeNote(ErrorCode), ''])));
 end;
 
 procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word; const Msg: StringA);
@@ -3298,7 +3288,7 @@ var
 begin
   I := MimeMap.ValueOf(LowerCase(ExtractFileExt(AFileName)));
   if I < 0 then
-    Result := string(HTTPCTTypeStream)
+    Result := HTTPCTTypeStream
   else
     Result := MimeTypes[I].Value;
 end;
@@ -3863,19 +3853,19 @@ begin
 
     if (LastModified > 0) and (not IsRange) then begin
       // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
-      T := GMTRFC822ToDateTime(Request.GetHeader(S_IfModifiedSince));
+      T := GMTRFC822ToDateTime(Request.GetHeader('If-Modified-Since'));
       if (T > 0) and (SecondsBetween(T, LastModified) = 0) then begin
         ResponeCode(304);
         Exit;
       end;
     end else if (IsRange) and (LastModified > 0) then begin
       // 判断文件是否已经修改，如果已经修改，则不允许分块下载
-      T := GMTRFC822ToDateTime(Request.GetHeader(S_IfRange));
+      T := GMTRFC822ToDateTime(Request.GetHeader('If-Range'));
       if (T > 0) and (SecondsBetween(T, LastModified) > 0) then
         // 已经修改，返回全部数据
         IsRange := False
       else begin
-        T := GMTRFC822ToDateTime(Request.GetHeader(S_IfUnmodifiedSince));
+        T := GMTRFC822ToDateTime(Request.GetHeader('If-Unmodified-Since'));
         if (T > 0) and (SecondsBetween(T, LastModified) > 0) then begin
           // 已经修改，不返回数据
           IsRange := False;
