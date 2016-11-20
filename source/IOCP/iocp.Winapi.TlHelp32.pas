@@ -11,7 +11,7 @@ unit iocp.Winapi.TlHelp32;
 interface
 
 uses
-  Windows, PsAPI, SyncObjs;
+  Windows, PsAPI, SyncObjs, TlHelp32;
 
 const
   MAX_LENGTH  = $20000;
@@ -248,6 +248,7 @@ type
   );
   NTSTATUS = DWORD;
 
+
 function NtQuerySystemInformation(infoClass: DWORD; buffer: Pointer;
   bufSize: DWORD; var returnSize: Dword): DWORD;
 function NtQueryInformationProcess(ProcessHandle: Cardinal;
@@ -259,6 +260,7 @@ function GetProcessHandleCount(PID: Cardinal): Cardinal;
 function GetProcessMemUse(PID: Cardinal): NativeUInt;
 function GetProcessMemoryInfo(Process: THandle;
   ppsmemCounters: PPROCESS_MEMORY_COUNTERS; cb: Cardinal): BOOL;
+function GetThreadCount(PID: THandle): Integer;
 
 implementation
 
@@ -345,7 +347,31 @@ begin
   if GetProcessMemoryInfo(ProcHandle, @pmc, iSize) then
     Result := pmc.WorkingSetSize;
   CloseHandle(ProcHandle);  
-end;  
+end;
+
+function GetThreadCount(PID: THandle): Integer;
+var
+  hSnapshot: THandle;
+  lppe: PROCESSENTRY32;
+begin
+  // Ë¢ÐÂ½ø³Ì
+  Result := 0;
+  hSnapshot := CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  try
+    FillChar(lppe, SizeOf(lppe), #0);
+    lppe.dwSize := SizeOf(lppe);
+    if Process32First(hSnapshot, lppe) then
+    begin
+      repeat
+        if lppe.th32ProcessID = PID then begin
+          Result := lppe.cntThreads; Exit;
+        end;
+      until Process32Next(hSnapshot, lppe) = False;
+    end;
+  finally
+    CloseHandle(hSnapshot);
+  end;
+end;
 
 initialization
   FLocker := TCriticalSection.Create;

@@ -366,18 +366,24 @@ type
 function GetCPUUsage: Integer;
 // 获取任务工作者数量
 function GetTaskWorkerCount: Integer;
+// 获取任务工作者最大数量
+function GetTaskWorkerMaxCount: Integer;
 // 获取指定进程的内存使用情况
 function GetProcessMemUse(PID: Cardinal): Cardinal;
 // 获取指定进程句柄数量
 function GetProcessHandleCount(PID: Cardinal): Cardinal;
+// 获取指定进程线程数量
+function GetThreadCount(PID: THandle): Integer;
 
 // 获取当前时间戳 （高精度计时）
 function GetTimestamp: Int64;
 // 获取文件最后写入时间（既修改时间）
 function GetFileLastWriteTime(const AFileName: AnsiString): TDateTime;
 
-// 将一个代表文件大小的数据转换成可读的字符中
+// 将一个代表文件大小的数据转换成可读的字符串
 function TransByteSize(const pvByte: Int64): string;
+// 将一个代表内存大小的数据转换成可读的字符串
+function RollupSize(ASize: Int64): string;
 // 获取当前运行信息
 function GetRunTimeInfo: string;
 // 重置运行时间
@@ -433,6 +439,11 @@ begin
   Result := Workers.WorkerCount;
 end;
 
+function GetTaskWorkerMaxCount: Integer;
+begin
+  Result := Workers.MaxWorkers;
+end;
+
 function GetProcessMemUse(PID: Cardinal): Cardinal;
 begin
   Result := iocp.Winapi.TlHelp32.GetProcessMemUse(PID);
@@ -441,6 +452,11 @@ end;
 function GetProcessHandleCount(PID: Cardinal): Cardinal;
 begin
   Result := iocp.Winapi.TlHelp32.GetProcessHandleCount(PID);
+end;
+
+function GetThreadCount(PID: THandle): Integer;
+begin
+  Result := iocp.Winapi.TlHelp32.GetThreadCount(PID);
 end;
 
 function TransByteSize(const pvByte: Int64): string;
@@ -456,6 +472,41 @@ end;
 procedure ResetRunTime;
 begin
   iocp.Sockets.ResetRunTime;
+end;
+
+function RollupSize(ASize: Int64): string;
+const
+  Units: array [0 .. 3] of String = ('GB', 'MB', 'KB', 'B');
+var
+  AIdx: Integer;
+  R1, S1: Int64;
+  AIsNeg: Boolean;
+begin
+  AIdx := 3;
+  R1 := 0;
+  AIsNeg := (ASize < 0);
+  if AIsNeg then
+    ASize := -ASize;
+  SetLength(Result, 0);
+  while (AIdx >= 0) do begin
+    S1 := ASize mod 1024;
+    ASize := ASize shr 10;
+    if (ASize = 0) or (AIdx = 0) then begin
+      R1 := R1 * 100 div 1024;
+      if R1 > 0 then begin
+        if R1 >= 10 then
+          Result := IntToStr(S1) + '.' + IntToStr(R1) + Units[AIdx]
+        else
+          Result := IntToStr(S1) + '.' + '0' + IntToStr(R1) + Units[AIdx];
+      end else
+        Result := IntToStr(S1) + Units[AIdx];
+      break;
+    end;
+    R1 := S1;
+    Dec(AIdx);
+  end;
+  if AIsNeg then
+    Result := '-' + Result;
 end;
 
 { TIocpConnection }

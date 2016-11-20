@@ -3,8 +3,8 @@ object Form1: TForm1
   Top = 0
   BorderIcons = [biSystemMenu, biMinimize]
   Caption = 'IOCP Http MVC '#26381#21153
-  ClientHeight = 111
-  ClientWidth = 298
+  ClientHeight = 122
+  ClientWidth = 344
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -22,6 +22,43 @@ object Form1: TForm1
     Width = 24
     Height = 13
     Caption = 'Port:'
+  end
+  object Label2: TLabel
+    Left = 16
+    Top = 77
+    Width = 39
+    Height = 13
+    Caption = #29366#24577#65306
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object Label3: TLabel
+    Left = 61
+    Top = 77
+    Width = 19
+    Height = 13
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clBlue
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label4: TLabel
+    Left = 61
+    Top = 96
+    Width = 33
+    Height = 13
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clBlue
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
   end
   object Button1: TButton
     Left = 12
@@ -66,5 +103,11 @@ object Form1: TForm1
     Height = 17
     Caption = 'WebSocket'
     TabOrder = 4
+  end
+  object Timer1: TTimer
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 264
+    Top = 72
   end
 end

@@ -4,8 +4,8 @@ object HttpService: THttpService
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 'Http '#36855#20320#26381#21153
-  ClientHeight = 78
-  ClientWidth = 274
+  ClientHeight = 111
+  ClientWidth = 335
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,6 +13,12 @@ object HttpService: THttpService
   Font.Name = 'Tahoma'
   Font.Style = []
   FormStyle = fsStayOnTop
+  GlassFrame.Enabled = True
+  GlassFrame.Left = 10
+  GlassFrame.Top = 10
+  GlassFrame.Right = 150
+  GlassFrame.Bottom = 16
+  GlassFrame.SheetOfGlass = True
   OldCreateOrder = True
   PrintScale = poPrintToFit
   ScreenSnap = True
@@ -20,12 +26,6 @@ object HttpService: THttpService
   OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
-  GlassFrame.Bottom = 16
-  GlassFrame.Enabled = True
-  GlassFrame.Left = 10
-  GlassFrame.Right = 150
-  GlassFrame.SheetOfGlass = True
-  GlassFrame.Top = 10
   object Label1: TLabel
     Left = 16
     Top = 18
@@ -42,8 +42,8 @@ object HttpService: THttpService
   end
   object Label2: TLabel
     Left = 0
-    Top = 64
-    Width = 274
+    Top = 97
+    Width = 335
     Height = 14
     Align = alBottom
     Alignment = taCenter
@@ -55,7 +55,45 @@ object HttpService: THttpService
     Font.Style = []
     ParentFont = False
     Transparent = True
+    ExplicitTop = 64
     ExplicitWidth = 101
+  end
+  object Label3: TLabel
+    Left = 16
+    Top = 53
+    Width = 39
+    Height = 13
+    Caption = #29366#24577#65306
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object Label4: TLabel
+    Left = 61
+    Top = 53
+    Width = 3
+    Height = 13
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clBlue
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label5: TLabel
+    Left = 61
+    Top = 72
+    Width = 3
+    Height = 13
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clBlue
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
   end
   object Edit1: TEdit
     Left = 84
@@ -78,5 +116,11 @@ object HttpService: THttpService
   end
   object XPManifest1: TXPManifest
     Left = 136
+  end
+  object Timer1: TTimer
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 246
+    Top = 48
   end
 end

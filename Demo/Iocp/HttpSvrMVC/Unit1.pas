@@ -17,6 +17,10 @@ type
     Label1: TLabel;
     Button3: TButton;
     CheckBox1: TCheckBox;
+    Label2: TLabel;
+    Label3: TLabel;
+    Timer1: TTimer;
+    Label4: TLabel;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -24,6 +28,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure DoWebSocketConnected(
       Sender: TIocpWebSocketServer; Connection: TIocpWebSocketConnection);
+    procedure Timer1Timer(Sender: TObject);
   private
     function DoSerializeData(Sender: TObject; const Value: TValue): string;
     function DoDeSerializeData(Sender: TObject; const Value: string;
@@ -118,6 +123,30 @@ begin
   CheckBox1.Checked := HttpMvc.UseWebSocket;
   Button1.Enabled := not HttpMvc.Active;
   Button2.Enabled := HttpMvc.Active;
+end;
+
+procedure TForm1.Timer1Timer(Sender: TObject);
+
+  function GetLinkCount(): Integer;
+  begin
+    if Assigned(HttpMvc) then
+      Result := HttpMvc.Server.ClientCount
+    else
+      Result := 0;
+  end;
+
+begin
+  Label3.Caption := Format('CPU: %d%%, 内存: %s, 线程: %d',
+    [
+      iocp.GetCPUUsage,
+      RollupSize(GetProcessMemUse(GetCurrentProcessId())),
+      GetThreadCount(GetCurrentProcessId)]);
+  Label4.Caption := Format('连接数: %d, 工作线程: %d/%d, 运行: %s',
+    [
+      GetLinkCount(),
+      GetTaskWorkerCount(),
+      GetTaskWorkerMaxCount(),
+      GetRunTimeInfo]);
 end;
 
 procedure TForm1.DoWebSocketConnected(

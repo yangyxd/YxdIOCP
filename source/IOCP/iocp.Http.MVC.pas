@@ -987,7 +987,8 @@ procedure TIocpHttpMvcServer.DoHttpRequest(Sender: TIocpHttpServer;
         Key := PCharToString(P, P1 - P + 1);
         if FUriMap.ContainsKey(Key) then begin
           Item := FUriMap[Key];
-          APathVariable := TDictionary<string, string>.Create(7);
+          if APathVariable = nil then
+            APathVariable := TDictionary<string, string>.Create(7);
           Break;
         end;
       end;
@@ -1234,6 +1235,7 @@ begin
         Response.ResponeCode(200);
       end;
     finally
+      SetLength(Args, 0);
       FreeAndNil(APathVariable);
       FreeAndNil(AParamObjs);
     end;

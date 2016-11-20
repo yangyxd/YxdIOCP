@@ -92,7 +92,7 @@ type
   protected
     procedure DoFree(const AData: Pointer); inline;
     procedure DoReset(const AData: Pointer); inline;
-    procedure DoNew(var AData: Pointer); inline;
+    procedure DoNew(var AData: Pointer); // inline;
   public
     constructor Create(BlockSize: Number; MaxSize: Integer = 64);
     destructor Destroy; override;
@@ -385,6 +385,7 @@ begin
   if FCount > 0 then begin
     Dec(FCount);
     Result := FPool[FCount];
+    FPool[FCount] := nil;
   end;
   FLocker.Leave;
   if Result = nil then

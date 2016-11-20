@@ -36,6 +36,7 @@ type
     HttpReqRef: Integer;
     FProcList: TStringHash;
     FHtmlFileExts: TStringHash;
+    function GetWebService: TIocpHttpServer;
   protected
     function IsDestroying: Boolean;
     procedure Log(Sender: TObject; AType: TXLogType; const Msg: string);
@@ -55,6 +56,8 @@ type
 
     procedure Start;
     procedure Stop;
+
+    property WebService: TIocpHttpServer read GetWebService;
   end;
 
 type
@@ -62,6 +65,7 @@ type
   protected
     procedure DoRegProc(); override;
     procedure RequestDemo03(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
+    procedure RequestHello(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
   end;
 
 implementation
@@ -169,6 +173,11 @@ procedure TPtService.DoWriteLog(Sender: TObject; AType: TXLogType;
 begin
 end;
 
+function TPtService.GetWebService: TIocpHttpServer;
+begin
+  Result := FPtWebService;
+end;
+
 function TPtService.IsDestroying: Boolean;
 begin
   Result := (not Assigned(Self));
@@ -224,6 +233,7 @@ end;
 procedure TPtHttpService.DoRegProc;
 begin
   RegProc('/RequestDemo03.o', RequestDemo03);
+  RegProc('/Hello', RequestHello);
 end;
 
 procedure TPtHttpService.RequestDemo03(Request: TIocpHttpRequest;
@@ -233,7 +243,7 @@ var
 begin
   O := Response.GetOutWriter();
   O.Charset := hct_GB2312;
-  O.Write('Data: ').Write(Request.GetDataString(Request.CharSet)).Write('<br>');
+  O.Write('Data: ').Write(Request.GetDataString(string(Request.CharSet))).Write('<br>');
   O.Write('编号: ').Write(Request.GetParam('userid')).Write('<br>');
   O.Write('用户名: ').Write(Request.GetParam('username')).Write('<br>');
   O.Write('密码: ').Write(Request.GetParam('userpass')).Write('<br>');
@@ -243,6 +253,12 @@ begin
   O.Write('说明: ').Write(Request.GetParam('note')).Write('<br>');
   O.Write('隐藏内容: ').Write(Request.GetParam('hiddenField')).Write('<br>');
   O.Flush;
+end;
+
+procedure TPtHttpService.RequestHello(Request: TIocpHttpRequest;
+  Response: TIocpHttpResponse);
+begin
+  Response.Send('Hello');
 end;
 
 initialization

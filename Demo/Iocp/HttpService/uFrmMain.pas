@@ -14,9 +14,14 @@ type
     BitBtn1: TBitBtn;
     Label1: TLabel;
     Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    Timer1: TTimer;
+    Label5: TLabel;
     procedure BitBtn1Click(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure Timer1Timer(Sender: TObject);
   private
     { Private declarations }
     FSvr: TPtService;
@@ -30,6 +35,8 @@ var
 implementation
 
 {$R *.dfm}
+
+uses iocp;
 
 procedure THttpService.BitBtn1Click(Sender: TObject);
 begin
@@ -55,6 +62,30 @@ end;
 procedure THttpService.FormDestroy(Sender: TObject);
 begin
   FreeAndNil(FSvr);
+end;
+
+procedure THttpService.Timer1Timer(Sender: TObject);
+
+  function GetLinkCount(): Integer;
+  begin
+    if Assigned(FSvr) then
+      Result := FSvr.WebService.ClientCount
+    else
+      Result := 0;
+  end;
+
+begin
+  Label4.Caption := Format('CPU: %d%%, 内存: %s, 线程: %d',
+    [
+      iocp.GetCPUUsage,
+      RollupSize(GetProcessMemUse(GetCurrentProcessId())),
+      GetThreadCount(GetCurrentProcessId)]);
+  Label5.Caption := Format('连接数: %d, 工作线程: %d/%d, 运行: %s',
+    [
+      GetLinkCount(),
+      GetTaskWorkerCount(),
+      GetTaskWorkerMaxCount(),
+      GetRunTimeInfo]);
 end;
 
 end.

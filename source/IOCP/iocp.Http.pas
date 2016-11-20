@@ -208,8 +208,7 @@ type
     property MaxAge: Cardinal read FMaxAge write FMaxAge;
   end;
 
-  TDoReadedParam = procedure (const Name, Value: string; Data: Pointer;
-    DecodeURL: Boolean) of object;
+  TDoReadedParam = procedure (const Name, Value: string; Data: Pointer) of object;
 
   /// <summary>
   /// HTTP ·þÎñ
@@ -349,7 +348,6 @@ type
     function GetReferer: StringA;
     function GetParamsCount: Integer;
     function GetRequestVersionStr: StringA;
-    function DecodeStr(const S: StringA): StringA;
     procedure DecodeParams();
     function GetDataStringA: StringA;
     function GetHeaderStr: StringA;
@@ -372,13 +370,15 @@ type
     function GetContentType: StringA;
     function GetGetParamData: StringA;
   protected
-    function DecodeHttpRequestMethod(): TIocpHttpMethod; 
+    function DecodeHttpRequestMethod(): TIocpHttpMethod;
     function DecodeHttpHeader(): Boolean;
     function DecodeHttpHeaderRange(): Boolean;
     function GetWaitRecvSize: Int64;
     procedure Clear;
     procedure WriteBuffer(P: Pointer; Len: Cardinal);        
-    procedure DoReadParamItem(const Name, Value: string; Data: Pointer; DecodeURL: Boolean);
+    procedure DoReadParamItem(const Name, Value: string; Data: Pointer);
+
+    class function DecodeStr(const S: StringA): StringA;
   public
     constructor Create(AOwner: TIocpHttpServer);
     destructor Destroy; override;
@@ -2039,7 +2039,7 @@ begin
   FRequestData.Write(P^, Len);
 end;
 
-function TIocpHttpRequest.DecodeStr(const S: StringA): StringA;
+class function TIocpHttpRequest.DecodeStr(const S: StringA): StringA;
 var
   tmp: StringA;
   AStr: StringA;
@@ -2068,15 +2068,12 @@ begin
   inherited Destroy;
 end;
 
-procedure TIocpHttpRequest.DoReadParamItem(const Name, Value: string; Data: Pointer; DecodeURL: Boolean);
+procedure TIocpHttpRequest.DoReadParamItem(const Name, Value: string; Data: Pointer);
 begin
   if not Assigned(FParams) then
     FParams := TStringList.Create;
   FParamHash.Add(LowerCase(Name), FParams.Count);
-  if DecodeURL and (Value <> '') then
-    FParams.Add(DecodeStr(Value))
-  else
-    FParams.Add(Value);
+  FParams.Add(Value);
 end;
 
 function TIocpHttpRequest.AllowAccept(const Text: StringA): Boolean;
@@ -2924,8 +2921,13 @@ begin
     end else if (P^ = '&') or (P^ = #0) or (Len = 0) then begin
       if Length(Key) > 0 then begin
         SetString(Value, P1, P - P1);
-        if Length(Value) > 0 then
-          DoCallBack(LowerCase(Key), Value, DoCallBackData, DecodeURL);
+        if Value <> '' then begin
+          if DecodeURL then
+            DoCallBack(LowerCase(Key), string(TIocpHttpRequest.DecodeStr(StringA(Value))),
+              DoCallBackData)
+          else
+            DoCallBack(LowerCase(Key), Value, DoCallBackData);
+        end;
         if (P^ = #0) or (Len = 0) then
           Break;
         Key := '';
@@ -3288,7 +3290,7 @@ var
 begin
   I := MimeMap.ValueOf(LowerCase(ExtractFileExt(AFileName)));
   if I < 0 then
-    Result := HTTPCTTypeStream
+    Result := string(HTTPCTTypeStream)
   else
     Result := MimeTypes[I].Value;
 end;
@@ -3892,6 +3894,7 @@ begin
 
   end else
     Header := MakeFixHeader(L);
+
   if L > MaxHttpOSS then begin
     FRequest.FConn.Send(Header);
     FRequest.FConn.SendStream(Stream, L);
@@ -3920,7 +3923,8 @@ end;
 
 procedure TIocpHttpResponse.SendString(const Data: StringA; AGZip: Boolean);
 {$IFDEF UseGZip}
-var s: StringA;
+var
+  s: StringA;
 {$ENDIF}
 begin
   if (not Active) then Exit;
@@ -3950,9 +3954,12 @@ begin
 end;
 
 procedure TIocpHttpResponse.SendString(const Data: StringW; AGZip: Boolean);
+var
+  Len: Int64;
 {$IFDEF UseGZip}
-var s: StringA;
+  s: StringA;
 {$ENDIF}
+  Buffer: TMemoryStream;
 begin
   if (not Active) then Exit;
   if Length(Data) = 0 then begin
@@ -3973,17 +3980,19 @@ begin
   end else
   {$ENDIF}
   begin
-    if (Length(Data)) > MaxHttpOSS then begin
-      FRequest.FConn.Send(MakeFixHeader(Length(Data) shl 1));
+    Len := Length(Data) shl 1;
+    if Len > MaxHttpOSS then begin
+      FRequest.FConn.Send(MakeFixHeader(Len));
       FRequest.FConn.Send(Data);
     end else begin
-      {$IFDEF UNICODE}
-      FRequest.FConn.Send(MakeFixHeader(Length(Data) shl 1));
-      FRequest.FConn.Send(Data);
-      {$ELSE}
-      s := Data;
-      FRequest.FConn.Send(MakeFixHeader(Length(s)) + s);
-      {$ENDIF}
+      Buffer := TMemoryStream.Create;
+      try
+        WriteStringToStream(Buffer, MakeFixHeader(Len));
+        WriteStringToStream(Buffer, Data);
+        FRequest.FConn.Send(Buffer.Memory, Buffer.Position);
+      finally
+        Buffer.Free;
+      end;
     end;
   end;
 end;
