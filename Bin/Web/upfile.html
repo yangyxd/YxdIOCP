@@ -1,0 +1,110 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script type="text/javascript">
+	var vPreuploaded = 0,
+		vUploaded = 0,
+		vTimer,
+		vStartTime;
+	function upfile(){
+		var req;
+		if (window.XMLHttpRequest){// code for IE7+, Firefox, Chrome, Opera, Safari
+			req=new XMLHttpRequest();
+		}
+		else{// code for IE6, IE5
+			req=new ActiveXObject("Microsoft.XMLHTTP");
+		}
+		req.onreadystatechange=function(){
+			if (req.readyState==4 && req.status==200){
+				//document.getElementById("myDiv").innerHTML=req.responseText;
+				var vJson = JSON.parse(req.responseText); 
+				if (vJson.result=="success.")
+				{
+					document.getElementById("myDiv").innerHTML="返回信息：文件上传成功，下载链接 <a href='"+vJson.ObjectFileName+"'>"+vJson.SourceFileName+"</a>";
+				}else{
+					document.getElementById("myDiv").innerHTML="返回信息：文件上传失败，请重试！";
+				}
+			}
+		}  
+		var form = new FormData(document.getElementById("tf"));
+		//alert(form);
+		vStartTime = new Date().getTime(); 
+		req.upload.addEventListener("progress", uploadProgress, false);
+		req.open("post","/upfile",true);
+		req.send(form);
+		return false;
+	}
+	function bytesTosize(data){
+                var unit = ["Bytes","KB","MB","GB"];
+                var i = parseInt(Math.log(data)/Math.log(1024));
+                return Math.round((data/Math.pow(1024,i))) + " " + unit[i];
+    }
+	function secondsTotime(sec){
+                var h = Math.floor(sec/3600),
+                    m = Math.floor((sec-h*3600)/60),
+                    s = Math.floor(sec-h*3600-m*60);
+                if(h<10) h = "0" + h;
+                if(m<10) m = "0" + m;
+                if(s<10) s = "0" + s;
+
+                return h + ":" + m + ":" + s;
+    }
+	function uploadCount(e){
+		var upSize = vUploaded,
+			tSize = e.total,
+			perc = Math.round(upSize * 100 / tSize) + "%";
+		vUploaded = 0;
+		var speed = Math.abs(upSize - vPreuploaded);
+		if(speed==0){clearTimeout("vTimer");return;}
+		var leftTime = secondsTotime(Math.round((tSize-upSize)/speed));
+		var totalTime = secondsTotime(Math.round((new Date().getTime()-vStartTime)/1000));
+		speed = bytesTosize(speed)+"/s";
+		document.getElementById('upProgress').innerHTML = '上传进度：'+ perc + ' '+speed+" 剩余 "+leftTime +" 耗时 "+ totalTime;
+		vPreuploaded = upSize;
+	}
+	function uploadProgress(evt) {
+        if (evt.lengthComputable) {
+			vUploaded += evt.loaded;
+			vTimer = setTimeout(uploadCount(evt),500);
+        }
+      }
+	function fileSelected() {
+        var file = document.getElementById('fname').files[0];
+        if (file) {
+          var fileSize = 0;
+          if (file.size > 1024 * 1024)
+            fileSize = (Math.round(file.size * 100 / (1024 * 1024)) / 100).toString() + 'MB';
+          else
+            fileSize = (Math.round(file.size * 100 / 1024) / 100).toString() + 'KB';
+
+          document.getElementById('fileName').innerHTML = '文件名称：' + file.name;
+          document.getElementById('fileSize').innerHTML = '文件大小：' + fileSize;
+          document.getElementById('fileType').innerHTML = '文件类型：' + file.type;
+
+		  var btn = document.getElementById('btn'); 
+		  if (file.size>500*1024*1024)
+			btn.disabled=true;
+		  else
+		    btn.disabled=false;
+		  fSize=file.size;
+        }
+      }
+</script>
+</head>
+<body>
+
+<form id="tf" enctype="multipart/form-data" method="post">
+选择一个文件用于上传：<br>
+<input type="file" name="fname" id="fname" onchange="fileSelected();"/>
+</form>
+<button type="button" id="btn" onclick="upfile()" disabled="disabled">上传文件</button>
+<p>ps:上传文件限制：500M</p>
+<div id="fileName">文件名称：</div>
+<div id="fileSize">文件大小：</div>
+<div id="fileType">文件类型：</div>
+<div id="upProgress">上传进度：0%</div>
+<div id="myDiv">返回信息：</div>
+
+<p>因为用到html5的formdata上传二进制文件，所以需要<br>Chrome 7+<br>Firefox 4.0 (Gecko 2.0)<br>Internet Explorer 10+<br>Opera 12+<br>Safari 5+</p>
+</body>
+</html>

@@ -66,15 +66,13 @@ type
     procedure DoRegProc(); override;
     procedure RequestDemo03(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
     procedure RequestHello(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
+    procedure RequestUpfile(Request: TIocpHttpRequest; Response: TIocpHttpResponse);
   end;
 
 implementation
 
 type
   PMethod = ^TMethod;
-
-var
-  SoftPath: string;
 
 { TPtService }
 
@@ -125,28 +123,14 @@ end;
 procedure TPtService.DoRequest(Sender: TIocpHttpServer;
   Request: TIocpHttpRequest; Response: TIocpHttpResponse);
 var
-  Path: string;
   V: Number;
 begin
   InterlockedIncrement(HttpReqRef);
-  Path := StringReplace(string(Request.URI), '/', '\', [rfReplaceAll]);
-  if (Length(Path) > 0) and (Path[1] = '\') then
-    Delete(Path, 1, 1);
-  Path := SoftPath + Path;
-  // 如果是一个文件
-  if FileExists(Path) then begin
-    // 如果是网页，就不使用下载方式
-    if FHtmlFileExts.Exists(LowerCase(ExtractFileExt(Path))) then
-      Response.SendFile(Path, '', False, True)
-    else
-      Response.SendFile(Path, '', True, True);
-  end else begin
-    V := FProcList.ValueOf(LowerCase(string(Request.URI)));
-    if V <> -1 then begin
-      TOnProcRequest(PMethod(Pointer(V))^)(Request, Response);
-    end else
-      Response.ErrorRequest(404);
-  end;
+  V := FProcList.ValueOf(LowerCase(string(Request.URI)));
+  if V <> -1 then begin
+    TOnProcRequest(PMethod(Pointer(V))^)(Request, Response);
+  end else
+    Response.SendFileByURI(Request.URI, '', False, True);
 end;
 
 procedure TPtService.DoWebSocketRequest(Sender: TIocpWebSocketServer;
@@ -234,6 +218,7 @@ procedure TPtHttpService.DoRegProc;
 begin
   RegProc('/RequestDemo03.o', RequestDemo03);
   RegProc('/Hello', RequestHello);
+  RegProc('/upfile', RequestUpfile);
 end;
 
 procedure TPtHttpService.RequestDemo03(Request: TIocpHttpRequest;
@@ -261,8 +246,51 @@ begin
   Response.Send('Hello');
 end;
 
+// 上传文件处理
+procedure TPtHttpService.RequestUpfile(Request: TIocpHttpRequest;
+  Response: TIocpHttpResponse);
+const
+  UpFileDir = 'files';
+var
+  S: TStream;
+  F: TFileStream;
+  FName, Path: string;
+begin
+  if Request.IsPost and Request.IsFormData then begin // 判断是否为表单数据
+    F := nil;
+    with Request.FormData['fname'] do begin // 表单中的文件数据字段
+      S := GetContentStream;  // 内容流
+      if Assigned(S) then begin
+        S.Position := 0;
+        try
+          // 得到文件保存位置
+          Path := Request.Owner.WebPath + UpFileDir + '\';
+          if not DirectoryExists(Path) then
+            ForceDirectories(Path);
+          // 生成一个文件名
+          FName := FileName;
+          while FileExists(Path + FName) do begin
+            FName := FormatDateTime('HHMMSSZZZ', Now) + FileName;
+          end;
+          // 写入文件
+          F := TFileStream.Create(Path + FName, fmCreate);
+          F.CopyFrom(S, S.Size);
+        finally
+          FreeAndNil(F);
+          S.Free;
+        end;
+        // 返回状态给浏览器
+        Response.Send(
+          Format('{"result":"success.","ObjectFileName":"%s","SourceFileName":"%s"}',
+            [UpFileDir + '/' + FName, FileName]));
+      end else
+        Response.Send('无效请求数据');
+    end;
+  end else
+    Response.ErrorRequest();
+end;
+
 initialization
-  SoftPath := ExtractFilePath(ParamStr(0));
 
 finalization
 

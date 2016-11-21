@@ -224,6 +224,8 @@ type
     FAutoDecodePostParams: Boolean;
     FWebBasePath: string;
     FGzipFileTypes: string;
+    FDefaultPage: string;
+    FCurrentDefaultPage: string;
     FCharset, FContentLanguage: StringA;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
 
@@ -234,7 +236,8 @@ type
     procedure SetAccessControlAllow(const Value: TIocpHttpAccessControlAllow);
     procedure SetGzipFileTypes(const Value: string);
     function GetWebBasePath: string;
-    procedure SetWebBasePath(const Value: string);  protected
+    procedure SetWebBasePath(const Value: string);
+    function GetCurrentDefaultPage: string;  protected
     procedure FreeSessionList;
     procedure DoFreeHashItem(Item: PHashItem);
   protected
@@ -245,6 +248,7 @@ type
     procedure FreeHttpRequest(V: TIocpHttpRequest);
     function GetHeaderBuilder: TStringCatHelperA;
     procedure FreeHeaderBuilder(V: TStringCatHelperA);
+    procedure SetCurrentDefaultPage();
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -262,6 +266,10 @@ type
     /// 最大Http响应头部构造器内存池大小
     /// </summary>
     property MaxHeaderBuildPoolSize: Integer read FMaxHeaderBuildPoolSize write FMaxHeaderBuildPoolSize;
+    /// <summary>
+    /// 当前使用的默认页
+    /// </summary>
+    property CurrentDefaultPage: string read GetCurrentDefaultPage;
   published
     property ListenPort default 8080;
     /// <summary>
@@ -281,6 +289,10 @@ type
     /// WEB文件夹的根目录。默认为程序所在目录下Web文件夹
     /// </summary>
     property WebPath: string read GetWebBasePath write SetWebBasePath;
+    /// <summary>
+    /// WEB默认文件。
+    /// </summary>
+    property DefaultPage: string read FDefaultPage write FDefaultPage;
     /// <summary>
     /// 下载文件时，自动使用GZip进行压缩的文件类型 (以";"进行分隔)
     /// 如：'.htm;.html;.css;.js;'
@@ -595,7 +607,8 @@ type
     /// <summary>
     /// 返回代表请求错误的响应包，并断开连接
     /// </summary>
-    procedure ErrorRequest(ErrorCode: Word = 400; const Msg: StringA = '');
+    procedure ErrorRequest(ErrorCode: Word = 400); overload;
+    procedure ErrorRequest(ErrorCode: Word; const Msg: StringA); overload;
     /// <summary>
     /// 返回指定响应代码
     /// </summary>
@@ -772,6 +785,14 @@ const
   S_GB2312 = 'gb2312';
   S_UTF_8 = 'utf-8';
   S_UTF_16 = 'utf-16';
+
+  S_IfModifiedSince: StringA = 'If-Modified-Since';
+  S_IfRange: StringA = 'If-Range';
+  S_IfUnmodifiedSince: StringA = 'If-Unmodified-Since';
+
+  S_RequestErrorBody = '<html><head><meta http-equiv="Content-Type" ' +
+    'content="text/html; charset=gb2312"></head>'#13'<body><font color="red"><b>%d: %s</b>'+
+    '</font><br><br>%s<br>'#13'</body></html>';
 
 var
   Workers: TIocpTask;
@@ -2896,7 +2917,9 @@ begin
   FCharset := S_GB2312;
   {$ENDIF}
   FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
+  FDefaultPage := 'index.html;index.htm;default.html;default.htm';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
+  SetCurrentDefaultPage;
 end;
 
 procedure TIocpHttpServer.DecodeParam(P: PAnsiChar; Len: Cardinal;
@@ -3003,6 +3026,22 @@ begin
   FreeAndNil(FSessionList);
 end;
 
+function TIocpHttpServer.GetCurrentDefaultPage: string;
+begin
+  Locker.Enter();
+  Result := FCurrentDefaultPage;
+  Locker.Leave;
+  if (Result = '') or (not FileExists(Result)) then begin
+    Locker.Enter();
+    try
+      SetCurrentDefaultPage;
+      Result := FCurrentDefaultPage;
+    finally
+      Locker.Leave;
+    end;
+  end;
+end;
+
 function TIocpHttpServer.GetHeaderBuilder: TStringCatHelperA;
 begin
   Result := TStringCatHelperA(FHeaderBuildPool.DeQueue);
@@ -3047,6 +3086,29 @@ begin
     FAccessControlAllow.Assign(Value);
 end;
 
+procedure TIocpHttpServer.SetCurrentDefaultPage;
+var
+  List: TStrings;
+  I: Integer;
+  S: string;
+begin
+  List := TStringList.Create;
+  List.StrictDelimiter := True;
+  List.Delimiter := ';';
+  List.DelimitedText := FDefaultPage;
+  try
+    for I := 0 to List.Count - 1 do begin
+      S := FWebBasePath + List[I];
+      if FileExists(S) then begin
+        FCurrentDefaultPage := S;
+        Exit;
+      end; 
+    end;        
+  finally
+    List.Free;
+  end;
+end;
+
 procedure TIocpHttpServer.SetGzipFileTypes(const Value: string);
 begin
   FGzipFileTypes := LowerCase(Value);
@@ -3058,6 +3120,9 @@ begin
     FWebBasePath := GetAbsolutePathEx(AppPath, Value)
   else
     FWebBasePath := Value;
+  if (FWebBasePath <> '') and (FWebBasePath[Length(FWebBasePath)] <> '\') then
+    FWebBasePath := FWebBasePath + '\';
+  SetCurrentDefaultPage();
 end;
 
 { TIocpHttpResponse }
@@ -3095,7 +3160,7 @@ var
 begin
   if (Last > 0) and (not Request.IsRange) then begin
     // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
-    T := GMTRFC822ToDateTime(Request.GetHeader('If-Modified-Since'));
+    T := GMTRFC822ToDateTime(Request.GetHeader(S_IfModifiedSince));
     if (T > 0) and (SecondsBetween(T, Last) = 0) then begin
       Result := False;
       ResponeCode(304);
@@ -3195,9 +3260,7 @@ end;
 procedure TIocpHttpResponse.ServerError(const Msg: StringA);
 begin
   if (not Active) then Exit;
-  ErrorRequest(500, StringA(Format('<html><head><meta http-equiv="Content-Type" content="text/html; '+
-      'charset=gb2312"></head>'#13'<body><font color="red"><b>%s</b></font><br>'+
-      '<br>%s<br>'#13'</body></html>', [GetResponseCodeNote(500), Msg])));
+  ErrorRequest(500, StringA(Format(S_RequestErrorBody, [500, GetResponseCodeNote(500), Msg])));
 end;
 
 procedure TIocpHttpResponse.SetCharsetType(const Value: TIocpHttpCharset);
@@ -3208,6 +3271,13 @@ begin
     hct_UTF8: FCharset := S_UTF_8;
     hct_UTF16: FCharset := S_UTF_16;
   end;
+end;   
+
+procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
+begin
+  if (not Active) or (ErrorCode < 400) then Exit;
+  ErrorRequest(ErrorCode, StringA(Format(S_RequestErrorBody,
+    [ErrorCode, GetResponseCodeNote(ErrorCode), ''])));
 end;
 
 procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word; const Msg: StringA);
@@ -3660,8 +3730,11 @@ procedure TIocpHttpResponse.SendFileByURI(const URI, AContentType: string;
 var
   Path: string;
 begin
-  Path := ReplaceSlashFromURI(URI);
-  SendFile(Request.FOwner.FWebBasePath + Path, AContentType, IsDownFile, ParserContentType);
+  if URI = '/' then begin
+    Path := Request.FOwner.CurrentDefaultPage;
+  end else
+    Path := Request.FOwner.FWebBasePath + ReplaceSlashFromURI(URI);
+  SendFile(Path, AContentType, IsDownFile, ParserContentType);
 end;
 
 procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
@@ -3855,19 +3928,19 @@ begin
 
     if (LastModified > 0) and (not IsRange) then begin
       // 下载文件时，判断客户端请求的最后修改时间，如果没有变化就返回 304
-      T := GMTRFC822ToDateTime(Request.GetHeader('If-Modified-Since'));
+      T := GMTRFC822ToDateTime(Request.GetHeader(S_IfModifiedSince));
       if (T > 0) and (SecondsBetween(T, LastModified) = 0) then begin
         ResponeCode(304);
         Exit;
       end;
     end else if (IsRange) and (LastModified > 0) then begin
       // 判断文件是否已经修改，如果已经修改，则不允许分块下载
-      T := GMTRFC822ToDateTime(Request.GetHeader('If-Range'));
+      T := GMTRFC822ToDateTime(Request.GetHeader(S_IfRange));
       if (T > 0) and (SecondsBetween(T, LastModified) > 0) then
         // 已经修改，返回全部数据
         IsRange := False
       else begin
-        T := GMTRFC822ToDateTime(Request.GetHeader('If-Unmodified-Since'));
+        T := GMTRFC822ToDateTime(Request.GetHeader(S_IfUnmodifiedSince));
         if (T > 0) and (SecondsBetween(T, LastModified) > 0) then begin
           // 已经修改，不返回数据
           IsRange := False;

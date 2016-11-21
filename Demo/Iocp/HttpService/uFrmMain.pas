@@ -46,6 +46,7 @@ begin
   end else begin
     BitBtn1.Enabled := False;
     FSvr := TPtHttpService.Create(StrToIntDef(Edit1.Text, 8080));
+    FSvr.WebService.UploadMaxDataSize := 500 * 1024 * 1024; // 500M
     FSvr.Start;
     BitBtn1.Caption := 'Í£Ö¹·þÎñ';
     BitBtn1.Enabled := True;
