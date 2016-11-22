@@ -222,7 +222,7 @@ function StrLComp(const Str1, Str2: PAnsiChar; MaxLen: Cardinal): Integer;
 begin
   Result := AnsiStrings.StrLComp(Str1, Str2, MaxLen);
 end;
-{$ENDIF}
+{$IFEND}
 
 function SpaceStr(ALen: Integer): string; inline;
 {$IFDEF UNICODE}
@@ -284,7 +284,7 @@ begin
     Result := '';
 end;
 
-function PCharToStr(p: PWideChar; len: Integer): string; overload;
+function PCharToStr(p: PWideChar; len: Integer): StringW; overload;
 begin
   if (len > 0) and (p <> nil) then begin
     SetLength(Result, len);

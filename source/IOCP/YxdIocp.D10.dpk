@@ -1,21 +1,21 @@
-package YxdIocp;
+package YxdIocp.D10;
 
 {$R *.res}
 {$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
 {$ALIGN 8}
 {$ASSERTIONS ON}
 {$BOOLEVAL OFF}
-{$DEBUGINFO OFF}
+{$DEBUGINFO ON}
 {$EXTENDEDSYNTAX ON}
 {$IMPORTEDDATA ON}
 {$IOCHECKS ON}
-{$LOCALSYMBOLS OFF}
+{$LOCALSYMBOLS ON}
 {$LONGSTRINGS ON}
 {$OPENSTRINGS ON}
 {$OPTIMIZATION OFF}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
-{$REFERENCEINFO OFF}
+{$REFERENCEINFO ON}
 {$SAFEDIVIDE OFF}
 {$STACKFRAMES ON}
 {$TYPEDADDRESS OFF}
@@ -24,7 +24,6 @@ package YxdIocp;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$DEFINE DEBUG}
-{$DEFINE RELEASE}
 {$ENDIF IMPLICITBUILDING}
 {$IMPLICITBUILD ON}
 
@@ -34,13 +33,13 @@ requires
   soaprtl;
 
 contains
+  iocp.Http.Client in 'iocp.Http.Client.pas',
+  iocp.Http.MVC in 'iocp.Http.MVC.pas',
+  iocp.Http in 'iocp.Http.pas',
   iocp in 'iocp.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
-  iocp.Http in 'iocp.Http.pas',
-  iocp.Core.Engine in 'iocp.Core.Engine.pas',
-  iocp.Http.Client in 'iocp.Http.Client.pas',
-  iocp.Http.WebSocket in 'iocp.Http.WebSocket.pas',
-  iocp.Http.MVC in 'iocp.Http.MVC.pas';
+  iocp.Task in 'iocp.Task.pas',
+  OpenSSL in 'OpenSSL.pas';
 
 end.
 

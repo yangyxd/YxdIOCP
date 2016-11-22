@@ -14,12 +14,12 @@ interface
 
 {$IF (RTLVersion>=26)}
 {$DEFINE UseMvc}
-{$ENDIF}
+{$IFEND}
 
 {$IFNDEF UseMvc}
 {$MESSAGE WARN 'iocp.Http.MVC 单元检测到当前IDE版本过低，可能无法正常使用。'}
-{$ENDIF}
-
+implementation
+{$ELSE}
 uses
   iocp.Http, iocp.Http.WebSocket, iocp.Sockets,
   iocp.Utils.Str,
@@ -45,7 +45,7 @@ type
     class procedure RegToMVC();
     function CheckAttribute(ARttiType: TRttiType; ACompare: TCompareAttributeItem;
       const Data: Pointer = nil): Boolean; overload;
-    function CheckAttribute(const Attributes: TArray<TCustomAttribute>;
+    function CheckAttributes(const Attributes: TArray<TCustomAttribute>;
       ACompare: TCompareAttributeItem;
       const Data: Pointer = nil): Boolean; overload;
     /// <summary>
@@ -531,7 +531,7 @@ function TObjectHelper.ExistAttribute(
   const Attributes: TArray<TCustomAttribute>;
   const AttrType: TCustomAttributeClass): Boolean;
 begin
-  Result := CheckAttribute(Attributes,
+  Result := CheckAttributes(Attributes,
     function(const Item: TCustomAttribute; const Data: Pointer): Boolean
     begin
       Result := Item.ClassType = AttrType;
@@ -544,7 +544,7 @@ var
   ARealAttrName: string;
 begin
   ARealAttrName := GetRealAttrName(AttrName);
-  Result := CheckAttribute(Attributes,
+  Result := CheckAttributes(Attributes,
     function(const Item: TCustomAttribute; const Data: Pointer): Boolean
     begin
       Result := Item.ClassNameIs(ARealAttrName);
@@ -570,7 +570,7 @@ begin
   end;
 end;
 
-function TObjectHelper.CheckAttribute(
+function TObjectHelper.CheckAttributes(
   const Attributes: TArray<TCustomAttribute>; ACompare: TCompareAttributeItem;
   const Data: Pointer): Boolean;
 var
@@ -1089,8 +1089,8 @@ begin
       SetLength(Args, Length(AParams));
       for I := 0 to High(AParams) do begin
         // 检测属性绑定
-        if CheckAttribute(AParams[I].GetAttributes,
-          function(const Item: TCustomAttribute; const Data: Pointer): Boolean
+        if CheckAttributes(AParams[I].GetAttributes,
+          function (const Item: TCustomAttribute; const Data: Pointer): Boolean
           begin
             if Assigned(APathVariable) and (Item.ClassType = PathVariableAttribute) then begin
               // PathVariable 标注的字段
@@ -1500,8 +1500,8 @@ begin
           BaseDataItem.Produces := RequestMappingAttribute(Item).FProduces;
           BaseDataItem.Headers := RequestMappingAttribute(Item).FHeaders;
         end;
-      end)
-    then 
+      end
+    ) then
       BaseUri := '';
     BaseDataItem.DownMode := ClassItem.Value.ExistAttribute(DownloadAttribute);
 
@@ -1515,7 +1515,7 @@ begin
         Continue;
 
       // RequestMapping
-      if CheckAttribute(AMethods[I].GetAttributes,
+      if CheckAttributes(AMethods[I].GetAttributes,
         function(const Item: TCustomAttribute; const Data: Pointer): Boolean
         begin
           Result := Item.ClassType = RequestMappingAttribute;
@@ -1568,7 +1568,7 @@ begin
       end;
 
       // WebSocketAttribute
-      if CheckAttribute(AMethods[I].GetAttributes,
+      if CheckAttributes(AMethods[I].GetAttributes,
         function(const Item: TCustomAttribute; const Data: Pointer): Boolean
         begin
           Result := Item.ClassType = WebSocketAttribute;
@@ -1846,5 +1846,5 @@ finalization
       HttpMvc.SaveConfig();
     FreeAndNil(HttpMvc);
   end;
-
+{$ENDIF}
 end.
