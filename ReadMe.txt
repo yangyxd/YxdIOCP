@@ -11,6 +11,10 @@ Demo 源码需要重新设置下搜索路径，指向 Source\IOCP 文件夹即可。
  您可以任意复制、更新本源码，但请注明来源，或在您的软件特定位置标注说明。
  更新内容请查看 source 目录下的 ReadMe.txt
  
+【OpenSSL】
+
+ 如果需要使用OpenSSL，请将 Source 目录中的 lib 文件夹存复杂到项目根目录中。
+ 
 【联系我们】
   yangyxd QQ: 2514718952 
   天地弦QQ： 185511468  (DIOCP原作者)

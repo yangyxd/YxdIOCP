@@ -3071,7 +3071,7 @@ end;
 
 function TIocpHttpServer.GetWebBasePath: string;
 begin
-  if csDesigning in ComponentState then
+  if (csDesigning in ComponentState) or (csDesignInstance in ComponentState) then
     Result := GetRelativePath(AppPath, FWebBasePath)
   else
     Result := FWebBasePath;  

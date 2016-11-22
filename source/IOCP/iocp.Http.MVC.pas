@@ -18,8 +18,8 @@ interface
 
 {$IFNDEF UseMvc}
 {$MESSAGE WARN 'iocp.Http.MVC 单元检测到当前IDE版本过低，可能无法正常使用。'}
-implementation
-{$ELSE}
+{$ENDIF}
+{$IFDEF UseMvc}
 uses
   iocp.Http, iocp.Http.WebSocket, iocp.Sockets,
   iocp.Utils.Str,
@@ -185,6 +185,7 @@ type
     function GetListenPort: Integer;
     function GetUploadMaxDataSize: NativeUInt;
     function GetWebBasePath: string;
+    function GetDefaultPage: string;
     procedure SetAccessControlAllow(const Value: TIocpHttpAccessControlAllow);
     procedure SetActive(const Value: Boolean);
     procedure SetAutoDecodePostParams(const Value: Boolean);
@@ -194,6 +195,7 @@ type
     procedure SetListenPort(const Value: Integer);
     procedure SetUploadMaxDataSize(const Value: NativeUInt);
     procedure SetWebBasePath(const Value: string);
+    procedure SetDefaultPage(const Value: string);
     function GetActive: Boolean;
     function GetBindAddr: StringA;
     procedure SetBindAddr(const Value: StringA);
@@ -289,6 +291,11 @@ type
     /// WEB文件夹的根目录。默认为程序所在目录下Web文件夹
     /// </summary>
     property WebPath: string read GetWebBasePath write SetWebBasePath;
+
+    /// <summary>
+    /// 默认页面。默认为程序所在目录下Web文件夹下的 index.html, index.htm, default.html, default.htm
+    /// </summary>
+    property DefaultPage: string read GetDefaultPage write SetDefaultPage;
 
     /// <summary>
     /// 下载文件时，自动使用GZip进行压缩的文件类型 (以";"进行分隔)
@@ -1412,6 +1419,11 @@ begin
   Result := FServer.WebPath;
 end;
 
+function TIocpHttpMvcServer.GetDefaultPage: string;
+begin
+  Result := FServer.DefaultPage;
+end;
+
 procedure TIocpHttpMvcServer.InitServer;
 var
   Svr: TIocpHttpServer;
@@ -1793,6 +1805,11 @@ begin
   FServer.WebPath := Value;
 end;
 
+procedure TIocpHttpMvcServer.SetDefaultPage(const Value: string);
+begin
+  FServer.DefaultPage := Value;
+end;
+
 { TUriMapData }
 
 procedure TUriMapData.Clear;
@@ -1846,5 +1863,7 @@ finalization
       HttpMvc.SaveConfig();
     FreeAndNil(HttpMvc);
   end;
+{$ELSE}
+implementation
 {$ENDIF}
 end.
