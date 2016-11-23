@@ -184,6 +184,7 @@ type
   TIocpHttpReqVer = iocp.Http.TIocpHttpReqVer;
 
   TIocpHttpServer = iocp.Http.TIocpHttpServer;
+  TIocpHttpsServer = iocp.Http.TIocpHttpsServer;
   TIocpHttpRequest = iocp.Http.TIocpHttpRequest;
   TIocpHttpResponse = iocp.Http.TIocpHttpResponse;
   TIocpHttpWriter = iocp.Http.TIocpHttpWriter;
@@ -195,6 +196,7 @@ type
   TOnHttpFreeSession = iocp.Http.TOnHttpFreeSession;
 
   TIocpHttpConnection = iocp.Http.TIocpHttpConnection;
+  TIocpHttpSSLConnection = iocp.Http.TIocpHttpSSLConnection;
   TIocpHttpFromDataItem = iocp.Http.TIocpHttpFromDataItem;
   TFileOnlyStream = iocp.Http.TFileOnlyStream;
   TIocpPointerStream = iocp.Http.TIocpPointerStream;
@@ -406,6 +408,7 @@ begin
   RegisterComponents(ComPageName, [TIocpTcpCodecServer]);
   {$IFDEF UseHttpServer}
   RegisterComponents(ComPageName, [TIocpHttpServer]);
+  RegisterComponents(ComPageName, [TIocpHttpsServer]);
   {$ENDIF}
   {$IFDEF UseWebSocketServer}
   RegisterComponents(ComPageName, [TIocpWebSocketServer]);

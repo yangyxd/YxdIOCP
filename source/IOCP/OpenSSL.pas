@@ -93,9 +93,9 @@ var
   DLLSSLName2: string = '\lib\win64\libssl32.dll';
   DLLUtilName: string = '\lib\win64\libeay32.dll';
   {$else}
-  DLLSSLName: string = '\lib\win64\ssleay32.dll';
-  DLLSSLName2: string = '\lib\win64\libssl32.dll';
-  DLLUtilName: string = '\lib\win64\libeay32.dll';
+  DLLSSLName: string = '\lib\win32\ssleay32.dll';
+  DLLSSLName2: string = '\lib\win32\libssl32.dll';
+  DLLUtilName: string = '\lib\win32\libeay32.dll';
   {$ENDIF}
 
 const
@@ -110,6 +110,9 @@ const
 
 type
   { ctype }
+  StringA = AnsiString;
+  PCharA = PAnsiChar;
+  PCharW = PWideChar;
   qword = int64;  // Keep h2pas "uses ctypes" headers working with delphi.
   ptruint = cardinal;
   pptruint = ^ptruint;
@@ -245,7 +248,7 @@ type
     signature: pointer;  // ^ASN1_BIT_STRING
     valid: integer;
     references: integer;
-    name: PChar;
+    name: PCharA;
     ex_data: CRYPTO_EX_DATA;
     ex_pathlen: integer;
     ex_flags: integer;
@@ -271,7 +274,7 @@ type
 	kinv: pointer;
 	r: pointer;
 	flags: integer;
-	method_mont_p: PChar;
+	method_mont_p: PCharA;
 	references: integer;
 	ex_data: record
       sk: pointer;
@@ -283,7 +286,7 @@ type
 
   EVP_PKEY_PKEY = record
     case integer of
-      0: (ptr: PChar);
+      0: (ptr: PCharA);
       1: (rsa: pRSA);
       2: (dsa: pDSA);
       3: (dh: pDH);
@@ -383,7 +386,7 @@ type
   Trsa_keygen = function(arsa: PRSA; bits: cint; e: PBIGNUM; cb: PBN_GENCB): cint;
 
   RSA_METHOD = record
-    name: PChar;
+    name: PCharA;
     rsa_pub_enc: Trsa_pub_enc;
     rsa_pub_dec: Trsa_pub_dec;
     rsa_priv_enc: Trsa_priv_enc;
@@ -393,7 +396,7 @@ type
     init: Tinit; { called at new }
     finish: Tfinish; { called at free }
     flags: cint; { RSA_METHOD_FLAG_* things }
-    app_data: PChar; { may be needed! }
+    app_data: PCharA; { may be needed! }
   { New sign and verify functions: some libraries don't allow arbitrary data
    * to be signed/verified: this allows them to be used. Note: for this to work
    * the RSA_public_decrypt() and RSA_private_encrypt() should *NOT* be used
@@ -769,8 +772,8 @@ var
   function SslGetError(s: PSSL; ret_code: cInt):cInt;
   function SslLibraryInit:cInt;
   procedure SslLoadErrorStrings;
-//  function SslCtxSetCipherList(arg0: PSSL_CTX; str: PChar):cInt;
-  function SslCtxSetCipherList(arg0: PSSL_CTX; var str: String):cInt;
+//  function SslCtxSetCipherList(arg0: PSSL_CTX; str: PCharA):cInt;
+  function SslCtxSetCipherList(arg0: PSSL_CTX; var str: StringA):cInt;
   function SslCtxNew(meth: PSSL_METHOD):PSSL_CTX;
   procedure SslCtxFree(arg0: PSSL_CTX);
   function SslSetFd(s: PSSL; fd: cInt):cInt;
@@ -788,19 +791,19 @@ var
   function SslMethodTLSV1:PSSL_METHOD;
   function SslMethodV23:PSSL_METHOD;
   function SslCtxUsePrivateKey(ctx: PSSL_CTX; pkey: SslPtr):cInt;
-  function SslCtxUsePrivateKeyASN1(pk: cInt; ctx: PSSL_CTX; d: String; len: cLong):cInt;
-//  function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: PChar; _type: cInt):cInt;
-  function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: String; _type: cInt):cInt;
+  function SslCtxUsePrivateKeyASN1(pk: cInt; ctx: PSSL_CTX; d: StringA; len: cLong):cInt;
+//  function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: PCharA; _type: cInt):cInt;
+  function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: StringA; _type: cInt):cInt;
   function SslCtxUseCertificate(ctx: PSSL_CTX; x: SslPtr):cInt;
-  function SslCtxUseCertificateASN1(ctx: PSSL_CTX; len: cLong; d: String):cInt;
-  function SslCtxUseCertificateFile(ctx: PSSL_CTX; const _file: String; _type: cInt):cInt;
-//  function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: PChar):cInt;
-  function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: String):cInt;
+  function SslCtxUseCertificateASN1(ctx: PSSL_CTX; len: cLong; d: StringA):cInt;
+  function SslCtxUseCertificateFile(ctx: PSSL_CTX; const _file: StringA; _type: cInt):cInt;
+//  function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: PCharA):cInt;
+  function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: StringA):cInt;
   function SslCtxCheckPrivateKeyFile(ctx: PSSL_CTX):cInt;
   procedure SslCtxSetDefaultPasswdCb(ctx: PSSL_CTX; cb: PPasswdCb);
   procedure SslCtxSetDefaultPasswdCbUserdata(ctx: PSSL_CTX; u: SslPtr);
-//  function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: PChar; const CApath: PChar):cInt;
-  function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: String; const CApath: String):cInt;
+//  function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: PCharA; const CApath: PChar):cInt;
+  function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: StringA; const CApath: StringA):cInt;
   function SslNew(ctx: PSSL_CTX):PSSL;
   procedure SslFree(ssl: PSSL);
   function SslAccept(ssl: PSSL):cInt;
@@ -810,11 +813,11 @@ var
   function SslPeek(ssl: PSSL; buf: SslPtr; num: cInt):cInt;
   function SslWrite(ssl: PSSL; buf: SslPtr; num: cInt):cInt;
   function SslPending(ssl: PSSL):cInt;
-  function SslGetVersion(ssl: PSSL):String;
+  function SslGetVersion(ssl: PSSL):StringA;
   function SslGetPeerCertificate(ssl: PSSL):PX509;
   procedure SslCtxSetVerify(ctx: PSSL_CTX; mode: cInt; arg2: PFunction);
   function SSLGetCurrentCipher(s: PSSL):SslPtr;
-  function SSLCipherGetName(c: SslPtr): String;
+  function SSLCipherGetName(c: SslPtr): StringA;
   function SSLCipherGetBits(c: SslPtr; var alg_bits: cInt):cInt;
   function SSLGetVerifyResult(ssl: PSSL):cLong;
 
@@ -822,18 +825,18 @@ var
   procedure ERR_load_crypto_strings;
   function X509New: PX509;
   procedure X509Free(x: PX509);
-  function X509NameOneline(a: PX509_NAME; var buf: String; size: cInt):String;
+  function X509NameOneline(a: PX509_NAME; var buf: StringA; size: cInt):StringA;
   function X509GetSubjectName(a: PX509):PX509_NAME;
   function X509GetIssuerName(a: PX509):PX509_NAME;
   function X509NameHash(x: PX509_NAME):cuLong;
 //  function SslX509Digest(data: PX509; _type: PEVP_MD; md: PChar; len: PcInt):cInt;
-  function X509Digest(data: PX509; _type: PEVP_MD; md: String; var len: cInt):cInt;
+  function X509Digest(data: PX509; _type: PEVP_MD; md: StringA; var len: cInt):cInt;
   function X509print(b: PBIO; a: PX509): cInt;
   function X509SetVersion(x: PX509; version: cInt): cInt;
   function X509SetPubkey(x: PX509; pkey: PEVP_PKEY): cInt;
   function X509SetIssuerName(x: PX509; name: PX509_NAME): cInt;
-  function X509NameAddEntryByTxt(name: PX509_NAME; field: string; _type: cInt;
-    bytes: string; len, loc, _set: cInt): cInt;
+  function X509NameAddEntryByTxt(name: PX509_NAME; field: StringA; _type: cInt;
+    bytes: StringA; len, loc, _set: cInt): cInt;
   function X509Sign(x: PX509; pkey: PEVP_PKEY; const md: PEVP_MD): cInt;
   function X509GmtimeAdj(s: PASN1_UTCTIME; adj: cInt): PASN1_UTCTIME;
   function X509SetNotBefore(x: PX509; tm: PASN1_UTCTIME): cInt;
@@ -842,17 +845,17 @@ var
   function EvpPkeyNew: PEVP_PKEY;
   procedure EvpPkeyFree(pk: PEVP_PKEY);
   function EvpPkeyAssign(pkey: PEVP_PKEY; _type: cInt; key: Prsa): cInt;
-  function EvpGetDigestByName(Name: String): PEVP_MD;
+  function EvpGetDigestByName(Name: StringA): PEVP_MD;
   procedure EVPcleanup;
-  function SSLeayversion(t: cInt): string;
-  procedure ErrErrorString(e: cInt; var buf: string; len: cInt);
+  function SSLeayversion(t: cInt): StringA;
+  procedure ErrErrorString(e: cInt; var buf: StringA; len: cInt);
   function ErrGetError: cInt;
   procedure ErrClearError;
   procedure ErrFreeStrings;
   procedure ErrRemoveState(pid: cInt);
   procedure RandScreen;
   function d2iPKCS12bio(b:PBIO; Pkcs12: SslPtr): SslPtr;
-  function PKCS12parse(p12: SslPtr; pass: string; var pkey, cert, ca: SslPtr): cInt;
+  function PKCS12parse(p12: SslPtr; pass: StringA; var pkey, cert, ca: SslPtr): cInt;
   procedure PKCS12free(p12: SslPtr);
   function Asn1UtctimeNew: PASN1_UTCTIME;
   procedure Asn1UtctimeFree(a: PASN1_UTCTIME);
@@ -877,13 +880,13 @@ var
   function RAND_pseudo_bytes(buf: PByte; num: cint): cint;
   procedure RAND_seed(const buf: Pointer; num: cint);
   procedure RAND_add(const buf: Pointer; num: cint; entropy: cdouble);
-  function RAND_load_file(const file_name: PChar; max_bytes: clong): cint;
-  function RAND_write_file(const file_name: PChar): cint;
-  function RAND_file_name(file_name: PChar; num: csize_t): PChar;
+  function RAND_load_file(const file_name: PCharA; max_bytes: clong): cint;
+  function RAND_write_file(const file_name: PCharA): cint;
+  function RAND_file_name(file_name: PCharA; num: csize_t): PCharA;
   function RAND_status: cint;
-  function RAND_query_egd_bytes(const path: PChar; buf: PByte; bytes: cint): cint;
-  function RAND_egd(const path: PChar): cint;
-  function RAND_egd_bytes(const path: PChar; bytes: cint): cint;
+  function RAND_query_egd_bytes(const path: PCharA; buf: PByte; bytes: cint): cint;
+  function RAND_egd(const path: PCharA): cint;
+  function RAND_egd_bytes(const path: PCharA; bytes: cint): cint;
   procedure ERR_load_RAND_strings;
   function RAND_poll: cint;
 
@@ -925,11 +928,11 @@ var
 
   // ERR Functions
 
-  function Err_Error_String(e: cInt; buf: PChar): PChar;
+  function Err_Error_String(e: cInt; buf: PCharA): PCharA;
 
   // Crypto Functions
 
-  function SSLeay_version(t: cint): PChar;
+  function SSLeay_version(t: cint): PCharA;
 
   // EVP Functions - evp.h
   function EVP_des_ede3_cbc : PEVP_CIPHER;
@@ -964,8 +967,8 @@ var
   function EVP_VerifyFinal(ctx: pEVP_MD_CTX; sigbuf: pointer;
     siglen: cardinal; pkey: pEVP_PKEY): integer;
   //
-  function EVP_get_cipherbyname(const name: PChar): PEVP_CIPHER;
-  function EVP_get_digestbyname(const name: PChar): PEVP_MD;
+  function EVP_get_cipherbyname(const name: PCharA): PEVP_CIPHER;
+  function EVP_get_digestbyname(const name: PCharA): PEVP_MD;
   //
   procedure EVP_CIPHER_CTX_init(a: PEVP_CIPHER_CTX);
   function EVP_CIPHER_CTX_cleanup(a: PEVP_CIPHER_CTX): cint;
@@ -991,7 +994,7 @@ var
   function PEM_read_bio_PUBKEY(bp: pBIO; var x: pEVP_PKEY;
                cb: Ppem_password_cb; u: pointer): pEVP_PKEY;
   function PEM_write_bio_PrivateKey(bp: pBIO; x: pEVP_PKEY;
-               const enc: pEVP_CIPHER; kstr: PChar; klen: Integer; cb: Ppem_password_cb;
+               const enc: pEVP_CIPHER; kstr: PCharA; klen: Integer; cb: Ppem_password_cb;
                u: pointer): integer;	
   function PEM_write_bio_PUBKEY(bp: pBIO; x: pEVP_PKEY): integer;
 
@@ -1000,13 +1003,13 @@ var
   procedure BioFreeAll(b: PBIO);
   function BioSMem: PBIO_METHOD;
   function BioCtrlPending(b: PBIO): cInt;
-  function BioRead(b: PBIO; var Buf: String; Len: cInt): cInt;
-  function BioWrite(b: PBIO; Buf: String; Len: cInt): cInt;
+  function BioRead(b: PBIO; var Buf: StringA; Len: cInt): cInt;
+  function BioWrite(b: PBIO; Buf: StringA; Len: cInt): cInt;
   function BIO_ctrl(bp: PBIO; cmd: cint; larg: clong; parg: Pointer): clong;
-  function BIO_read_filename(b: PBIO; const name: PChar): cint;
+  function BIO_read_filename(b: PBIO; const name: PCharA): cint;
   
   function BIO_s_file: pBIO_METHOD;
-  function BIO_new_file(const filename: PChar; const mode: PChar): pBIO;
+  function BIO_new_file(const filename: PCharA; const mode: PCharA): pBIO;
   function BIO_new_mem_buf(buf: pointer; len: integer): pBIO;
   procedure CRYPTOcleanupAllExData;
   procedure OPENSSLaddallalgorithms;
@@ -1107,7 +1110,7 @@ type
   TSslGetError = function(s: PSSL; ret_code: cInt):cInt; cdecl;
   TSslLibraryInit = function:cInt; cdecl;
   TSslLoadErrorStrings = procedure; cdecl;
-  TSslCtxSetCipherList = function(arg0: PSSL_CTX; str: PChar):cInt; cdecl;
+  TSslCtxSetCipherList = function(arg0: PSSL_CTX; str: PCharA):cInt; cdecl;
   TSslCtxNew = function(meth: PSSL_METHOD):PSSL_CTX; cdecl;
   TSslCtxFree = procedure(arg0: PSSL_CTX); cdecl;
   TSslSetFd = function(s: PSSL; fd: cInt):cInt; cdecl;
@@ -1119,29 +1122,29 @@ type
   TSslMethodV23 = function:PSSL_METHOD; cdecl;
   TSslCtxUsePrivateKey = function(ctx: PSSL_CTX; pkey: sslptr):cInt; cdecl;
   TSslCtxUsePrivateKeyASN1 = function(pk: cInt; ctx: PSSL_CTX; d: sslptr; len: cInt):cInt; cdecl;
-  TSslCtxUsePrivateKeyFile = function(ctx: PSSL_CTX; const _file: PChar; _type: cInt):cInt; cdecl;
+  TSslCtxUsePrivateKeyFile = function(ctx: PSSL_CTX; const _file: PCharA; _type: cInt):cInt; cdecl;
   TSslCtxUseCertificate = function(ctx: PSSL_CTX; x: SslPtr):cInt; cdecl;
   TSslCtxUseCertificateASN1 = function(ctx: PSSL_CTX; len: cInt; d: SslPtr):cInt; cdecl;
-  TSslCtxUseCertificateFile = function(ctx: PSSL_CTX; const _file: PChar; _type: cInt):cInt; cdecl;
-  TSslCtxUseCertificateChainFile = function(ctx: PSSL_CTX; const _file: PChar):cInt; cdecl;
+  TSslCtxUseCertificateFile = function(ctx: PSSL_CTX; const _file: PCharA; _type: cInt):cInt; cdecl;
+  TSslCtxUseCertificateChainFile = function(ctx: PSSL_CTX; const _file: PCharA):cInt; cdecl;
   TSslCtxCheckPrivateKeyFile = function(ctx: PSSL_CTX):cInt; cdecl;
   TSslCtxSetDefaultPasswdCb = procedure(ctx: PSSL_CTX; cb: SslPtr); cdecl;
   TSslCtxSetDefaultPasswdCbUserdata = procedure(ctx: PSSL_CTX; u: SslPtr); cdecl;
-  TSslCtxLoadVerifyLocations = function(ctx: PSSL_CTX; const CAfile: PChar; const CApath: PChar):cInt; cdecl;
+  TSslCtxLoadVerifyLocations = function(ctx: PSSL_CTX; const CAfile: PCharA; const CApath: PCharA):cInt; cdecl;
   TSslNew = function(ctx: PSSL_CTX):PSSL; cdecl;
   TSslFree = procedure(ssl: PSSL); cdecl;
   TSslAccept = function(ssl: PSSL):cInt; cdecl;
   TSslConnect = function(ssl: PSSL):cInt; cdecl;
   TSslShutdown = function(ssl: PSSL):cInt; cdecl;
-  TSslRead = function(ssl: PSSL; buf: PChar; num: cInt):cInt; cdecl;
-  TSslPeek = function(ssl: PSSL; buf: PChar; num: cInt):cInt; cdecl;
-  TSslWrite = function(ssl: PSSL; const buf: PChar; num: cInt):cInt; cdecl;
+  TSslRead = function(ssl: PSSL; buf: PCharA; num: cInt):cInt; cdecl;
+  TSslPeek = function(ssl: PSSL; buf: PCharA; num: cInt):cInt; cdecl;
+  TSslWrite = function(ssl: PSSL; const buf: PCharA; num: cInt):cInt; cdecl;
   TSslPending = function(ssl: PSSL):cInt; cdecl;
-  TSslGetVersion = function(ssl: PSSL):PChar; cdecl;
+  TSslGetVersion = function(ssl: PSSL):PCharA; cdecl;
   TSslGetPeerCertificate = function(ssl: PSSL):PX509; cdecl;
   TSslCtxSetVerify = procedure(ctx: PSSL_CTX; mode: cInt; arg2: SslPtr); cdecl;
   TSSLGetCurrentCipher = function(s: PSSL):SslPtr; cdecl;
-  TSSLCipherGetName = function(c: Sslptr):PChar; cdecl;
+  TSSLCipherGetName = function(c: Sslptr):PCharA; cdecl;
   TSSLCipherGetBits = function(c: SslPtr; alg_bits: PcInt):cInt; cdecl;
   TSSLGetVerifyResult = function(ssl: PSSL):cInt; cdecl;
 
@@ -1149,17 +1152,17 @@ type
   TERR_load_crypto_strings = procedure; cdecl;
   TX509New = function: PX509; cdecl;
   TX509Free = procedure(x: PX509); cdecl;
-  TX509NameOneline = function(a: PX509_NAME; buf: PChar; size: cInt):PChar; cdecl;
+  TX509NameOneline = function(a: PX509_NAME; buf: PCharA; size: cInt):PCharA; cdecl;
   TX509GetSubjectName = function(a: PX509):PX509_NAME; cdecl;
   TX509GetIssuerName = function(a: PX509):PX509_NAME; cdecl;
   TX509NameHash = function(x: PX509_NAME):cuLong; cdecl;
-  TX509Digest = function(data: PX509; _type: PEVP_MD; md: PChar; len: PcInt):cInt; cdecl;
+  TX509Digest = function(data: PX509; _type: PEVP_MD; md: PCharA; len: PcInt):cInt; cdecl;
   TX509print = function(b: PBIO; a: PX509): cInt; cdecl;
   TX509SetVersion = function(x: PX509; version: cInt): cInt; cdecl;
   TX509SetPubkey = function(x: PX509; pkey: PEVP_PKEY): cInt; cdecl;
   TX509SetIssuerName = function(x: PX509; name: PX509_NAME): cInt; cdecl;
-  TX509NameAddEntryByTxt = function(name: PX509_NAME; field: PChar; _type: cInt;
-    bytes: PChar; len, loc, _set: cInt): cInt; cdecl;
+  TX509NameAddEntryByTxt = function(name: PX509_NAME; field: PCharA; _type: cInt;
+    bytes: PCharA; len, loc, _set: cInt): cInt; cdecl;
   TX509Sign = function(x: PX509; pkey: PEVP_PKEY; const md: PEVP_MD): cInt; cdecl;
   TX509GmtimeAdj = function(s: PASN1_UTCTIME; adj: cInt): PASN1_UTCTIME; cdecl;
   TX509SetNotBefore = function(x: PX509; tm: PASN1_UTCTIME): cInt; cdecl;
@@ -1168,10 +1171,10 @@ type
   TEvpPkeyNew = function: PEVP_PKEY; cdecl;
   TEvpPkeyFree = procedure(pk: PEVP_PKEY); cdecl;
   TEvpPkeyAssign = function(pkey: PEVP_PKEY; _type: cInt; key: Prsa): cInt; cdecl;
-  TEvpGetDigestByName = function(Name: PChar): PEVP_MD; cdecl;
+  TEvpGetDigestByName = function(Name: PCharA): PEVP_MD; cdecl;
   TEVPcleanup = procedure; cdecl;
-  TSSLeayversion = function(t: cInt): PChar; cdecl;
-  TErrErrorString = procedure(e: cInt; buf: PChar; len: cInt); cdecl;
+  TSSLeayversion = function(t: cInt): PCharA; cdecl;
+  TErrErrorString = procedure(e: cInt; buf: PCharA; len: cInt); cdecl;
   TErrGetError = function: cInt; cdecl;
   TErrClearError = procedure; cdecl;
   TErrFreeStrings = procedure; cdecl;
@@ -1181,10 +1184,10 @@ type
   TBioFreeAll = procedure(b: PBIO); cdecl;
   TBioSMem = function: PBIO_METHOD; cdecl;
   TBioCtrlPending = function(b: PBIO): cInt; cdecl;
-  TBioRead = function(b: PBIO; Buf: PChar; Len: cInt): cInt; cdecl;
-  TBioWrite = function(b: PBIO; Buf: PChar; Len: cInt): cInt; cdecl;
+  TBioRead = function(b: PBIO; Buf: PCharA; Len: cInt): cInt; cdecl;
+  TBioWrite = function(b: PBIO; Buf: PCharA; Len: cInt): cInt; cdecl;
   Td2iPKCS12bio = function(b:PBIO; Pkcs12: SslPtr): SslPtr; cdecl;
-  TPKCS12parse = function(p12: SslPtr; pass: PChar; var pkey, cert, ca: SslPtr): cInt; cdecl;
+  TPKCS12parse = function(p12: SslPtr; pass: PCharA; var pkey, cert, ca: SslPtr): cInt; cdecl;
   TPKCS12free = procedure(p12: SslPtr); cdecl;
   TAsn1UtctimeNew = function: PASN1_UTCTIME; cdecl;
   TAsn1UtctimeFree = procedure(a: PASN1_UTCTIME); cdecl;
@@ -1211,13 +1214,13 @@ type
   TRAND_pseudo_bytes = function(buf: PByte; num: cint): cint; cdecl;
   TRAND_seed = procedure(const buf: Pointer; num: cint); cdecl;
   TRAND_add = procedure(const buf: Pointer; num: cint; entropy: cdouble); cdecl;
-  TRAND_load_file = function(const file_name: PChar; max_bytes: clong): cint; cdecl;
-  TRAND_write_file = function(const file_name: PChar): cint; cdecl;
-  TRAND_file_name = function(file_name: PChar; num: csize_t): PChar; cdecl;
+  TRAND_load_file = function(const file_name: PCharA; max_bytes: clong): cint; cdecl;
+  TRAND_write_file = function(const file_name: PCharA): cint; cdecl;
+  TRAND_file_name = function(file_name: PCharA; num: csize_t): PCharA; cdecl;
   TRAND_status = function(): cint; cdecl;
-  TRAND_query_egd_bytes = function(const path: PChar; buf: PByte; bytes: cint): cint; cdecl;
-  TRAND_egd = function(const path: PChar): cint; cdecl;
-  TRAND_egd_bytes = function(const path: PChar; bytes: cint): cint; cdecl;
+  TRAND_query_egd_bytes = function(const path: PCharA; buf: PByte; bytes: cint): cint; cdecl;
+  TRAND_egd = function(const path: PCharA): cint; cdecl;
+  TRAND_egd_bytes = function(const path: PCharA; bytes: cint): cint; cdecl;
   TERR_load_RAND_strings = procedure(); cdecl;
   TRAND_poll = function(): cint; cdecl;
 
@@ -1248,11 +1251,11 @@ type
 
   // ERR Functions
 
-  TErr_Error_String = function (e: cInt; buf: PChar): PChar; cdecl;
+  TErr_Error_String = function (e: cInt; buf: PCharA): PCharA; cdecl;
 
   // Crypto Functions
 
-  TSSLeay_version = function(t: cint): PChar; cdecl;
+  TSSLeay_version = function(t: cint): PCharA; cdecl;
   TCRYPTOcleanupAllExData = procedure; cdecl;
   TOPENSSLaddallalgorithms = procedure; cdecl;
 
@@ -1274,8 +1277,8 @@ type
     siglen: cardinal; pkey: pEVP_PKEY): integer;  cdecl;
   //
   TEVP_CIPHERFunction = function() : PEVP_CIPHER; cdecl;
-  TEVP_get_cipherbyname = function(const name: PChar): PEVP_CIPHER; cdecl;
-  TEVP_get_digestbyname = function(const name: PChar): PEVP_MD; cdecl;
+  TEVP_get_cipherbyname = function(const name: PCharA): PEVP_CIPHER; cdecl;
+  TEVP_get_digestbyname = function(const name: PCharA): PEVP_MD; cdecl;
   //
   TEVP_CIPHER_CTX_init = procedure(a: PEVP_CIPHER_CTX); cdecl;
   TEVP_CIPHER_CTX_cleanup = function(a: PEVP_CIPHER_CTX): cint; cdecl;
@@ -1302,7 +1305,7 @@ type
   TPEM_read_bio_PUBKEY = function(bp: pBIO; var x: pEVP_PKEY;
                cb: Ppem_password_cb; u: pointer): pEVP_PKEY; cdecl;
   TPEM_write_bio_PrivateKey = function(bp: pBIO; x: pEVP_PKEY;
-               const enc: pEVP_CIPHER; kstr: PChar; klen: Integer; cb: Ppem_password_cb;
+               const enc: pEVP_CIPHER; kstr: PCharA; klen: Integer; cb: Ppem_password_cb;
                u: pointer): integer; cdecl;	
   TPEM_write_bio_PUBKEY = function(bp: pBIO; x: pEVP_PKEY): integer; cdecl;
 
@@ -1311,7 +1314,7 @@ type
   TBIO_ctrl = function(bp: PBIO; cmd: cint; larg: clong; parg: Pointer): clong; cdecl;
   
   TBIO_s_file = function: pBIO_METHOD; cdecl;
-  TBIO_new_file = function(const filename: PChar; const mode: PChar): pBIO; cdecl;
+  TBIO_new_file = function(const filename: PCharA; const mode: PCharA): pBIO; cdecl;
   TBIO_new_mem_buf = function(buf: pointer; len: integer): pBIO; cdecl;
 
 var
@@ -1555,10 +1558,10 @@ begin
     _SslLoadErrorStrings;
 end;
 
-function SslCtxSetCipherList(arg0: PSSL_CTX; var str: String):cInt;
+function SslCtxSetCipherList(arg0: PSSL_CTX; var str: StringA):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxSetCipherList) then
-    Result := _SslCtxSetCipherList(arg0, PChar(str))
+    Result := _SslCtxSetCipherList(arg0, PCharA(str))
   else
     Result := 0;
 end;
@@ -1662,7 +1665,7 @@ begin
     Result := 0;
 end;
 
-function SslCtxUsePrivateKeyASN1(pk: cInt; ctx: PSSL_CTX; d: String; len: cLong):cInt;
+function SslCtxUsePrivateKeyASN1(pk: cInt; ctx: PSSL_CTX; d: StringA; len: cLong):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxUsePrivateKeyASN1) then
     Result := _SslCtxUsePrivateKeyASN1(pk, ctx, Sslptr(d), len)
@@ -1670,10 +1673,10 @@ begin
     Result := 0;
 end;
 
-function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: String; _type: cInt):cInt;
+function SslCtxUsePrivateKeyFile(ctx: PSSL_CTX; const _file: StringA; _type: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxUsePrivateKeyFile) then
-    Result := _SslCtxUsePrivateKeyFile(ctx, PChar(_file), _type)
+    Result := _SslCtxUsePrivateKeyFile(ctx, PAnsiChar(StringA(_file)), _type)
   else
     Result := 0;
 end;
@@ -1686,7 +1689,7 @@ begin
     Result := 0;
 end;
 
-function SslCtxUseCertificateASN1(ctx: PSSL_CTX; len: cLong; d: String):cInt;
+function SslCtxUseCertificateASN1(ctx: PSSL_CTX; len: cLong; d: StringA):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxUseCertificateASN1) then
     Result := _SslCtxUseCertificateASN1(ctx, len, SslPtr(d))
@@ -1694,18 +1697,18 @@ begin
     Result := 0;
 end;
 
-function SslCtxUseCertificateFile(ctx: PSSL_CTX; const _file: String; _type: cInt):cInt;
+function SslCtxUseCertificateFile(ctx: PSSL_CTX; const _file: StringA; _type: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxUseCertificateFile) then
-    Result := _SslCtxUseCertificateFile(ctx, PChar(_file), _type)
+    Result := _SslCtxUseCertificateFile(ctx, PCharA(StringA(_file)), _type)
   else
     Result := 0;
 end;
 
-function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: String):cInt;
+function SslCtxUseCertificateChainFile(ctx: PSSL_CTX; const _file: StringA):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxUseCertificateChainFile) then
-    Result := _SslCtxUseCertificateChainFile(ctx, PChar(_file))
+    Result := _SslCtxUseCertificateChainFile(ctx, PCharA(StringA(_file)))
   else
     Result := 0;
 end;
@@ -1730,10 +1733,10 @@ begin
     _SslCtxSetDefaultPasswdCbUserdata(ctx, u);
 end;
 
-function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: String; const CApath: String):cInt;
+function SslCtxLoadVerifyLocations(ctx: PSSL_CTX; const CAfile: StringA; const CApath: StringA):cInt;
 begin
   if InitSSLInterface and Assigned(_SslCtxLoadVerifyLocations) then
-    Result := _SslCtxLoadVerifyLocations(ctx, SslPtr(CAfile), SslPtr(CApath))
+    Result := _SslCtxLoadVerifyLocations(ctx, SslPtr((CAfile)), SslPtr((CApath)))
   else
     Result := 0;
 end;
@@ -1779,7 +1782,7 @@ end;
 function SslRead(ssl: PSSL; buf: SslPtr; num: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_SslRead) then
-    Result := _SslRead(ssl, PChar(buf), num)
+    Result := _SslRead(ssl, PCharA(buf), num)
   else
     Result := -1;
 end;
@@ -1787,7 +1790,7 @@ end;
 function SslPeek(ssl: PSSL; buf: SslPtr; num: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_SslPeek) then
-    Result := _SslPeek(ssl, PChar(buf), num)
+    Result := _SslPeek(ssl, PCharA(buf), num)
   else
     Result := -1;
 end;
@@ -1795,7 +1798,7 @@ end;
 function SslWrite(ssl: PSSL; buf: SslPtr; num: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_SslWrite) then
-    Result := _SslWrite(ssl, PChar(buf), num)
+    Result := _SslWrite(ssl, PCharA(buf), num)
   else
     Result := -1;
 end;
@@ -1808,8 +1811,8 @@ begin
     Result := 0;
 end;
 
-//function SslGetVersion(ssl: PSSL):PChar;
-function SslGetVersion(ssl: PSSL):String;
+//function SslGetVersion(ssl: PSSL):PCharA;
+function SslGetVersion(ssl: PSSL):StringA;
 begin
   if InitSSLInterface and Assigned(_SslGetVersion) then
     Result := _SslGetVersion(ssl)
@@ -1842,7 +1845,7 @@ begin
     Result := nil;
 end;
 
-function SSLCipherGetName(c: SslPtr):String;
+function SSLCipherGetName(c: SslPtr):StringA;
 begin
   if InitSSLInterface and Assigned(_SSLCipherGetName) then
     Result := _SSLCipherGetName(c)
@@ -1868,10 +1871,10 @@ end;
 
 
 // libeay.dll
-function SSLeayversion(t: cInt): string;
+function SSLeayversion(t: cInt): StringA;
 begin
   if InitSSLInterface and Assigned(_SSLeayversion) then
-    Result := PChar(_SSLeayversion(t))
+    Result := PCharA(_SSLeayversion(t))
   else
     Result := '';
 end;
@@ -1896,10 +1899,10 @@ begin
     _X509Free(x);
 end;
 
-function X509NameOneline(a: PX509_NAME; var buf: String; size: cInt):String;
+function X509NameOneline(a: PX509_NAME; var buf: StringA; size: cInt):StringA;
 begin
   if InitSSLInterface and Assigned(_X509NameOneline) then
-    Result := _X509NameOneline(a, PChar(buf),size)
+    Result := _X509NameOneline(a, PCharA(buf),size)
   else
     Result := '';
 end;
@@ -1928,10 +1931,10 @@ begin
     Result := 0;
 end;
 
-function X509Digest(data: PX509; _type: PEVP_MD; md: String; var len: cInt):cInt;
+function X509Digest(data: PX509; _type: PEVP_MD; md: StringA; var len: cInt):cInt;
 begin
   if InitSSLInterface and Assigned(_X509Digest) then
-    Result := _X509Digest(data, _type, PChar(md), @len)
+    Result := _X509Digest(data, _type, PCharA(md), @len)
   else
     Result := 0;
 end;
@@ -1950,11 +1953,11 @@ begin
     _EvpPkeyFree(pk);
 end;
 
-procedure ErrErrorString(e: cInt; var buf: string; len: cInt);
+procedure ErrErrorString(e: cInt; var buf: StringA; len: cInt);
 begin
   if InitSSLInterface and Assigned(_ErrErrorString) then
     _ErrErrorString(e, Pointer(buf), len);
-  buf := PChar(Buf);
+  buf := PCharA(Buf);
 end;
 
 function ErrGetError: cInt;
@@ -2026,19 +2029,19 @@ begin
     Result := 0;
 end;
 
-function BioRead(b: PBIO; var Buf: String; Len: cInt): cInt;
+function BioRead(b: PBIO; var Buf: StringA; Len: cInt): cInt;
 begin
   if InitSSLInterface and Assigned(_BioRead) then
-    Result := _BioRead(b, PChar(Buf), Len)
+    Result := _BioRead(b, PCharA(Buf), Len)
   else
     Result := -2;
 end;
 
-//function BioWrite(b: PBIO; Buf: PChar; Len: cInt): cInt;
-function BioWrite(b: PBIO; Buf: String; Len: cInt): cInt;
+//function BioWrite(b: PBIO; Buf: PCharA; Len: cInt): cInt;
+function BioWrite(b: PBIO; Buf: StringA; Len: cInt): cInt;
 begin
   if InitSSLInterface and Assigned(_BioWrite) then
-    Result := _BioWrite(b, PChar(Buf), Len)
+    Result := _BioWrite(b, PCharA(Buf), Len)
   else
     Result := -2;
 end;
@@ -2059,7 +2062,7 @@ begin
     Result := nil;
 end;
 
-function PKCS12parse(p12: SslPtr; pass: string; var pkey, cert, ca: SslPtr): cInt;
+function PKCS12parse(p12: SslPtr; pass: StringA; var pkey, cert, ca: SslPtr): cInt;
 begin
   if InitSSLInterface and Assigned(_PKCS12parse) then
     Result := _PKCS12parse(p12, SslPtr(pass), pkey, cert, ca)
@@ -2105,11 +2108,11 @@ begin
     Result := 0;
 end;
 
-function X509NameAddEntryByTxt(name: PX509_NAME; field: string; _type: cInt;
-  bytes: string; len, loc, _set: cInt): cInt;
+function X509NameAddEntryByTxt(name: PX509_NAME; field: StringA; _type: cInt;
+  bytes: StringA; len, loc, _set: cInt): cInt;
 begin
   if InitSSLInterface and Assigned(_X509NameAddEntryByTxt) then
-    Result := _X509NameAddEntryByTxt(name, PChar(field), _type, PChar(Bytes), len, loc, _set)
+    Result := _X509NameAddEntryByTxt(name, PCharA(field), _type, PCharA(Bytes), len, loc, _set)
   else
     Result := 0;
 end;
@@ -2192,10 +2195,10 @@ begin
     Result := 0;
 end;
 
-function EvpGetDigestByName(Name: String): PEVP_MD;
+function EvpGetDigestByName(Name: StringA): PEVP_MD;
 begin
   if InitSSLInterface and Assigned(_EvpGetDigestByName) then
-    Result := _EvpGetDigestByName(PChar(Name))
+    Result := _EvpGetDigestByName(PCharA(Name))
   else
     Result := nil;
 end;
@@ -2296,7 +2299,7 @@ begin
     _RAND_add(buf, num, entropy);
 end;
 
-function RAND_load_file(const file_name: PChar; max_bytes: clong): cint;
+function RAND_load_file(const file_name: PCharA; max_bytes: clong): cint;
 begin
   if InitSSLInterface and Assigned(_RAND_load_file) then
     Result := _RAND_load_file(file_name, max_bytes)
@@ -2304,7 +2307,7 @@ begin
     Result := -1;
 end;
 
-function RAND_write_file(const file_name: PChar): cint;
+function RAND_write_file(const file_name: PCharA): cint;
 begin
   if InitSSLInterface and Assigned(_RAND_write_file) then
     Result := _RAND_write_file(file_name)
@@ -2312,7 +2315,7 @@ begin
     Result := -1;
 end;
 
-function RAND_file_name(file_name: PChar; num: csize_t): PChar;
+function RAND_file_name(file_name: PCharA; num: csize_t): PCharA;
 begin
   if InitSSLInterface and Assigned(_RAND_file_name) then
     Result := _RAND_file_name(file_name, num)
@@ -2328,7 +2331,7 @@ begin
     Result := -1;
 end;
 
-function RAND_query_egd_bytes(const path: PChar; buf: PByte; bytes: cint): cint;
+function RAND_query_egd_bytes(const path: PCharA; buf: PByte; bytes: cint): cint;
 begin
   if InitSSLInterface and Assigned(_RAND_query_egd_bytes) then
     Result := _RAND_query_egd_bytes(path, buf, bytes)
@@ -2336,7 +2339,7 @@ begin
     Result := -1;
 end;
 
-function RAND_egd(const path: PChar): cint;
+function RAND_egd(const path: PCharA): cint;
 begin
   if InitSSLInterface and Assigned(_RAND_egd) then
     Result := _RAND_egd(path)
@@ -2344,7 +2347,7 @@ begin
     Result := -1;
 end;
 
-function RAND_egd_bytes(const path: PChar; bytes: cint): cint;
+function RAND_egd_bytes(const path: PCharA; bytes: cint): cint;
 begin
   if InitSSLInterface and Assigned(_RAND_egd_bytes) then
     Result := _RAND_egd_bytes(path, bytes)
@@ -2526,7 +2529,7 @@ end;
 
 // ERR Functions
 
-function Err_Error_String(e: cInt; buf: PChar): PChar;
+function Err_Error_String(e: cInt; buf: PCharA): PCharA;
 begin
   if InitSSLInterface and Assigned(_Err_Error_String) then
     Result := _Err_Error_String(e, buf)
@@ -2536,7 +2539,7 @@ end;
 
 // Crypto Functions
 
-function SSLeay_version(t: cint): PChar;
+function SSLeay_version(t: cint): PCharA;
 begin
   if InitSSLInterface and Assigned(_SSLeay_version) then
     Result := _SSLeay_version(t)
@@ -2758,7 +2761,7 @@ end;
 
 
 //
-function EVP_get_cipherbyname(const name: PChar): PEVP_CIPHER;
+function EVP_get_cipherbyname(const name: PCharA): PEVP_CIPHER;
 begin
   if InitSSLInterface and Assigned(_EVP_get_cipherbyname) then
     Result := _EVP_get_cipherbyname(name)
@@ -2766,7 +2769,7 @@ begin
     Result := nil;
 end;
 
-function EVP_get_digestbyname(const name: PChar): PEVP_MD;
+function EVP_get_digestbyname(const name: PCharA): PEVP_MD;
 begin
   if InitSSLInterface and Assigned(_EVP_get_digestbyname) then
     Result := _EVP_get_digestbyname(name)
@@ -2877,7 +2880,7 @@ begin
 end;
 
 function PEM_write_bio_PrivateKey(bp: pBIO; x: pEVP_PKEY;
-               const enc: pEVP_CIPHER; kstr: PChar; klen: Integer; cb: Ppem_password_cb;
+               const enc: pEVP_CIPHER; kstr: PCharA; klen: Integer; cb: Ppem_password_cb;
                u: pointer): integer; 
 Begin
    if InitSSLInterface and Assigned(_PEM_write_bio_PrivateKey) then
@@ -2904,7 +2907,7 @@ begin
     Result := -1;
 end;
 
-function BIO_read_filename(b: PBIO; const name: PChar): cint;
+function BIO_read_filename(b: PBIO; const name: PCharA): cint;
 begin
   Result := BIO_ctrl(b, BIO_C_SET_FILENAME, BIO_CLOSE or BIO_FP_READ, name);
 end;
@@ -2917,7 +2920,7 @@ begin
     Result := nil;
 end;
 
-function BIO_new_file(const filename: PChar; const mode: PChar): pBIO;
+function BIO_new_file(const filename: PCharA; const mode: PCharA): pBIO;
 begin
   if InitSSLInterface and Assigned(_BIO_new_file) then
     Result := _BIO_new_file(filename, mode)
@@ -2945,7 +2948,7 @@ begin
     _OPENSSLaddallalgorithms;
 end;
 
-function LoadLib(const Value: String): HModule;
+function LoadLib(const Value: string): HModule;
 begin
   Result := LoadLibrary(PChar(Value));
 end;
@@ -3399,7 +3402,7 @@ begin
   _SSLeay_version := nil;
 end;
 
-procedure locking_callback(mode, ltype: integer; lfile: PChar; line: integer); cdecl;
+procedure locking_callback(mode, ltype: integer; lfile: PCharA; line: integer); cdecl;
 begin
   if (mode and 1) > 0 then
     EnterCriticalSection(Locks[ltype])

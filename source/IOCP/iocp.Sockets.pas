@@ -68,6 +68,7 @@ type
   TIocpBlockSocketStream = class;
   TIocpDisconnectExRequest = class;
 
+  TIocpRecvRequestClass = class of TIocpRecvRequest;
   TIocpSendRequestClass = class of TIocpSendRequest;
   TIocpContextClass = class of TIocpCustomContext;
 
@@ -233,14 +234,14 @@ type
     /// 如果请求完成, 将调用 DoSendRequestCompleted 过程
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
-      pvCopyBuf: Boolean = True): Boolean; overload;
+      pvCopyBuf: Boolean = True): Boolean; overload; 
     /// <summary>
     /// 投递一个发送请求到Iocp队列中, 成功返回 True.
     /// 如果请求完成, 将调用 DoSendRequestCompleted 过程
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
-      pvTagData: Pointer = nil): Boolean; overload;
+      pvTagData: Pointer = nil): Boolean; overload; virtual;
 
     /// <summary>
     /// 设置发送队列上限大小
@@ -305,6 +306,7 @@ type
   protected
     FContextClass: TIocpContextClass;
     FSendRequestClass: TIocpSendRequestClass;
+    FRecvRequestClass: TIocpRecvRequestClass;
     procedure SetName(const NewName: TComponentName); override;
     procedure SetActive(const Value: Boolean);
     procedure Loaded; override;
@@ -436,6 +438,10 @@ type
     /// </summary>
     function GetSendRequest: TIocpSendRequest;
     /// <summary>
+    /// 获取一个RecvRequest对象
+    /// </summary>
+    function GetRecvRequest: TIocpRecvRequest;
+    /// <summary>
     /// 释放SendRequest，还回池中
     /// </summary>
     function ReleaseSendRequest(pvObject: TIocpSendRequest): Boolean;
@@ -526,12 +532,12 @@ type
   TIocpRecvRequest = class(TIocpRequestEx)
   private
     FOwner: TIocpCustom;
+  protected
     FRecvBuffer: TWsaBuf;
     FInnerBuffer: TWsaBuf;
     FRecvdFlag: Cardinal;
-  protected
     function PostRequest: Boolean; overload;
-    function PostRequest(pvBuffer: PAnsiChar; len: Cardinal): Boolean; overload;
+    function PostRequest(pvBuffer: PAnsiChar; len: Cardinal): Boolean; overload; virtual;
     procedure HandleResponse; override;
   public
     constructor Create; override;
@@ -561,7 +567,7 @@ type
     // post send a block
     function ExecuteSend: Boolean; virtual;
     procedure UnBindingSendBuffer;
-    function InnerPostRequest(buf: Pointer; len: Cardinal): Boolean;
+    function InnerPostRequest(buf: Pointer; len: Cardinal): Boolean; virtual;
 
     procedure HandleResponse; override;
     procedure ResponseDone; override;
@@ -1497,7 +1503,7 @@ begin
   FRawSocket := TRawSocket.Create();
   FSocketHandle := FRawSocket.SocketHandle;
   FSendRequestList := TIocpRequestLinkList.Create(64);
-  FRecvRequest := TIocpRecvRequest.Create;
+  FRecvRequest := AOwner.GetRecvRequest();
   FRecvRequest.FOwner := AOwner;
   FRecvRequest.FContext := Self;
 end;
@@ -1590,8 +1596,8 @@ begin
   FRequestDisconnect := False;
   FSending := False;
   if IsDebugMode then begin
-    if Assigned(FOwner) then
-      FOwner.DoStateMsgD(Self, '-(%d):0x%.4x, %s', [FRefCount, IntPtr(Self), 'DoCleanUp']);
+    //if Assigned(FOwner) then
+    //  FOwner.DoStateMsgD(Self, '-(%d):0x%.4x, %s', [FRefCount, IntPtr(Self), 'DoCleanUp']);
     if FRefCount <> 0 then
       Assert(FRefCount = 0);
     Assert(not FActive);
@@ -1641,7 +1647,8 @@ begin
       end;
     end;
   finally
-    FContextLocker.Leave;
+    if Assigned(FContextLocker) then // UnLockContext 可能导致当前对象释放，FContextLocker将变为nil
+      FContextLocker.Leave;
   end;
 end;
 
@@ -2396,6 +2403,14 @@ begin
   end;
 end;
 
+function TIocpCustom.GetRecvRequest: TIocpRecvRequest;
+begin
+  if Assigned(FRecvRequestClass) then
+    Result := FRecvRequestClass.Create
+  else
+    Result := TIocpRecvRequest.Create;
+end;
+
 function TIocpCustom.GetSendRequest: TIocpSendRequest;
 begin
   Result := TIocpSendRequest(FSendRequestPool.DeQueue);
@@ -2672,11 +2687,13 @@ begin
     end else
       FContext.DoReceiveData;
   finally
-    if not FContext.FRequestDisconnect then
-      FContext.PostWSARecvRequest;
-    FContext.DecReferenceCounter(Self{$IFDEF DEBUGINFO},
-      Format('Refcount: %d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
-        [FOverlapped.refCount]){$ENDIF});
+    if Assigned(FContext) then begin
+      if not FContext.FRequestDisconnect then
+        FContext.PostWSARecvRequest;
+      FContext.DecReferenceCounter(Self{$IFDEF DEBUGINFO},
+        Format('Refcount: %d, TIocpRecvRequest.WSARecvRequest.HandleResponse',
+          [FOverlapped.refCount]){$ENDIF});
+    end;
   end;
 end;
 

@@ -33,6 +33,7 @@ unit iocp.Http;
 interface
 
 uses
+  OpenSSL,
   iocp.Utils.Hash, iocp.Utils.Str, {$IFDEF UseGZip}ZLibExGZ, {$ENDIF}
   iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime,
   iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues, iocp.Utils.MemPool,
@@ -163,6 +164,9 @@ type
 
   TIocpHttpState = (hsCompleted, hsRequest { 接收请求 } , hsRecvingPost { 接收数据 } );
 
+  /// <summary>
+  /// Http连接
+  /// </summary>
   TIocpHttpConnection = class(TIocpClientContext)
   private
     FRequest: TIocpHttpRequest;
@@ -321,6 +325,61 @@ type
     /// 释放 Session 项通知事件
     /// </summary>
     property OnFreeSession: TOnHttpFreeSession read FOnHttpFreeSession write FOnHttpFreeSession;
+  end;
+
+  /// <summary>
+  /// Https 安全连接
+  /// </summary>
+  TIocpHttpSSLConnection = class(TIocpHttpConnection)
+  private
+    FSSL: PSSL;
+  protected
+    procedure DoCleanUp; override;
+    procedure OnConnected; override;
+    procedure OnDisconnected; override;
+    procedure PostWSARecvRequest(); override;
+  public  
+    function PostWSASendRequest(buf: Pointer; len: Cardinal;
+      pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
+      pvTagData: Pointer = nil): Boolean; override;
+  end;
+
+  /// <summary>
+  /// HTTPS 服务
+  /// </summary>
+  {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
+  TIocpHttpsServer = class(TIocpHttpServer)
+  private
+    FCtx: PSSL_CTX;
+    FSSLPassowrd: StringA;
+    FSSLCertCA, FSSLRootCertFile, FSSLPrivateKeyFile: string;
+  protected
+    procedure InitSSL();
+    procedure UninitSSL();
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Open; override;
+    procedure Close; override;
+
+    property CTX: PSSL_CTX read FCtx;
+  published
+    /// <summary>
+    /// SSL 证书文件默认密码
+    /// </summary>
+    property SSLPassowrd: StringA read FSSLPassowrd write FSSLPassowrd;
+    /// <summary>
+    /// SSL 服务器证书
+    /// </summary>
+    property SSLRootCertFile: string read FSSLRootCertFile write FSSLRootCertFile;
+    /// <summary>
+    /// SSL 服务器私钥
+    /// </summary>
+    property SSLPrivateKeyFile: string read FSSLPrivateKeyFile write FSSLPrivateKeyFile;
+    /// <summary>
+    /// SSL Root 根证书文件
+    /// </summary>
+    property SSLCertCA: string read FSSLCertCA write FSSLCertCA;
   end;
 
   /// <summary>
@@ -838,7 +897,7 @@ var
   Dest:array [0..MAX_PATH] of char;
 begin
   FillChar(Dest,MAX_PATH+1,0);
-  PathCombine(Dest,PChar(BasePath), PChar(RelativePath));
+  PathCombine(Dest, PChar(BasePath), PChar(RelativePath));
   Result:=string(Dest);
 end;
 
@@ -2916,7 +2975,7 @@ begin
   {$ELSE}
   FCharset := S_GB2312;
   {$ENDIF}
-  FWebBasePath := ExtractFilePath(ParamStr(0)) + 'Web\';
+  FWebBasePath := AppPath + 'Web\';
   FDefaultPage := 'index.html;index.htm;default.html;default.htm';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
   SetCurrentDefaultPage;
@@ -4442,6 +4501,158 @@ function TIocpHttpWriter.Write(const Data: Integer): TIocpHttpWriter;
 begin
   Result := Self;
   FData.Cat(Data);
+end;
+
+{ TIocpHttpsServer }
+
+procedure TIocpHttpsServer.Close;
+begin
+  inherited Close;
+  UninitSSL();
+end;
+
+constructor TIocpHttpsServer.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FContextClass := TIocpHttpSSLConnection;
+  FCtx := nil;
+  FSSLPassowrd := '123456';
+  FSSLRootCertFile := 'ssl.server.cer';
+  FSSLPrivateKeyFile := 'ssl.server.pem';
+  FSSLCertCA := 'ca.cer';
+end;
+
+destructor TIocpHttpsServer.Destroy;
+begin
+  inherited Destroy;
+  UninitSSL;
+end;
+
+procedure TIocpHttpsServer.InitSSL;
+var
+  FStatus: Integer;
+  FCipherList: StringA;
+begin
+  if not InitSSLInterface() then begin
+    DoStateMsgD(Self, 'OpenSSL Init Fail.');
+    Exit;
+  end;
+  // 服务器方法
+  SslLibraryInit;
+  OPENSSLaddallalgorithms();
+  SslLoadErrorStrings;
+  // 创建SSL上下文
+  FCtx := SslCtxNew(SslMethodV23);
+  if FCtx = nil then begin
+    DoStateMsgD(Self, 'SSL Create CTX Fail.');
+    Exit;
+  end;
+  FCipherList := 'DEFAULT';
+  SSLCTxSetCipherList(FCtx, FCipherList);
+  // 设置证书文件口令
+  SslCtxSetDefaultPasswdCbUserdata(FCtx, PCharA(StringA(FSSLPassowrd)));
+  // 加载可信任的 CA 证书
+  FStatus := SslCtxLoadVerifyLocations(FCtx, StringA(FSSLCertCA), './');
+  if FStatus <= 0 then begin
+    DoStateMsgD(Self, 'SSL load verify fail, status=' + IntToStr(FStatus));
+    Exit;
+  end;
+  // 加载自己的证书
+  FStatus := SslCtxUseCertificateFile(FCtx, StringA(FSSLRootCertFile), SSL_FILETYPE_PEM);
+  if FStatus <= 0 then begin
+    DoStateMsgD(Self, 'SSL use cert fail, status=' + IntToStr(FStatus));
+    Exit;
+  end;
+  // 加载自己的私钥
+  FStatus := SslCtxUsePrivateKeyFile(FCtx, StringA(FSSLPrivateKeyFile), SSL_FILETYPE_PEM);
+  if FStatus <= 0 then begin
+    DoStateMsgD(Self, 'SSL use private key file fail, status=' + IntToStr(FStatus));
+    Exit;
+  end;  
+  // 判定私钥是否正确  
+  if SslCtxCheckPrivateKeyFile(FCtx) = 0 then begin
+    DoStateMsgD(Self, 'SSL check private key file fail.');
+    Exit;
+  end;  
+end;
+
+procedure TIocpHttpsServer.Open;
+begin
+  InitSSL;
+  inherited Open; 
+end;
+
+procedure TIocpHttpsServer.UninitSSL;
+begin
+  if FCtx <> nil then begin
+    SslCtxFree(FCtx);
+    FCtx := nil;
+  end;
+end;
+
+{ TIocpHttpSSLConnection }
+
+procedure TIocpHttpSSLConnection.DoCleanUp;
+begin
+  inherited DoCleanUp;
+  if FSSL <> nil then begin
+    SslFree(FSSL);
+    FSSL := nil;
+  end;
+end;
+
+procedure TIocpHttpSSLConnection.OnConnected;
+var
+  buf: array [0..4095] of Byte;
+  I: Integer;
+begin
+  inherited OnConnected;
+  if FSSL = nil then begin
+    FSSL := SslNew(TIocpHttpsServer(Owner).FCtx);
+    SslSetFd(FSSL, SocketHandle);
+    SslAccept(FSSL);
+  end;
+  repeat
+    I := SslRead(FSSL, @buf[0], Length(buf));
+    if I > 0 then
+      Self.OnRecvBuffer(@buf[0], I, 0);
+  until (not Active) or (I < Length(buf));
+end;  
+
+procedure TIocpHttpSSLConnection.OnDisconnected;
+begin
+  inherited OnDisconnected;
+  if FSSL <> nil then begin
+    SslFree(FSSL);
+    FSSL := nil;
+  end;
+end;
+
+procedure TIocpHttpSSLConnection.PostWSARecvRequest;
+begin
+  // 不作任务处理
+end;
+
+function TIocpHttpSSLConnection.PostWSASendRequest(buf: Pointer; len: Cardinal;
+  pvBufReleaseType: TDataReleaseType; pvTag: Integer;
+  pvTagData: Pointer): Boolean;
+begin
+  Result := False;
+  if (not Assigned(Self)) then Exit;
+  if Active and (len > 0) then begin
+    try
+      SslWrite(FSSL, buf, len);
+    finally
+      case pvBufReleaseType of
+        dtDispose: Dispose(buf);
+        dtFreeMem: FreeMem(buf);
+        dtMemPool: Owner.PushMem(buf);
+      end;
+    end;
+    Result := True; 
+    CloseConnection();
+  end else
+    Result := inherited PostWSASendRequest(buf, len, pvBufReleaseType, pvTag, pvTagData);
 end;
 
 initialization
