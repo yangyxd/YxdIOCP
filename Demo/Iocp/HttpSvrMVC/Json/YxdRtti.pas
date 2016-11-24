@@ -613,9 +613,11 @@ class procedure TYxdSerialize.Serialize(Writer: TSerializeWriter; const Key: str
           tkClass:
             begin
               AChildObj := Pointer(GetOrdProp(AObj, APropList[J]));
-              if AChildObj is TStrings then
-                Writer.WriteString(AName, (AChildObj as TStrings).Text)
-              else if AChildObj is TCollection then begin
+              if AChildObj is TStrings then begin
+                Writer.BeginData(AName, True);
+                AddStrings(Writer, TStrings(AChildObj));
+                Writer.EndData;
+              end else if AChildObj is TCollection then begin
                 Writer.BeginData(AName, True);
                 AddCollection(Writer, AChildObj as TCollection);
                 Writer.EndData;
@@ -691,15 +693,17 @@ begin
     tkClass:
       begin
         if TObject(ASource) is TStrings then begin
-          if (Key = '')  then begin
-            if Writer.IsArray then
-              AddStrings(Writer, TStrings(ASource))
-            else
-              Writer.WriteString('text', TStrings(ASource).Text);
-          end else
-            Writer.WriteString(Key, TStrings(ASource).Text);
+          if Writer.IsArray then
+            AddStrings(Writer, TStrings(ASource))
+          else begin
+            Writer.BeginData(Key, True);
+            AddStrings(Writer, TStrings(ASource));
+            Writer.EndData;
+          end;
         end else if TObject(ASource) is TCollection then begin
-          AddCollection(Writer, TCollection(ASource))
+          Writer.BeginData(Key, True);
+          AddCollection(Writer, TCollection(ASource));
+          Writer.EndData;
         {$IFDEF USEDataSet}
         end else if TObject(ASource) is TDataSet then begin
           Serialize(Writer, Key, TDataSet(ASource), 0, -1)

@@ -849,9 +849,12 @@ const
   S_IfRange: StringA = 'If-Range';
   S_IfUnmodifiedSince: StringA = 'If-Unmodified-Since';
 
-  S_RequestErrorBody = '<html><head><meta http-equiv="Content-Type" ' +
-    'content="text/html; charset=gb2312"></head>'#13'<body><font color="red"><b>%d: %s</b>'+
-    '</font><br><br>%s<br>'#13'</body></html>';
+  S_RequestErrorBody = '<html><head>'#13'<meta http-equiv="Content-Type" content="text/html; charset=gb2312">'#13 +
+    '<title>%d Error</title></head>'#13 +
+    '<body bgcolor="white">'#13 +
+    '<center><h1>%d %s</h1></center><hr>'#13 +
+    '<center>%s</center>'#13 +
+    '</body></html>';
 
 var
   Workers: TIocpTask;
@@ -3317,9 +3320,11 @@ begin
 end;
 
 procedure TIocpHttpResponse.ServerError(const Msg: StringA);
+const
+  SCode = 500;
 begin
   if (not Active) then Exit;
-  ErrorRequest(500, StringA(Format(S_RequestErrorBody, [500, GetResponseCodeNote(500), Msg])));
+  ErrorRequest(SCode, StringA(Format(S_RequestErrorBody, [SCode, SCode, GetResponseCodeNote(SCode), Msg])));
 end;
 
 procedure TIocpHttpResponse.SetCharsetType(const Value: TIocpHttpCharset);
@@ -3336,7 +3341,7 @@ procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word);
 begin
   if (not Active) or (ErrorCode < 400) then Exit;
   ErrorRequest(ErrorCode, StringA(Format(S_RequestErrorBody,
-    [ErrorCode, GetResponseCodeNote(ErrorCode), ''])));
+    [ErrorCode, ErrorCode, GetResponseCodeNote(ErrorCode), ''])));
 end;
 
 procedure TIocpHttpResponse.ErrorRequest(ErrorCode: Word; const Msg: StringA);

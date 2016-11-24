@@ -13,7 +13,7 @@ Demo 源码需要重新设置下搜索路径，指向 Source\IOCP 文件夹即可。
  
 【OpenSSL】
 
- 如果需要使用HTTPS服务，请将 lib 目录复制到项目根目录中。在 lib 目录中保存了使用 OpenSSL 的dll文件。
+ 如果需要使用HTTPS服务，请将 lib 目录中的 lib.zip 复制到项目根目录中解压。在 lib.zip 中保存了使用 OpenSSL 的dll文件。
  内部的 MakeCA.bat 可以用来生成证书。
  
 【联系我们】
