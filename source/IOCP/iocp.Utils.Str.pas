@@ -1801,7 +1801,7 @@ begin
     Result.Length:=l shl 1;
     Result.FValue[0]:=0;
     Move(p^,PAnsiChar(Result)^,l shl 1);
-    Result:=TEncoding.Convert(TEncoding.Unicode,TEncoding.ANSI,Result.FValue,1,l shl 1);
+    Result:=TEncoding.Convert(TEncoding.Unicode,TEncoding.GetEncoding('GB2312'),Result.FValue,1,l shl 1);
     {$ENDIF}
   end else
     Result := '';

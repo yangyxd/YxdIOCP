@@ -36,7 +36,6 @@ implementation
 
 {$R *.dfm}
 
-uses iocp;
 
 procedure THttpService.BitBtn1Click(Sender: TObject);
 begin

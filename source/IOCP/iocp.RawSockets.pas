@@ -75,7 +75,8 @@ type
     function GetIsRaw: Boolean;
     function GetIsTCP: Boolean; 
     function GetIsUDP: Boolean;
-    function GetIsInvalid: Boolean; public
+    function GetIsInvalid: Boolean;
+  public
     constructor Create;
     destructor Destroy; override;
     procedure Close;

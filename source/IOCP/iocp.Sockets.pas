@@ -1686,10 +1686,7 @@ end;
 
 function TIocpCustomContext.GetIsDisconnect: Boolean;
 begin
-  if (not Assigned(Self)) or (FRequestDisconnect) then
-    Result := True
-  else
-    Result := False;
+  Result := (not Assigned(Self)) or (FRequestDisconnect);
 end;
 
 function TIocpCustomContext.GetSendRequest: TIocpSendRequest;
@@ -4284,7 +4281,9 @@ var
   lvContext: TIocpCustomContext;
   P: PIntHashItem;
   I: Integer;
+  List: TList;
 begin
+  List := TList.Create;
   lvNowTickCount := GetTimestamp;
   FLocker.Enter('KickOut');
   try
@@ -4299,15 +4298,20 @@ begin
             (lvContext.FLastActivity <> 0) then
           begin
             if lvNowTickCount - lvContext.FLastActivity > pvTimeOut then
-              // «Î«Ûπÿ±’
-              lvContext.CloseConnection;
+              List.Add(lvContext);
           end;
         end;
         P := P.Next;
       end;
     end;
+    for I := 0 to List.Count - 1 do begin
+      lvContext := List.Items[I];
+      if Assigned(lvContext) and (not lvContext.IsDisconnecting) then
+        lvContext.CloseConnection;
+    end;
   finally
     FLocker.Leave;
+    List.Free;
   end;
 end;
 
