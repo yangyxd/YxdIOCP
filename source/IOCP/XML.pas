@@ -103,7 +103,10 @@ type
     function IndexOf(Value: PXMLNode): Integer;
     function NextSibling: PXMLNode;
     function NodeByName(const NodeName: string): PXMLNode;
-    function NodeByPath(const Path: string): PXMLNode;  
+    function NodeByPath(const Path: string): PXMLNode;
+    
+    function GetNodeCData(const NodeName: string): string;
+    function GetNodeText(const NodeName: string): string;
 
     property AsBoolean: Boolean read GetAsBoolean write SetAsBoolean;
     property AsByte: Byte read GetAsByte write SetAsByte;
@@ -122,6 +125,8 @@ type
     property AttrByName[const Name: string]: PXMLStringListItem read GetAttrByName;
     property AttrCount[Index: Integer]: Integer read GetAttrCount;
     property Nodes[const Name: string]: PXMLNode read GetNodeItem; default;
+    property NodeText[const NodeName: string]: string read GetNodeText;
+    property NodeCData[const NodeName: string]: string read GetNodeCData;
   end;
 
 type
@@ -1953,9 +1958,31 @@ begin
   Result := Children.Count;
 end;
 
+function TXMLNode.GetNodeCData(const NodeName: string): string;
+var
+  N: PXMLNode;
+begin
+  N := NodeByName(NodeName);
+  if N = nil then
+    Result := ''
+  else
+    Result := N.CData;
+end;
+
 function TXMLNode.GetNodeItem(const Name: string): PXMLNode;
 begin
   Result := NodeByName(Name);
+end;
+
+function TXMLNode.GetNodeText(const NodeName: string): string;
+var
+  N: PXMLNode;
+begin
+  N := NodeByName(NodeName);
+  if N = nil then
+    Result := ''
+  else
+    Result := N.Text;
 end;
 
 function TXMLNode.NodeByPath(const Path: string): PXMLNode;
