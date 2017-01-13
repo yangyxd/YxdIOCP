@@ -122,18 +122,19 @@ type
 
   TStringHash = class
   private
-    FLocker: TCriticalSection;
     FCount: Integer;
     FOnFreeItem: TYXDStrHashItemFreeNotify;
     function GetBucketsCount: Integer;
   public
     Buckets: array of PHashItem;
+    FLocker: TCriticalSection;
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
     function Find(const Key: string): PPHashItem;
     procedure Add(const Key: string; Value: Number);
     procedure AddOrUpdate(const Key: string; Value: Number);
     procedure Clear;
+    procedure GetItems(AList: TList);
     procedure Lock;
     procedure UnLock;
     procedure Remove(const Key: string);
@@ -163,18 +164,21 @@ type
   TIntHash = class
   private
     FCount: Integer;
-    FLocker: TCriticalSection;
     FOnFreeItem: TYXDIntHashItemFreeNotify;
     function GetBucketsCount: Integer;
   protected
   public
     Buckets: array of PIntHashItem;
+    FLocker: TCriticalSection;
     constructor Create(Size: Cardinal = 331);
     destructor Destroy; override;
     function Find(const Key: THashType): PPIntHashItem;
     procedure Add(const Key: THashType; Value: Number);
     procedure AddOrUpdate(const Key: THashType; Value: Number);
     procedure Clear;
+    procedure GetItems(AList: TList);
+    procedure Lock;
+    procedure UnLock;
     function Remove(const Key: THashType): Boolean;
     function Modify(const Key: THashType; Value: Number): Boolean;
     function ValueOf(const Key: THashType; const DefaultValue: Number = -1): Number;
@@ -622,6 +626,28 @@ begin
   Result := Length(Buckets);
 end;
 
+procedure TStringHash.GetItems(AList: TList);
+var
+  P: PHashItem;
+  I: Integer;
+begin
+  if not Assigned(AList) then
+    Exit;
+  FLocker.Enter;
+  try
+    for I := 0 to High(Buckets) do begin
+      P := Buckets[I];
+      while P <> nil do begin
+        if Pointer(P.Value) <> nil then
+          AList.Add(Pointer(P.Value));
+        P := P.Next;
+      end;
+    end;
+  finally
+    FLocker.Leave;
+  end;
+end;
+
 procedure TStringHash.Lock;
 begin
   FLocker.Enter;
@@ -769,6 +795,33 @@ begin
   Result := Length(Buckets);
 end;
 
+procedure TIntHash.GetItems(AList: TList);
+var
+  P: PIntHashItem;
+  I: Integer;
+begin
+  if not Assigned(AList) then
+    Exit;
+  FLocker.Enter;
+  try
+    for I := 0 to High(Buckets) do begin
+      P := Buckets[I];
+      while P <> nil do begin
+        if Pointer(P.Value) <> nil then
+          AList.Add(Pointer(P.Value));
+        P := P.Next;
+      end;
+    end;
+  finally
+    FLocker.Leave;
+  end;
+end;
+
+procedure TIntHash.Lock;
+begin
+  FLocker.Enter;
+end;
+
 function TIntHash.Modify(const Key: THashType; Value: Number): Boolean;
 var
   P: PIntHashItem;
@@ -800,6 +853,11 @@ begin
     Result := True;
     Dec(FCount);
   end;
+  FLocker.Leave;
+end;
+
+procedure TIntHash.UnLock;
+begin
   FLocker.Leave;
 end;
 

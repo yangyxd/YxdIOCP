@@ -196,6 +196,7 @@ begin
     end;
 
     FCount := 0;
+    FTail := nil;
   finally
     FLocker.Leave;
   end;
@@ -224,25 +225,25 @@ function TBaseQueue.DeQueue: Pointer;
 var
   lvTemp:PQueueData;
 begin
-  Result := nil;
   lvTemp := InnerDeQueue;
   if lvTemp <> nil then begin
     Result := lvTemp.Data;
     queueDataPool.Push(lvTemp);
-  end;
+  end else
+    Result := nil;
 end;
 
 function TBaseQueue.DeQueue(var outPointer: Pointer): Boolean;
 var
-  lvTemp:PQueueData;
+  lvTemp: PQueueData;
 begin
-  Result := False;
   lvTemp := InnerDeQueue;
   if lvTemp <> nil then begin
     outPointer := lvTemp.Data;
     queueDataPool.Push(lvTemp);
     Result := true;
-  end;
+  end else
+    Result := False;
 end;
 
 procedure TBaseQueue.EnQueue(AData: Pointer);
@@ -264,34 +265,28 @@ end;
 function TBaseQueue.InnerDeQueue: PQueueData;
 begin
   FLocker.Enter;
-  try
-    Result := FHead;
-    if Result <> nil then begin
-      FHead := Result.Next;
-      if FHead = nil then
-        FTail := nil;
-      Dec(FCount);
-    end;
-  finally
-    FLocker.Leave;
+  Result := FHead;
+  if Result <> nil then begin
+    FHead := Result.Next;
+    if FHead = nil then
+      FTail := nil;
+    Dec(FCount);
   end;
+  FLocker.Leave;
 end;
 
 procedure TBaseQueue.InnerAddToTail(AData: PQueueData);
 begin
   AData.Next := nil;
   FLocker.Enter;
-  try
-    if FTail = nil then
-      FHead := AData
-    else
-      FTail.Next := AData;
+  if FTail = nil then
+    FHead := AData
+  else
+    FTail.Next := AData;
 
-    FTail := AData;
-    Inc(FCount);
-  finally
-    FLocker.Leave;
-  end;
+  FTail := AData;
+  Inc(FCount);
+  FLocker.Leave;
 end;
 
 { TQueueDataPool }
@@ -328,7 +323,7 @@ begin
   FLocker.Leave;
 
   if Result = nil then
-    GetMem(Result, SizeOf(TQueueData));
+    Result := SysGetMem(SizeOf(TQueueData));
   Result.Data := nil;
   Result.Next := nil;
 end;
@@ -349,7 +344,7 @@ begin
   FLocker.Leave;
   
   if ADoFree then
-    FreeMem(pvQueueData);
+    SysFreeMem(pvQueueData);
 end; 
 
 constructor TSimpleQueue.Create;

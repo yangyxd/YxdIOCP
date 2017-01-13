@@ -23,22 +23,13 @@ interface
 
 uses
   iocp.Utils.Hash, iocp.Sockets.Utils, iocp.Res,
-  Windows, SysUtils, Classes, SyncObjs, ComObj, ActiveX;
+  Windows, SysUtils, Classes, SyncObjs, ComObj, ActiveX, DateUtils;
 
 const
   IOCP_LOG_DATEFORMAT = 'hh:mm:ss.zzz';
 
 type
-  TIocpLocker = class(TCriticalSection)
-  private
-    FName: string;
-    FRemork: string;
-  public
-    procedure Enter(const ARemork: string); overload;
-    procedure Leave;
-    property Name: string read FName write FName;
-    property Remork: string read FRemork write FRemork;
-  end;
+  TIocpLocker = class(TCriticalSection);
   TThreadStackFunc = function(AThread: TThread): string;
 
 type
@@ -230,7 +221,7 @@ type
     FRespondEndTime: Int64;
     FOverlapped: OVERLAPPEDEx;
     FBytesTransferred: NativeUInt;
-    FCompletionKey: NativeUInt;
+    //FCompletionKey: NativeUInt;
     FErrorCode: Integer;
     FDestroyOnResponseEnd: Boolean;
     
@@ -277,7 +268,6 @@ type
   protected
     procedure HandleResponse; override;
   public
-    destructor Destroy; override;
     procedure DoCleanUp;
     function GetStateInfo: String; override;
     /// <summary>
@@ -308,7 +298,7 @@ type
 
 type
   /// <summary>
-  /// Iocp 请求双向链表
+  /// Iocp 请求双向链表 (线程安全)
   /// </summary>
   TIocpRequestDuLinkList = class(TObject)
   private
@@ -330,7 +320,7 @@ type
     property Count: Integer read FCount; 
   end;
 
-function IsDebugMode: Boolean;
+function IsDebugMode: Boolean; inline;
 
 function GetTimestamp: Int64;
 function TimestampToDatetime(const v: Int64): TDateTime;
@@ -405,6 +395,11 @@ end;
 function TimestampToStr(const v: Int64): string;
 begin
   Result := FormatDateTime(IOCP_LOG_DATEFORMAT, TimestampToDatetime(v));
+end;
+
+function TimeToStr(const V: TDateTime): string;
+begin
+  Result := FormatDateTime(IOCP_LOG_DATEFORMAT, v);
 end;
 
 function GetCPUCount: Integer;
@@ -562,6 +557,7 @@ var
   lpOverlapped: POVERLAPPEDEx;
   lpCompletionKey: ULONG_PTR;
   lvTempRequest: TIocpRequest;
+  lvIsReserved: Boolean;
 begin
   {$IFDEF MSWINDOWS}{$IFDEF UNICODE}
   NameThreadForDebugging('TIocpWorker');
@@ -573,12 +569,13 @@ begin
   {$IFDEF DEBUG_ON}
   InterlockedIncrement(workerRef);
   {$ENDIF}
+  lvIsReserved := IsReserved;
   while (not Terminated) do begin
     try
       FFlags := (FFlags or IOCP_WORKER_ISWATING) and (not IOCP_WORKER_ISBUSY);
 
       // 非临时工作线程，获取任务时不设置超时值，否则以IOCP_WORKER_TIMEOUT为超时值
-      if IsReserved then begin
+      if lvIsReserved then begin
         lvResultStatus := GetQueuedCompletionStatus(FIocpCore.FHandle,
             lvBytesTransferred, lpCompletionKey, POverlapped(lpOverlapped), INFINITE);
       end else begin 
@@ -607,7 +604,7 @@ begin
           lvTempRequest.FIocpWorker := Self;
           lvTempRequest.FErrorCode := lvErrCode;
           lvTempRequest.FBytesTransferred := lvBytesTransferred;
-          lvTempRequest.FCompletionKey := lpCompletionKey;
+          //lvTempRequest.FCompletionKey := lpCompletionKey;
 
           if Assigned(lvTempRequest.FOnResponse) then
             lvTempRequest.FOnResponse(lvTempRequest)
@@ -1041,20 +1038,15 @@ end;
 
 { TIocpASyncRequest }
 
-destructor TIocpASyncRequest.Destroy;
-begin
-  inherited;
-end;
-
 procedure TIocpASyncRequest.DoCleanUp;
 begin
-  Remark := '';
+  FRemark := '';
   FOnASyncEvent := nil;
 end;
 
 function TIocpASyncRequest.GetStateInfo: String;
 var
-  lvEndTime: Int64;
+  lvEndTime: TDateTime;
 begin
   if FRespondStartTime = 0 then begin
     Result := '';
@@ -1063,7 +1055,7 @@ begin
   if FRespondEndTime <> 0 then
     lvEndTime := FRespondEndTime
   else
-    lvEndTime := GetTimestamp;
+    lvEndTime := Now;
   if Remark <> '' then
     Result := Remark + sLineBreak
   else
@@ -1127,19 +1119,16 @@ end;
 procedure TIocpRequestDuLinkList.Add(pvContext: TIocpRequest);
 begin
   FLocker.Enter;
-  try
-    if FHead = nil then begin
-      FHead := pvContext;
-    end else begin
-      FTail.FNext := pvContext;
-      pvContext.FPrev := FTail;
-    end;
-    FTail := pvContext;
-    FTail.FNext := nil;
-    Inc(FCount);
-  finally
-    FLocker.Leave;
+  if FHead = nil then begin
+    FHead := pvContext;
+  end else begin
+    FTail.FNext := pvContext;
+    pvContext.FPrev := FTail;
   end;
+  FTail := pvContext;
+  FTail.FNext := nil;
+  Inc(FCount);
+  FLocker.Leave;
 end;
 
 constructor TIocpRequestDuLinkList.Create;
@@ -1147,7 +1136,7 @@ begin
   FHead := nil;
   FTail := nil;
   FLocker := TIocpLocker.Create();
-  FLocker.Name := 'OnlineContext';
+  //FLocker.Name := 'OnlineContext';
 end;
 
 destructor TIocpRequestDuLinkList.Destroy;
@@ -1159,18 +1148,15 @@ end;
 function TIocpRequestDuLinkList.Pop: TIocpRequest;
 begin
   FLocker.Enter;
-  try
-    Result := FHead;
-    if FHead <> nil then begin
-      FHead := FHead.FNext;
-      if FHead = nil then FTail := nil;
-      Dec(FCount);
-      Result.FPrev := nil;
-      Result.FNext := nil;  
-    end;  
-  finally
-    FLocker.Leave;
+  Result := FHead;
+  if FHead <> nil then begin
+    FHead := FHead.FNext;
+    if FHead = nil then FTail := nil;
+    Dec(FCount);
   end;
+  FLocker.Leave;
+  Result.FPrev := nil;
+  Result.FNext := nil;
 end;
 
 function TIocpRequestDuLinkList.Push(pvRequest: TIocpRequest): Boolean;
@@ -1222,20 +1208,6 @@ begin
   finally
     FLocker.Leave;
   end;
-end;
-
-{ TIocpLocker }
-
-procedure TIocpLocker.Enter(const ARemork: string);
-begin
-  Acquire;
-  FRemork := ARemork;
-end;
-
-procedure TIocpLocker.Leave;
-begin
-  FRemork := '';
-  Release;
 end;
 
 initialization

@@ -194,7 +194,7 @@ begin
   FTcpServer := TIocpTcpServer.Create(Self);
   FTcpServer.Name := 'iocpSVR';
   FTcpServer.OnDataReceived := OnRecvBuffer;
-  FTcpServer.OnContextAccept := OnAccept;
+  //FTcpServer.OnContextAccept := OnAccept;
   FTcpServer.createDataMonitor;
 
   TFMMonitor.createAsChild(pnlMonitor, FTcpServer);
