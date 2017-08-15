@@ -195,25 +195,25 @@ begin
   while (P1 < PMax) and (P1^ <> #32) and (P1^ <> '-') do Inc(P1);
   if (P1^ <> #32) and (P1^ <> '-') then Exit;
   wYear := PCharToIntDef(P2, P1 - P2);
-  if wYear = 0 then Exit;
+  //if wYear = 0 then Exit;
   Inc(P1); P2 := P1;
 
   while (P1 < PMax) and (P1^ <> ':') do Inc(P1);
   if (P1^ <> ':') then Exit;
   wHour := PCharToIntDef(P2, P1 - P2);
-  if wHour = 0 then Exit;
+  //if wHour = 0 then Exit;
   Inc(P1); P2 := P1;
 
   while (P1 < PMax) and (P1^ <> ':') do Inc(P1);
   if (P1^ <> ':') then Exit;
   wMinute := PCharToIntDef(P2, P1 - P2);
-  if wMinute = 0 then Exit;
+  //if wMinute = 0 then Exit;
   Inc(P1); P2 := P1;
 
   while (P1 < PMax) and (P1^ <> #32) do Inc(P1);
   if (P1^ <> #32) then Exit;
   wSec := PCharToIntDef(P2, P1 - P2);
-  if wSec = 0 then Exit;
+  //if wSec = 0 then Exit;
 
   if wYear < 100 then Inc(wYear, CURCentury); // 不带世纪，加上当前的世纪
   Result := GMTToDateTime(EnCodeDateTime(wYear, wMonth, wDay, wHour, wMinute, wSec, 0));
