@@ -1255,15 +1255,15 @@ type
     FDisableAutoConnect: Boolean;
     FConnectTimeOut: Integer;
     FReconnectRequestPool: TObjectPool;
+    function GetCount: Integer;
+    function GetItems(Index: Integer): TIocpRemoteContext;
+    function CreateReconnectRequest: TObject;
+  protected
     {$IFDEF UNICODE}
     FList: TObjectList<TIocpRemoteContext>;
     {$ELSE}
     FList: TObjectList;
     {$ENDIF}
-    function GetCount: Integer;
-    function GetItems(Index: Integer): TIocpRemoteContext;
-    function CreateReconnectRequest: TObject;
-  protected
     /// <summary>
     /// 响应完成，归还请求对象到池
     /// </summary>
@@ -4681,10 +4681,11 @@ end;
 function TIocpCustomTcpClient.Delete(
   const pvContext: TIocpCustomContext): Integer;
 begin
-  if Assigned(pvContext) then begin
-    Result := FList.Remove(TIocpRemoteContext(pvContext));
-  end else
-    Result := -1;
+  Result := FList.Remove(TIocpRemoteContext(pvContext));
+  //if Assigned(pvContext) then begin
+  //  Result := FList.Remove(TIocpRemoteContext(pvContext));
+  //end else
+  //  Result := -1;
 end;
 
 destructor TIocpCustomTcpClient.Destroy;
