@@ -35,7 +35,7 @@ interface
 uses
   OpenSSL,
   iocp.Utils.Hash, iocp.Utils.Str, {$IFDEF UseGZip}ZLibExGZ, {$ENDIF}
-  iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime,
+  iocp.Sockets, iocp.Task, iocp.core.Engine, iocp.Utils.GMTTime, iocp.RawSockets,
   iocp.Sockets.Utils, iocp.Res, iocp.Utils.Queues, iocp.Utils.MemPool,
   {$IFDEF ANSISTRINGS}AnsiStrings, {$ENDIF}
   SyncObjs, Windows, ShlwApi, Classes, SysUtils, DateUtils;
@@ -174,7 +174,7 @@ type
   protected
     procedure DoCleanUp; override;
     procedure DoJob(AJob: PIocpJob);
-    procedure DoRequest(ARequest: TIocpHttpRequest);
+    procedure DoRequest(ARequest: TIocpHttpRequest); virtual;
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrorCode: Integer); override;
   public
   end;
@@ -338,10 +338,12 @@ type
     procedure OnConnected; override;
     procedure OnDisconnected; override;
     procedure PostWSARecvRequest(); override;
+    procedure DoRequest(ARequest: TIocpHttpRequest); override;
   public  
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
       pvTagData: Pointer = nil): Boolean; override;
+    function PostWSASendStream(Stream: TStream; ASize: Int64): Boolean; override;
   end;
 
   /// <summary>
@@ -356,6 +358,7 @@ type
   protected
     procedure InitSSL();
     procedure UninitSSL();
+    procedure DoRequest(ARequest: TIocpHttpRequest); override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -2356,8 +2359,9 @@ begin
           if StrLIComp(P, P1, FFormDataBoundary.Len) = 0 then begin
             B := True;
             Dec(P, 2);
-          end;
-          Break;
+            Break;
+          end else
+            Dec(P, 4);
         end;
         Inc(P);
       end;
@@ -2776,7 +2780,8 @@ end;
 
 const
   DEBUGINFO = 'HTTP逻辑处理...';
-  
+  DEBUGINFOOK = 'HTTP逻辑处理OK.';
+
 procedure TIocpHttpConnection.DoJob(AJob: PIocpJob);
 var
   Obj: TIocpHttpRequest;
@@ -2804,7 +2809,7 @@ begin
   finally
     if Assigned(Owner.Moniter) then
       Owner.Moniter.incHttpRequestExecCounter;
-    UnLockContext(Self, DEBUGINFO);
+    UnLockContext(Self, DEBUGINFOOK);
     Obj.Close;
   end;
 end;
@@ -4533,6 +4538,12 @@ begin
   UninitSSL;
 end;
 
+procedure TIocpHttpsServer.DoRequest(ARequest: TIocpHttpRequest);
+begin
+  ARequest.FKeepAlive := False;
+  inherited DoRequest(ARequest);
+end;
+
 procedure TIocpHttpsServer.InitSSL;
 var
   FStatus: Integer;
@@ -4578,7 +4589,7 @@ begin
   if SslCtxCheckPrivateKeyFile(FCtx) = 0 then begin
     DoStateMsgD(Self, 'SSL check private key file fail.');
     Exit;
-  end;  
+  end;
 end;
 
 procedure TIocpHttpsServer.Open;
@@ -4590,7 +4601,10 @@ end;
 procedure TIocpHttpsServer.UninitSSL;
 begin
   if FCtx <> nil then begin
-    SslCtxFree(FCtx);
+    try
+      SslCtxFree(FCtx);
+    except
+    end;
     FCtx := nil;
   end;
 end;
@@ -4606,22 +4620,42 @@ begin
   end;
 end;
 
-procedure TIocpHttpSSLConnection.OnConnected;
-var
-  buf: array [0..4095] of Byte;
-  I: Integer;
+procedure TIocpHttpSSLConnection.DoRequest(ARequest: TIocpHttpRequest);
 begin
-  inherited OnConnected;
+  try
+    // 连接已经断开, 放弃处理逻辑
+    if (Self = nil) or (Owner = nil) or (not Self.Active) then
+      Exit;
+
+    // 已经不是当时请求的连接，放弃处理逻辑
+    if ARequest.FConnHandle <> Self.Handle then begin
+      OWner.DoStateMsgE(Self, '不是当前请求的连接，放弃处理.');
+      Exit;
+    end;
+
+    try
+      TIocpHttpServer(Owner).DoRequest(ARequest);
+    except
+      ARequest.FResponse.ServerError(StringA(Exception(ExceptObject).Message));
+    end;
+
+    // 更新激活时间
+    LastActivity := GetTimestamp;  
+  finally
+    if Assigned(Owner.Moniter) then
+      Owner.Moniter.incHttpRequestExecCounter;
+    ARequest.Close;
+  end;
+end;
+
+procedure TIocpHttpSSLConnection.OnConnected;
+begin
   if FSSL = nil then begin
     FSSL := SslNew(TIocpHttpsServer(Owner).FCtx);
     SslSetFd(FSSL, SocketHandle);
     SslAccept(FSSL);
   end;
-  repeat
-    I := SslRead(FSSL, @buf[0], Length(buf));
-    if I > 0 then
-      Self.OnRecvBuffer(@buf[0], I, 0);
-  until (not Active) or (I < Length(buf));
+  inherited OnConnected;
 end;  
 
 procedure TIocpHttpSSLConnection.OnDisconnected;
@@ -4634,8 +4668,31 @@ begin
 end;
 
 procedure TIocpHttpSSLConnection.PostWSARecvRequest;
+const
+  BufSize = 4096;
+var
+  lbuf: array [0..BufSize-1] of Byte;
+  I, ErrorCode: Integer;
+  T: Int64;
 begin
-  // 不作任务处理
+  if Assigned(FSSL) and Active then begin
+    ErrorCode := 0;
+    T := GetTimestamp;
+    repeat
+      I := SslRead(FSSL, @lbuf[0], BufSize);
+      if I > 0 then begin
+        OnRecvBuffer(@lbuf[0], I, ErrorCode);
+        if GetTimestamp - T > 1000 then begin
+          T := GetTimestamp;
+          Sleep(10);
+        end;
+      end else if I = 0 then begin
+        if GetTimestamp - T > 300 then
+          Break;
+        Sleep(1);
+      end;
+    until (not Active) or (I < 0);   
+  end;
 end;
 
 function TIocpHttpSSLConnection.PostWSASendRequest(buf: Pointer; len: Cardinal;
@@ -4644,7 +4701,7 @@ function TIocpHttpSSLConnection.PostWSASendRequest(buf: Pointer; len: Cardinal;
 begin
   Result := False;
   if (not Assigned(Self)) then Exit;
-  if Active and (len > 0) then begin
+  if Active and (len > 0) and Assigned(FSSL) then begin
     try
       SslWrite(FSSL, buf, len);
     finally
@@ -4654,10 +4711,65 @@ begin
         dtMemPool: Owner.PushMem(buf);
       end;
     end;
-    Result := True; 
-    CloseConnection();
+    Result := True;
   end else
     Result := inherited PostWSASendRequest(buf, len, pvBufReleaseType, pvTag, pvTagData);
+end;
+
+function TIocpHttpSSLConnection.PostWSASendStream(Stream: TStream;
+  ASize: Int64): Boolean;
+var
+  lvBuffSize, lvL: Cardinal;
+  lvLen: Int64;
+  lvBuf: PAnsiChar;
+begin
+  Result := False;
+  if Assigned(Stream) then begin
+    lvLen := Stream.Size - Stream.Position;
+    if lvLen < ASize then
+      Exit
+    else
+      lvLen := ASize;
+
+    lvBuffSize := Owner.SendBufferSize;
+
+    {$IFDEF UseSendMemPool}
+    lvBuf := FOwner.PopMem;
+    {$ELSE}
+    GetMem(lvBuf, lvBuffSize);
+    {$ENDIF}
+    try
+      if IncReferenceCounter(Self, 'SendStream') then begin
+        try
+          while lvLen > 0 do begin
+            if lvLen > lvBuffSize then
+              lvL := lvBuffSize
+            else
+              lvL := lvLen;
+
+            lvL := Stream.Read(lvBuf^, lvL);
+            if (lvL = 0) then
+              Break;
+
+            Result := SslWrite(FSSL, lvBuf, lvL) > 0;
+
+            if not Result then
+              Break;
+
+            Dec(lvLen, lvL);
+          end;
+        finally
+          decReferenceCounter(self, 'SendStream');
+        end;
+      end;
+    finally
+      {$IFDEF UseSendMemPool}
+      FOwner.PushMem(lvBuf);
+      {$ELSE}
+      FreeMem(lvBuf);
+      {$ENDIF}
+    end;
+  end;
 end;
 
 initialization

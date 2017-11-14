@@ -30,6 +30,10 @@
     <DCC_HppOutput>..\..\..\dcu</DCC_HppOutput>
     <DCC_BplOutput>..\..\..\bin</DCC_BplOutput>
     <DCC_DcpOutput>..\..\..\dcu</DCC_DcpOutput>
+    <DCC_UnitSearchPath>..\..\..\source\iocp\</DCC_UnitSearchPath>
+    <DCC_ResourcePath>..\..\..\source\iocp\</DCC_ResourcePath>
+    <DCC_ObjPath>..\..\..\source\iocp\</DCC_ObjPath>
+    <DCC_IncludePath>..\..\..\source\iocp\</DCC_IncludePath>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>

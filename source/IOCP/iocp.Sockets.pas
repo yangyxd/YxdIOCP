@@ -130,8 +130,6 @@ type
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
       pvTagData: Pointer = nil): Boolean;
   private
-    function IncReferenceCounter(pvObj: TObject; const pvDebugInfo: string = ''): Boolean;
-    function DecReferenceCounter(pvObj: TObject; const pvDebugInfo: string = ''): Integer;
     // 释放客户连接
     procedure ReleaseClientContext(); virtual;
     /// <summary>
@@ -162,6 +160,9 @@ type
     FRequestDisconnect: Boolean; // 请求断开连接
     FContextLocker: TIocpLocker;
     
+    function IncReferenceCounter(pvObj: TObject; const pvDebugInfo: string = ''): Boolean;
+    function DecReferenceCounter(pvObj: TObject; const pvDebugInfo: string = ''): Integer;
+
     procedure OnRecvBuffer(buf: Pointer; len: Cardinal; ErrorCode: Integer); virtual;
     procedure OnDisconnected; virtual;
     procedure OnConnected; virtual;
@@ -193,7 +194,7 @@ type
     /// 1. 投递发送请求到队列中, 如果发送队列已满返回 False
     /// 2. 检查 sending 标志, 如果 sending 是 False 才开始
     /// </summary>
-    function InnerPostSendRequestAndCheckStart(pvSendRequest:TIocpSendRequest): Boolean;
+    function InnerPostSendRequestAndCheckStart(pvSendRequest: TIocpSendRequest): Boolean;
 
     procedure SetSocketState(pvState: TSocketState); virtual;
     function LockContext(pvObj: TObject; const pvDebugInfo: string): Boolean;
@@ -242,6 +243,10 @@ type
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
       pvTagData: Pointer = nil): Boolean; overload; virtual;
+    /// <summary>
+    /// 发送流
+    /// </summary>
+    function PostWSASendStream(Stream: TStream; ASize: Int64): Boolean; virtual;
 
     /// <summary>
     /// 设置发送队列上限大小
@@ -285,7 +290,6 @@ type
   private
     FActive: Boolean;
     FIocpEngine: TIocpEngine;
-    FDataMoniter: TIocpDataMonitor;
     FLocker: TIocpLocker;
     FMemPool: TIocpMemPool;
     FIsDestroying: Boolean;
@@ -304,6 +308,7 @@ type
     procedure SetWSARecvBufferSize(const Value: Cardinal);
     procedure SetWSASendBufferSize(const Value: Cardinal);
   protected
+    FDataMoniter: TIocpDataMonitor;
     FContextClass: TIocpContextClass;
     FSendRequestClass: TIocpSendRequestClass;
     FRecvRequestClass: TIocpRecvRequestClass;
@@ -1992,6 +1997,83 @@ begin
   end;
 end;
 
+function TIocpCustomContext.PostWSASendStream(Stream: TStream;
+  ASize: Int64): Boolean;
+var
+  lvFreeType: TDataReleaseType;
+  lvRequest: TIocpSendRequest;
+  lvBuffSize, lvL: Cardinal;
+  lvLen: Int64;
+  lvBuf: PAnsiChar;
+begin
+  Result := False;
+  if Assigned(Stream) then begin
+    lvLen := Stream.Size - Stream.Position;
+    if lvLen < ASize then
+      Exit
+    else
+      lvLen := ASize;
+
+    lvBuffSize := Owner.SendBufferSize;
+    while lvLen > 0 do begin
+      if lvLen > lvBuffSize then
+        lvL := lvBuffSize
+      else
+        lvL := lvLen;
+      {$IFDEF UseSendMemPool}
+      lvBuf := FOwner.PopMem;
+      lvFreeType := dtMemPool;
+      {$ELSE}
+      GetMem(lvBuf, lvL);
+      lvFreeType := dtFreeMem;
+      {$ENDIF}
+
+      lvL := Stream.Read(lvBuf^, lvL);
+      if (lvL = 0) then
+        Break;
+
+      Result := False;
+      lvRequest := GetSendRequest;
+      lvRequest.SetBuffer(lvBuf, lvL, lvFreeType);
+      lvRequest.Tag := 0;
+      lvRequest.Data := nil;
+      repeat
+        if IncReferenceCounter(Self, 'SendStream') then begin
+          try
+            Result := InnerPostSendRequestAndCheckStart(lvRequest);
+            if not Result then begin
+              {$IFDEF MSWINDOWS}
+              SwitchToThread;
+              {$ELSE}
+              TThread.Yield;
+              {$ENDIF}
+              Sleep(50);
+            end;
+          finally
+            decReferenceCounter(self, 'SendStream');
+          end;
+        end else
+          Break;
+      until (Result);
+
+      if not Result then begin
+        lvRequest.UnBindingSendBuffer;
+        lvRequest.CancelRequest;
+        FOwner.ReleaseSendRequest(lvRequest);
+
+        {$IFDEF UseSendMemPool}
+        FOwner.PushMem(lvBuf);
+        {$ELSE}
+        FreeMem(lvBuf);
+        {$ENDIF}
+        Break;
+      end;
+
+      Dec(lvLen, lvL);
+    end;
+  end;
+end;
+
 procedure TIocpCustomContext.ReleaseClientContext;
 begin
 end;
@@ -2072,82 +2154,21 @@ end;
 function TIocpCustomContext.SendStream(Stream: TStream; ASize: Int64): Boolean;
 var
   P: PAnsiChar;
-  lvFreeType: TDataReleaseType;
-  lvRequest: TIocpSendRequest;
-  lvBuffSize, lvL: Cardinal;
   lvLen: Int64;
-  lvBuf: PAnsiChar;
 begin
   Result := False;
   if Assigned(Stream) then begin
-    lvLen := Stream.Size - Stream.Position;
-    if lvLen < ASize then
-      Exit
-    else
-      lvLen := ASize;
     if (Stream is TMemoryStream) then begin
+      lvLen := Stream.Size - Stream.Position;
+      if lvLen < ASize then
+        Exit
+      else
+        lvLen := ASize;
       P := PAnsiChar(TMemoryStream(Stream).Memory) + Stream.Position;
       Result := PostWSASendRequest(P, lvLen);
       Stream.Position := Stream.Position + lvLen;
-    end else begin
-      Result := False;
-      lvBuffSize := Owner.SendBufferSize;
-      while lvLen > 0 do begin
-        if lvLen > lvBuffSize then
-          lvL := lvBuffSize
-        else
-          lvL := lvLen;
-        {$IFDEF UseSendMemPool}
-        lvBuf := FOwner.PopMem;
-        lvFreeType := dtMemPool;
-        {$ELSE}
-        GetMem(lvBuf, lvL);
-        lvFreeType := dtFreeMem;
-        {$ENDIF}
-
-        lvL := Stream.Read(lvBuf^, lvL);
-        if (lvL = 0) then
-          Break;
-        Result := False;
-        lvRequest := GetSendRequest;
-        lvRequest.SetBuffer(lvBuf, lvL, lvFreeType);
-        lvRequest.Tag := 0;
-        lvRequest.Data := nil;
-        repeat
-          if IncReferenceCounter(Self, 'SendStream') then begin
-            try
-              Result := InnerPostSendRequestAndCheckStart(lvRequest);
-              if not Result then begin
-                {$IFDEF MSWINDOWS}
-                SwitchToThread;
-                {$ELSE}
-                TThread.Yield;
-                {$ENDIF}
-                Sleep(50);
-              end;
-            finally
-              decReferenceCounter(self, 'SendStream');
-            end;
-          end else
-            Break;
-        until (Result);
-
-        if not Result then begin
-          lvRequest.UnBindingSendBuffer;
-          lvRequest.CancelRequest;
-          FOwner.ReleaseSendRequest(lvRequest);
-
-          {$IFDEF UseSendMemPool}
-          FOwner.PushMem(lvBuf);
-          {$ELSE}
-          FreeMem(lvBuf);
-          {$ENDIF}
-          Break;
-        end;
-
-        Dec(lvLen, lvL);
-      end;
-    end;
+    end else
+      Result := PostWSASendStream(Stream, ASize);
   end;
 end;
 
@@ -3923,21 +3944,26 @@ begin
   if Assigned(FListenSocket) then
     FListenSocket.Close;
   FTimeOutKickOut.Enabled := False;
-  DisconnectAll;
-  // 等待所有的投递的AcceptEx请求回归
-  FIocpAcceptorMgr.WaitForCancel(12000);
-  if not WaitForContext(120000) then begin
-    Sleep(10);
-    if not FIocpEngine.StopWorkers(10000) then begin
-      // record info
-      DoCloseTimeOut();
-    end else begin
-      if not FIocpEngine.StopWorkers(120000) then begin
+
+  try
+    DisconnectAll;
+    // 等待所有的投递的AcceptEx请求回归
+    FIocpAcceptorMgr.WaitForCancel(12000);
+    if not WaitForContext(120000) then begin
+      Sleep(10);
+      if not FIocpEngine.StopWorkers(10000) then begin
         // record info
         DoCloseTimeOut();
+      end else begin
+        if not FIocpEngine.StopWorkers(120000) then begin
+          // record info
+          DoCloseTimeOut();
+        end;
       end;
     end;
+  except
   end;
+  
   FIocpAcceptorMgr.FAcceptExRequestPool.FreeDataObject;
   FIocpAcceptorMgr.FAcceptExRequestPool.Clear;
 
