@@ -3442,6 +3442,8 @@ procedure THttpResponse.DecodeHeader;
       FCharSet := hct_BIG5
     else if StrLIComp(P, PCharA(StringA('ISO-8859')), 8) = 0 then
       FCharSet := hct_ISO8859_1
+    else if StrLIComp(P, PCharA(StringA('octet-stream')), 12) = 0 then
+      FCharSet := hct_ISO8859_1
   end;
 
   procedure DecodeCharSet(P: PAnsiChar; Len: Integer);
@@ -3453,6 +3455,8 @@ procedure THttpResponse.DecodeHeader;
   begin
     FCharSet := FRequest.FClient.FDefautlCharset;
     FCharSetText := ExtractHeaderSubItem(MimeType, S_CharSet);
+    if (FCharSetText = '') and (LowerCase(MimeType) = 'application/octet-stream') then
+      FCharSetText := 'octet-stream';
     if Length(FCharSetText) = 0 then begin
       // 在内容中查找charset
       PMax := P + Len;
