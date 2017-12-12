@@ -59,6 +59,7 @@ unit ZLibExGZ;
 interface
 
 {$I ZLibEx.inc}
+{$HINTS OFF}
 
 uses
   ZLibEx, Windows, SysUtils, Classes {$IFDEF Version6Plus}, DateUtils {$ENDIF};
