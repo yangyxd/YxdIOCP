@@ -2825,7 +2825,7 @@ end;
 function THttpClient.Post(const AURL: string; const ASource,
   AResponseContent: TStream; const AHeaders: THttpHeaders): THttpResult;
 begin
-  Result := DoExecute(AURL, S_POST, AHeaders, AResponseContent, AResponseContent);
+  Result := DoExecute(AURL, S_POST, AHeaders, ASource, AResponseContent);
 end;
 
 procedure THttpClient.SetAccept(const Value: string);

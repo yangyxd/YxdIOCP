@@ -25,8 +25,20 @@ interface
 {$DEFINE USE_UNICODE}
 {$IFEND}
 
-//是否使用Inline
-{$DEFINE INLINE}
+{$IF RTLVersion>=24}
+{$LEGACYIFEND ON}
+{$IFEND}
+
+{$IF defined(FPC)}
+  {$DEFINE USEINLINE}
+{$IFEND}
+{$IF RTLVersion>=18}
+  {$DEFINE USEINLINE}
+{$IFEND}
+
+{$ifdef VER150}
+  {$define Version7}
+{$endif} 
 
 {$IF (RTLVersion>=26) and (not Defined(NEXTGEN))}
 {$DEFINE ANSISTRINGS}
@@ -292,15 +304,15 @@ function StrDupXA(const s: PCharA; ACount:Integer): StringA;
 function StrDupXW(const s: PCharW; ACount:Integer): StringW;
 function StrDup(const S: PChar; AOffset: Integer; const ACount: Integer): String;
 procedure ExchangeByteOrder(p: PCharA; l: Integer); overload;
-function ExchangeByteOrder(V: Smallint): Smallint; overload; inline;
-function ExchangeByteOrder(V: Word): Word; overload; inline;
-function ExchangeByteOrder(V: Integer): Integer; overload; inline;
-function ExchangeByteOrder(V: Cardinal): Cardinal; overload; inline;
-function ExchangeByteOrder(V: Int64): Int64; overload; inline;
-function ExchangeByteOrder(V: Single): Single; overload; inline;
-function ExchangeByteOrder(V: Double): Double; overload; inline;
+function ExchangeByteOrder(V: Smallint): Smallint; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Word): Word; overload;{$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Integer): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Cardinal): Cardinal; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Int64): Int64; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Single): Single; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function ExchangeByteOrder(V: Double): Double; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 // 转换成大写字符
-function CharUpper(c: Char): Char; inline;
+function CharUpper(c: Char): Char; {$IFDEF USEINLINE}inline;{$ENDIF}
 function CharUpperA(c: AnsiChar): AnsiChar;
 function CharUpperW(c: WideChar): WideChar;
 // 内存扫描
@@ -309,40 +321,40 @@ function MemScan(S: Pointer; len_s: Integer; sub: Pointer; len_sub: Integer): Po
 function BinaryCmp(const p1, p2: Pointer; len: Integer): Integer;
 // 字符串查找，从左到右  （UTF8直接使用Ansi版本即可）
 function StrScanW(const Str: PCharW; Chr: CharW): PCharW;
-function StrStr(src, sub: string): Integer; overload; inline;
-function StrStr(src, sub: PChar): PChar; overload; inline;
+function StrStr(src, sub: string): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function StrStr(src, sub: PChar): PChar; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function StrStrA(src, sub: PAnsiChar): PAnsiChar;
 function StrStrW(src, sub: PWideChar): PWideChar;
 function StrIStr(src, sub: string): Integer; overload;
 function StrIStr(src, sub: PChar): PChar; overload;
 function StrIStrA(src, sub: PAnsiChar): PAnsiChar;
 function StrIStrW(src, sub: PWideChar): PWideChar; 
-function PosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; inline;
-function PosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; inline;
-function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; Offset: Integer): Integer; overload; inline;
+function PosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function PosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; Offset: Integer): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function PosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload;
-function PosStr(const sub, src: StringW; Offset: Integer = 0): Integer; overload; inline;
+function PosStr(const sub, src: StringW; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function PosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer; overload;
 // 查找字符串，从右到左
-function RPosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; inline;
-function RPosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; inline;
+function RPosStr(sub, src: AnsiString; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function RPosStr(sub: PAnsiChar; src: PAnsiChar; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function RPosStr(sub: PAnsiChar; subLen: Integer; src: PAnsiChar; srcLen: Integer; Offset: Integer): Integer; overload;
-function RPosStr(sub, src: StringW; Offset: Integer = 0): Integer; overload; inline;
-function RPosStr(sub: PCharW; src: PCharW; Offset: Integer = 0): Integer; overload; inline;
+function RPosStr(sub, src: StringW; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function RPosStr(sub: PCharW; src: PCharW; Offset: Integer = 0): Integer; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function RPosStr(sub: PCharW; subLen: Integer; src: PCharW; srcLen: Integer; Offset: Integer): Integer; overload;
 // 计算一个以 #0 为结束标志的Wide字符串长度
-function WideStrLen(S: PWideChar): Integer; inline;
+function WideStrLen(S: PWideChar): Integer; {$IFDEF USEINLINE}inline;{$ENDIF}
 // 计算一个以 #0 为结束标志的Ansi字符串长度
-function AnsiStrLen(s: PAnsiChar): Integer; inline;
+function AnsiStrLen(s: PAnsiChar): Integer; {$IFDEF USEINLINE}inline;{$ENDIF}
 // 从一个字符串取出以ADelim为结束标志的字子符串，并且在ADelete为True时，删除源字符串的内容（包括Delim)
 function Fetch(var AInput: StringA; const ADelim: StringA = ' ';
-  const ADelete: Boolean = True): StringA; overload; inline;
+  const ADelete: Boolean = True): StringA; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function Fetch(var AInput: StringW; const ADelim: StringW = ' ';
-  const ADelete: Boolean = True; const ACaseSensitive: Boolean = True): StringW; overload; inline;
+  const ADelete: Boolean = True; const ACaseSensitive: Boolean = True): StringW; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 // 计算一个整数转为16进制字符串的长度
 function LengthAsDWordToHex(const Value: Cardinal): Integer;
 // 比较字符串
-function TextIsSame(const A1, A2: string): Boolean; inline;
+function TextIsSame(const A1, A2: string): Boolean; {$IFDEF USEINLINE}inline;{$ENDIF}
 {$IFDEF USE_URLFUNC}
 // URL编码
 function UrlEncode(const AUrl: StringA; ASpacesAsPlus: Boolean = True): StringA; overload;
@@ -350,7 +362,7 @@ function UrlEncode(const AUrl: StringW; ASpacesAsPlus: Boolean = True): StringW;
 function UrlEncode(const AStr: PChar; Len: Integer; ASpacesAsPlus: Boolean = True): string; overload;
 function UrlEncodeA(const AStr: PCharA; OutBuf: PCharA; Len: Integer = -1; ASpacesAsPlus: Boolean = True): Integer; overload;
 function UrlEncodeW(const AStr: PCharW; OutBuf: PCharW; Len: Integer = -1; ASpacesAsPlus: Boolean = True): Integer; overload;
-function UrlEncodeEx(const AUrl: string; ASpacesAsPlus: Boolean = True): string; overload; inline;
+function UrlEncodeEx(const AUrl: string; ASpacesAsPlus: Boolean = True): string; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 function UrlEncodeEx(const AStr: PChar; Len: Integer; ASpacesAsPlus: Boolean = True): string; overload;
 // URL解码
 function UrlDecode(const Src: PCharA; OutBuf: PCharA; RaiseError: Boolean = True): Integer; overload;
@@ -358,20 +370,20 @@ function UrlDecode(const AStr: StringA; RaiseError: Boolean = True): StringA; ov
 function UTFStrToUnicode(UTFStr: StringA): StringW;
 {$ENDIF}
 // 字符串截取
-function LeftStr(const AText: AnsiString; const ACount: Integer): AnsiString; overload; inline;
-function LeftStr(const AText: WideString; const ACount: Integer): WideString; overload; inline;
-function RightStr(const AText: AnsiString; const ACount: Integer): AnsiString; overload; inline;
-function RightStr(const AText: WideString; const ACount: Integer): WideString; overload; inline;
-function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; inline;
-function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; inline;
+function LeftStr(const AText: AnsiString; const ACount: Integer): AnsiString; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function LeftStr(const AText: WideString; const ACount: Integer): WideString; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function RightStr(const AText: AnsiString; const ACount: Integer): AnsiString; overload;{$IFDEF USEINLINE}inline;{$ENDIF}
+function RightStr(const AText: WideString; const ACount: Integer): WideString; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function MidStr(const AText: AnsiString; const AStart, ACount: Integer): AnsiString; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
+function MidStr(const AText: WideString; const AStart, ACount: Integer): WideString; overload; {$IFDEF USEINLINE}inline;{$ENDIF}
 // 字符串替换
 function StringReplaceEx(const S, Old, New: string; AFlags: TReplaceFlags): string; overload;
 //编码转换
-function IsHexChar(c: Char): Boolean; inline;
+function IsHexChar(c: Char): Boolean; {$IFDEF USEINLINE}inline;{$ENDIF}
 function HexValue(c: Char): Integer;
 function HexChar(v: Byte): Char;
 //检查字符是否在指定的列表中
-function CharIn(const c, list: PChar; ACharLen:PInteger = nil): Boolean; inline;
+function CharIn(const c, list: PChar; ACharLen:PInteger = nil): Boolean; {$IFDEF USEINLINE}inline;{$ENDIF}
 {$IFNDEF NEXTGEN}
 function CharInA(c, list: PAnsiChar; ACharLen: PInteger = nil): Boolean;
 function CharInU(c, list: PAnsiChar; ACharLen: PInteger = nil): Boolean;
@@ -458,7 +470,7 @@ function PCharToFloatDef(const S: PChar; Len: Integer; def: Double = 0): Double;
 function PCharToHexStr(p: PChar; len: Integer): string;
 function PCharToStr(p: PChar; len: Integer; Decode: Boolean = False; fillgap: Char = '.'): string;
 // 将“yyyy-mm-dd hh:mm:ss"格式的字符串转换成TDateTime
-function PCharToDateTime(aValue: PChar): TDateTime; inline;
+function PCharToDateTime(aValue: PChar): TDateTime; {$IFDEF USEINLINE}inline;{$ENDIF}
 // IP地址转为整型
 function ipToInt(const strIP : string): Cardinal;
 // 整型IP转为IP地址字符串
@@ -494,7 +506,7 @@ var
   VCMemCmp: TMSVCMemCmp;
 {$ENDIF}
 
-function WideStrLen(S: PWideChar): Integer; inline;
+function WideStrLen(S: PWideChar): Integer; {$IFDEF USEINLINE}inline;{$ENDIF}
 begin
   Result := 0;
   if S <> nil then
@@ -504,7 +516,7 @@ begin
     end;
 end;
 
-function AnsiStrLen(s: PAnsiChar): Integer; inline;
+function AnsiStrLen(s: PAnsiChar): Integer; {$IFDEF USEINLINE}inline;{$ENDIF}
 begin
   Result := 0;
   if s <> nil then
@@ -858,7 +870,7 @@ begin
   {$ENDIF};
 end;
 
-function DoStrStrASearch(s1, ps2: PAnsiChar): PAnsiChar; inline;
+function DoStrStrASearch(s1, ps2: PAnsiChar): PAnsiChar; {$IFDEF USEINLINE}inline;{$ENDIF}
 var
   ps1: PAnsiChar;
 begin
@@ -941,7 +953,7 @@ begin
   {$ENDIF};
 end;
 
-function DoStrStrAISearch(s1, ps2: PAnsiChar): PAnsiChar; inline;
+function DoStrStrAISearch(s1, ps2: PAnsiChar): PAnsiChar; {$IFDEF USEINLINE}inline;{$ENDIF}
 var
   ps1: PAnsiChar;
 begin
@@ -2511,7 +2523,7 @@ begin
     Addr and $FF]);
 end;
 
-function IsHexChar(c: Char): Boolean; inline;
+function IsHexChar(c: Char): Boolean; {$IFDEF USEINLINE}inline;{$ENDIF}
 begin
   Result:=((c>='0') and (c<='9')) or
     ((c>='a') and (c<='f')) or
@@ -2987,7 +2999,7 @@ begin
   Result := startby^ = #0;
 end;
 
-function TextIsSame(const A1, A2: string): Boolean; inline;
+function TextIsSame(const A1, A2: string): Boolean; {$IFDEF USEINLINE}inline;{$ENDIF}
 begin
   {$IFDEF DOTNET}
   Result := System.String.Compare(A1, A2, True) = 0;
