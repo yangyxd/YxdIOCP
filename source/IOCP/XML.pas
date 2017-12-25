@@ -1584,6 +1584,28 @@ begin
       end;
       Inc(FSource);
     end;
+  end else if (StrLComp(FSource,'<!DOCTYPE ', 10)= 0) or
+    (StrLComp(FSource,'<!ELEMENT ', 10)= 0) or
+    (StrLComp(FSource,'<!ATTLIST ', 10)= 0) then
+  begin
+    // DTD
+    Inc(FSource, 10);
+    APairCount := 1;
+    while FSource^ <> #0 do begin
+      if FSource^ = '<' then
+        Inc(APairCount)
+      else if FSource^ = '>' then begin
+        Dec(APairCount);
+        if APairCount = 0 then begin
+          Inc(FSource);
+          SkipSpace();
+          Break;
+        end;
+      end else
+        Inc(FSource);
+    end;
+    AValue := '';
+    Result := True;
   end else begin
     //可能是注释，跳过注释
     Inc(FSource,1);
