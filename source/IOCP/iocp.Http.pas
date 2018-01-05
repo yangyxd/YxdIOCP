@@ -626,11 +626,13 @@ type
     FContentType: StringA;
     FContentLanguage: StringA;
     FCharset: StringA;
+    FMakeHeaderRef: Integer;
     function GetConnection: TIocpHttpConnection;
     function GetActive: Boolean;
     function GetContentType: StringA;
     function GetCharsetType: TIocpHttpCharset;
     procedure SetCharsetType(const Value: TIocpHttpCharset);
+    function GetIsResponse: Boolean;
   protected
     procedure MakeHeaderEx(const StatusCode: Integer;
       const Data: TStringCatHelperA); virtual;
@@ -798,6 +800,9 @@ type
     property Request: TIocpHttpRequest read FRequest;
     property Connection: TIocpHttpConnection read GetConnection;
     property Active: Boolean read GetActive;
+
+    // 是否已经响应请求
+    property IsResponse: Boolean read GetIsResponse;
 
     // 缓存控制（浏览器缓存时间：ms)
     property CacheTime: Cardinal read FCacheTime write FCacheTime;
@@ -3061,6 +3066,8 @@ begin
   if Assigned(ARequest) then begin
     if Assigned(FOnHttpRequest) then begin
       FOnHttpRequest(Self, ARequest, ARequest.FResponse);
+      if not ARequest.FResponse.IsResponse then
+        ARequest.FResponse.ErrorRequest(404);
     end else begin
       // 如果没有事件处理，则返回 404 错误
       ARequest.FResponse.ErrorRequest(404);
@@ -3244,6 +3251,7 @@ begin
   FContentType := '';
   FContentLanguage := '';
   FCacheTime := 0;
+  FMakeHeaderRef := 0;
   {$IFDEF UseGZip}
   FGZip := True;
   {$ENDIF}
@@ -3434,6 +3442,11 @@ begin
     Result := MimeTypes[I].Value;
 end;
 
+function TIocpHttpResponse.GetIsResponse: Boolean;
+begin
+  Result := FMakeHeaderRef > 0;
+end;
+
 function TIocpHttpResponse.GetOutWriter(BufferSize: Cardinal): TIocpHttpWriter;
 begin
   if not Assigned(FOutWriter) then begin
@@ -3593,6 +3606,7 @@ begin
   
   MakeHeaderEx(StatusCode, Data);
 
+  Inc(FMakeHeaderRef);
   Result := True;
 end;
 
