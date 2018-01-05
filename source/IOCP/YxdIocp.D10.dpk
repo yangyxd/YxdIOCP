@@ -39,8 +39,10 @@ contains
   iocp in 'iocp.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
   iocp.Task in 'iocp.Task.pas',
-  OpenSSL in 'OpenSSL.pas';
-  //iocp.RawSockets.Posix in 'iocp.RawSockets.Posix.pas';
+  OpenSSL in 'OpenSSL.pas',
+  iocp.Reg in 'iocp.Reg.pas';
+
+//iocp.RawSockets.Posix in 'iocp.RawSockets.Posix.pas';
 
 end.
 

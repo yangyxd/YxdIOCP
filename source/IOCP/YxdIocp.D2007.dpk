@@ -36,6 +36,7 @@ contains
   iocp in 'iocp.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
   iocp.Task in 'iocp.Task.pas',
+  iocp.Reg in 'iocp.Reg.pas',
   OpenSSL in 'OpenSSL.pas';
 
 end.

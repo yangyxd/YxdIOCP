@@ -866,8 +866,6 @@ function HttpPut(const AURL: string; AData: TStream; OutStream: TStream; AHeader
 function HttpGetRange(const AURL: string; AStart: Int64; AnEnd: Int64 = -1; AHeaders: THttpHeaders = nil): string; overload;
 function HttpGetRange(const AURL: string; OutStream: TStream; AStart: Int64; AnEnd: Int64 = -1; AHeaders: THttpHeaders = nil): Boolean; overload;
 
-procedure Register;
-
 implementation
 
 resourcestring
@@ -901,14 +899,6 @@ var
 
 const
   BUFFERSIZE = 64 * 1024;  // Usual TCP Window Size
-
-const
-  ComPageName = 'YxdIOCP';
-
-procedure Register;
-begin
-  RegisterComponents(ComPageName, [TIocpHttpClient]);
-end;
 
 function LocalClient: THttpClient;
 begin

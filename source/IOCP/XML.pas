@@ -1565,6 +1565,7 @@ end;
 function TXMLDocumentBase.ParseCData(var AValue: string): Boolean;
 var
   pStart: PAnsiChar;
+  APairCount: Integer;
 begin
   //<![CDATA[....]]>
   Result:=False;

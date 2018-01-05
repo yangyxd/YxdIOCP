@@ -34,6 +34,7 @@ contains
   iocp.Http.MVC in 'iocp.Http.MVC.pas',
   iocp.Http in 'iocp.Http.pas',
   iocp in 'iocp.pas',
+  iocp.Reg in 'iocp.Reg.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
   iocp.Task in 'iocp.Task.pas',
   OpenSSL in 'OpenSSL.pas';

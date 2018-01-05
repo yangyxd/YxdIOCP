@@ -34,6 +34,7 @@ requires
 
 contains
   iocp in 'iocp.pas',
+  iocp.Reg in 'iocp.Reg.pas',
   iocp.Sockets in 'iocp.Sockets.pas',
   iocp.Http in 'iocp.Http.pas',
   iocp.Core.Engine in 'iocp.Core.Engine.pas',

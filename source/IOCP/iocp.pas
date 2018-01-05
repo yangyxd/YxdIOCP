@@ -391,32 +391,7 @@ function GetRunTimeInfo: string;
 // 重置运行时间
 procedure ResetRunTime;
 
-procedure Register;
-
 implementation
-
-const
-  ComPageName = 'YxdIOCP';
-
-procedure Register;
-begin
-  RegisterComponents(ComPageName, [TIocpUdpSocket]);
-  RegisterComponents(ComPageName, [TIocpUdpServer]);
-  RegisterComponents(ComPageName, [TIocpTcpSocket]);
-  RegisterComponents(ComPageName, [TIocpTcpClient]);
-  RegisterComponents(ComPageName, [TIocpTcpServer]);
-  RegisterComponents(ComPageName, [TIocpTcpCodecServer]);
-  {$IFDEF UseHttpServer}
-  RegisterComponents(ComPageName, [TIocpHttpServer]);
-  RegisterComponents(ComPageName, [TIocpHttpsServer]);
-  {$ENDIF}
-  {$IFDEF UseWebSocketServer}
-  RegisterComponents(ComPageName, [TIocpWebSocketServer]);
-  {$ENDIF}
-  {$IFDEF UseWebMvcServer}
-  RegisterComponents(ComPageName, [TIocpHttpMvcServer]);
-  {$ENDIF}
-end;
 
 var
   Workers: TIocpTask;
