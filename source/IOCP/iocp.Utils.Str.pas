@@ -1546,6 +1546,7 @@ begin
         SB.Cat(UrlEncode(P1, P - P1, ASpacesAsPlus));
     finally
       Result := SB.Value;
+      FreeAndNil(SB);
     end;
   end;
 end;

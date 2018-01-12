@@ -97,7 +97,7 @@ type
     /// <summary>
     /// 域名解析到IP地址
     /// </summary>
-    function DomainNameToAddr(const host: AnsiString): AnsiString;
+    class function DomainNameToAddr(const host: AnsiString): AnsiString;
 
     function RecvBuf(var data; const len: Integer): Integer;
     function SendBuf(const data; const len: Integer): Integer;
@@ -309,7 +309,7 @@ begin
   inherited;
 end;
 
-function TRawSocket.DomainNameToAddr(const host: AnsiString): AnsiString;
+class function TRawSocket.DomainNameToAddr(const host: AnsiString): AnsiString;
 var
   lvhostInfo: PHostEnt;
 begin
