@@ -34,6 +34,9 @@ const
   IP_V6 = 1;
 
 const
+  IP_HDRINCL = 2;
+
+const
   {$IFNDEF DOTNET}
   {$IFDEF USE_VCL_POSIX}
   DIOCP_PF_INET4 = AF_INET;
@@ -102,7 +105,8 @@ type
     function RecvBuf(var data; const len: Integer): Integer;
     function SendBuf(const data; const len: Integer): Integer;
 
-    function Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer = -1): Boolean;
+    function Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer = -1): Boolean; overload;
+    function Connect(sockaddr: TSockAddrIn; pvTimeOut: Integer = -1): Boolean; overload;
 
     /// <summary>
     /// 没有状况发生返回0, 有错误返回 SOCKET_ERROR, 有事做了返回大于0的数
@@ -214,16 +218,14 @@ begin
   end;
 end;
 
-function TRawSocket.Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer): Boolean;
+function TRawSocket.Connect(sockaddr: TSockAddrIn; pvTimeOut: Integer): Boolean;
 var
-  sockaddr: TSockAddrIn;
   lvFlags: Cardinal;
   lvRet: Integer;
   fs: TFDset;
   tv: timeval;
   Timeptr: PTimeval;
 begin
-  sockaddr := GetSocketAddr(AnsiString(pvAddr), pvPort);
   if pvTimeOut <= 0 then begin
     Result := iocp.Winapi.WinSock.Connect(FSocketHandle, TSockAddr(sockaddr),
       sizeof(sockaddr)) = 0;
@@ -258,6 +260,11 @@ begin
       end;
     end;
   end;
+end;
+
+function TRawSocket.Connect(const pvAddr: AnsiString; pvPort: Word; pvTimeOut: Integer): Boolean;
+begin
+  Result := Connect(GetSocketAddr(AnsiString(pvAddr), pvPort), pvTimeOut);
 end;
 
 constructor TRawSocket.Create;
