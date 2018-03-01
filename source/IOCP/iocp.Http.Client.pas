@@ -1183,6 +1183,7 @@ var
   Buff: TBytes;
   LFlags: DWORD;
   LHeaderName: PWideChar;
+  I: Integer;
 begin
   LFLags := AHeaderFlag;
   if AHeaderName <> '' then
@@ -1211,6 +1212,9 @@ begin
     Result := TEncoding.Unicode.GetString(Buff, 0, LSize);
     {$ELSE}
     Result := PCharWToString(@Buff[0], LSize);
+    I := Pos(#0, Result);
+    if I > 0 then
+      SetLength(Result, I - 1);
     {$ENDIF}
   end;
 end;   

@@ -1880,10 +1880,11 @@ begin
     WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
     P, Size, nil, 0, nil, nil);
   SetLength(Result, Len - 1);
-  if Len > 1 then
-    WideCharToMultiByte(CodePage,  
+  if Len > 1 then begin
+    WideCharToMultiByte(CodePage,
       WC_COMPOSITECHECK or WC_DISCARDNS or WC_SEPCHARS or WC_DEFAULTCHAR,  
       P, Size, @Result[1], Len - 1, nil, nil);
+  end;
 end;
 
 {$IFDEF USE_STRENCODEFUNC}
