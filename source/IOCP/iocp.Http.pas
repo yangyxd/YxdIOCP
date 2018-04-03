@@ -3300,8 +3300,10 @@ begin
     305: Result := 'Use Proxy';
     306: Result := '(Unused)';
     307: Result := 'Temporary Redirect';
+    308: Result := 'Permanent Redirect';
     400: Result := 'Bad Request';
     401: Result := 'Unauthorized';
+    402: Result := 'Payment Required';
     403: Result := 'Forbidden';
     404: Result := 'Not Found';
     405: Result := 'Method Not Allowed';
@@ -3314,7 +3316,7 @@ begin
     412: Result := 'Precondition Failed';
     413: Result := 'Request Entity Too Large';
     414: Result := 'Request URI Too Long';
-    415: Result := 'An Unsupported Media Type';
+    415: Result := 'Unsupported Media Type';
     416: Result := 'Requested Range Not Satisfiable';
     417: Result := 'On Failure';
     422: Result := 'Unprocessable Entity';
