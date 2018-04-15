@@ -391,6 +391,7 @@ type
     constructor Create(const Name, Value: string); overload;
     destructor Destroy; override;
     procedure Clear; virtual;
+    procedure Delete(const Index: Integer);
     function Add(const Name, Value: string): THttpHeaders;
     property Values[const Name: string]: string read GetHaderItem write SetHaderItem; default;
     property Params[const Name, Param: string]: string read GetParam write SetParam;
@@ -1819,6 +1820,11 @@ begin
   Clear();
   if Length(Name) > 0 then
     FData[Name] := Value;
+end;
+
+procedure THttpHeaders.Delete(const Index: Integer);
+begin
+  FData.Delete(Index);
 end;
 
 destructor THttpHeaders.Destroy;
