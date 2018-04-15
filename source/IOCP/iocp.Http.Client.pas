@@ -867,6 +867,9 @@ function HttpPut(const AURL: string; AData: TStream; OutStream: TStream; AHeader
 function HttpGetRange(const AURL: string; AStart: Int64; AnEnd: Int64 = -1; AHeaders: THttpHeaders = nil): string; overload;
 function HttpGetRange(const AURL: string; OutStream: TStream; AStart: Int64; AnEnd: Int64 = -1; AHeaders: THttpHeaders = nil): Boolean; overload;
 
+function ExtractHeaderSubItem(const AHeaderLine, ASubItem: String): String;
+function ReplaceHeaderSubItem(const AHeaderLine, ASubItem, AValue: string): string;
+
 implementation
 
 resourcestring
