@@ -1,0 +1,6 @@
+/Bin/Web/files
+/Bin/lib/win32
+/Bin/lib/win64
+/Bin/*.bpl
+/Bin/*.cer
+/Bin/*.pem
