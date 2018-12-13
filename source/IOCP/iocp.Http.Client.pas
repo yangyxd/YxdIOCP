@@ -2626,6 +2626,7 @@ begin
   LClientCertificateList := TCertificateList.Create;
   try
     while True do begin
+      Result := LResponse;
       ARequest.DoPrepare; 
 
       // Add Cookies
