@@ -85,6 +85,9 @@ begin
   FPtWebService.UploadMaxDataSize := 1024 * 1024;
   FPtWebService.MaxTaskWorker := 64;
   FPtWebService.MaxContextPoolSize := 1;
+  FPtWebService.AccessControlAllow.Methods := 'GET,POST,PUT,DELETE,OPTIONS';
+  FPtWebService.AccessControlAllow.Headers := 'x-requested-with,content-type';
+  FPtWebService.AccessControlAllow.Enabled := True;
   FPtWebService.OnHttpRequest := DoRequest;
   FPtWebService.OnWebSocketRequest := DoWebSocketRequest;
 
@@ -126,6 +129,8 @@ var
   V: Number;
 begin
   InterlockedIncrement(HttpReqRef);
+  //LogD(Self, Request.Header);
+  //LogD(Self, Request.DataString);
   V := FProcList.ValueOf(LowerCase(string(Request.URI)));
   if V <> -1 then begin
     TOnProcRequest(PMethod(Pointer(V))^)(Request, Response);
@@ -155,6 +160,7 @@ end;
 procedure TPtService.DoWriteLog(Sender: TObject; AType: TXLogType;
   const Msg: string);
 begin
+  OutputDebugString(PChar(Msg));
 end;
 
 function TPtService.GetWebService: TIocpHttpServer;
