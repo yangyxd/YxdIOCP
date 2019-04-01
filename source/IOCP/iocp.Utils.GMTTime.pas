@@ -216,6 +216,7 @@ begin
   //if wSec = 0 then Exit;
 
   if wYear < 100 then Inc(wYear, CURCentury); // 不带世纪，加上当前的世纪
+  if wMonth < 1 then wMonth := 1;  
   Result := GMTToDateTime(EnCodeDateTime(wYear, wMonth, wDay, wHour, wMinute, wSec, 0));
 end;
 
