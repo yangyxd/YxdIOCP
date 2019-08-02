@@ -155,6 +155,7 @@ type
     FIocpStreamPool: TBaseQueue;
     FOnRecvExecute: TOnRecvExecute;
     FOnDecodeData: TOnDecodeData;
+    FAsyncExecute: Boolean;
   protected
     function GetStream: TIocpStream;
     procedure FreeStream(V: TIocpStream);
@@ -168,6 +169,7 @@ type
     function PopMem: Pointer;
     procedure PushMem(const V: Pointer);
   published
+    property AsyncExecute: Boolean read FAsyncExecute write FAsyncExecute default True;
     /// <summary>
     /// 每次成功解码后执行
     /// </summary>
@@ -524,7 +526,6 @@ begin
       Exit;
     // 已经不是当时请求的连接，放弃处理逻辑
     if (Data.Conn = nil) or (Data.Conn.Handle <> Self.Handle) then Exit;
-
     // 处理请求
     try
       TIocpTcpCodecServer(Owner).DoRecvExecute(Data.Conn, Data.Request);
@@ -542,15 +543,27 @@ end;
 procedure TIocpConnection.DoRecvExecute(const RequestObj: TObject);
 var
   Data: PIocpAsyncExecute;
+  Request: TObject;
 begin
   if Assigned(Workers) and Active then begin
-    if LockContext(Self, 'DoRecvExecute') then begin    
-      Data := SMemPool.Pop;
-      Data.Conn := Self;
-      Data.Request := RequestObj;
-      Workers.Post(DoJob, Data);
-    end else
-      RequestObj.Free;
+    if TIocpTcpCodecServer(Owner).FAsyncExecute then begin
+      if LockContext(Self, 'DoRecvExecute') then begin
+        Data := SMemPool.Pop;
+        Data.Conn := Self;
+        Data.Request := RequestObj;
+        Workers.Post(DoJob, Data);
+      end else
+        RequestObj.Free;
+    end else begin
+      Request := RequestObj;
+      try
+        TIocpTcpCodecServer(Owner).DoRecvExecute(Self, Request);
+        LastActivity := GetTimestamp;
+      except
+        Owner.DoStateMsgE(Self, Exception(ExceptObject));
+      end;
+      FreeAndNil(Request);
+    end;
   end;
 end;
 
@@ -632,6 +645,7 @@ end;
 constructor TIocpTcpCodecServer.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FAsyncExecute := True;
   FIocpStreamPool := TBaseQueue.Create;
   FContextClass := TIocpConnection;
   FMemPool := TIocpMemPool.Create(RecvBufferSize, 4096);
