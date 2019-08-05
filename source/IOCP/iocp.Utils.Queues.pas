@@ -305,7 +305,7 @@ begin
   FLocker.Enter;
   while FFirst <> nil do begin
     lvData := FFirst.Next;
-    Dispose(FFirst);
+    SysFreeMem(FFirst);
     FFirst := lvData;
   end;
   FLocker.Free;

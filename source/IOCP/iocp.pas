@@ -499,7 +499,7 @@ end;
 
 destructor TIocpConnection.Destroy;
 begin
-  if Assigned(Workers) then
+  if Assigned(Workers) and TIocpTcpCodecServer(Owner).FAsyncExecute then
     Workers.Clear(Self);
   if Assigned(Owner) and (Assigned(FStream)) then
     TIocpTcpCodecServer(Owner).FreeStream(FStream);
