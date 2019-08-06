@@ -162,13 +162,16 @@ type
     function DoDecodeData(Connection: TIocpConnection; Stream: TIocpStream;
       var Request: TObject): Boolean; 
     procedure DoRecvExecute(const AConnection: TIocpConnection;
-      var RequestObj: TObject); virtual;
+      var RequestObj: TObject; const ATaskWorker: TIocpTaskWorker); virtual;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function PopMem: Pointer;
     procedure PushMem(const V: Pointer);
   published
+    /// <summary>
+    /// 是否异步执行任务，如果设为False，那么将会用当前连接线程处理业务（默认异步）
+    /// </summary>
     property AsyncExecute: Boolean read FAsyncExecute write FAsyncExecute default True;
     /// <summary>
     /// 每次成功解码后执行
@@ -528,7 +531,7 @@ begin
     if (Data.Conn = nil) or (Data.Conn.Handle <> Self.Handle) then Exit;
     // 处理请求
     try
-      TIocpTcpCodecServer(Owner).DoRecvExecute(Data.Conn, Data.Request);
+      TIocpTcpCodecServer(Owner).DoRecvExecute(Data.Conn, Data.Request, AJob.Worker);
       LastActivity := GetTimestamp;
     except
       Owner.DoStateMsgE(Self, Exception(ExceptObject));
@@ -552,12 +555,12 @@ begin
         Data.Conn := Self;
         Data.Request := RequestObj;
         Workers.Post(DoJob, Data);
-      end else
+      end else if Assigned(RequestObj) then               
         RequestObj.Free;
     end else begin
       Request := RequestObj;
       try
-        TIocpTcpCodecServer(Owner).DoRecvExecute(Self, Request);
+        TIocpTcpCodecServer(Owner).DoRecvExecute(Self, Request, nil);
         LastActivity := GetTimestamp;
       except
         Owner.DoStateMsgE(Self, Exception(ExceptObject));
@@ -595,13 +598,14 @@ begin
 
   // 将新接收到的数据解入缓冲流
   FStream.Write(Buf^, Len);
+  FRequest := nil;
   
   // 尝试解码
   while Assigned(FStream) do begin
     FStream.WaitRecv := False;
     Last := FStream.GetPosition;
 
-    if not TIocpTcpCodecServer(Owner).FOnDecodeData(Self, FStream, FRequest) then begin
+    if not TIocpTcpCodecServer(Owner).DoDecodeData(Self, FStream, FRequest) then begin
       // 解码失败
       CloseConnection;
       Exit;
@@ -615,8 +619,7 @@ begin
       Break;
 
     // 解码成功
-    if Assigned(FRequest) then
-      DoRecvExecute(FRequest);
+    DoRecvExecute(FRequest);
     
     // 继续解码
     if Assigned(FStream) and (FStream.GetPosition < FStream.Size) then begin
@@ -673,7 +676,8 @@ begin
     Result := False;
 end;
 
-procedure TIocpTcpCodecServer.DoRecvExecute(const AConnection: TIocpConnection; var RequestObj: TObject);
+procedure TIocpTcpCodecServer.DoRecvExecute(const AConnection: TIocpConnection;
+  var RequestObj: TObject; const ATaskWorker: TIocpTaskWorker);
 begin
   if Assigned(FOnRecvExecute) and Assigned(RequestObj) then begin
     try

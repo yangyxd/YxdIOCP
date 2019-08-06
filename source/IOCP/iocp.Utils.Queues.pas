@@ -20,7 +20,9 @@ type
   TQueueData = record
     Data: Pointer;
     Next: PQueueData;
-  end;  
+  end;
+
+  TBaseQueueFree = procedure (var Value: Pointer) of object;
 
   TBaseQueue = class(TObject)
   private
@@ -29,7 +31,7 @@ type
     FHead: PQueueData;
     FTail: PQueueData;
     function InnerDeQueue: PQueueData;
-    procedure InnerAddToTail(AData: PQueueData);
+    procedure InnerAddToTail(var AData: PQueueData);
   public
     Tag: Integer;
     constructor Create;
@@ -49,12 +51,14 @@ type
     /// <summary>
     /// »Î∂”¡–
     /// </summary>
-    procedure EnQueue(AData: Pointer);
+    procedure EnQueue(const AData: Pointer);
 
     /// <summary>
     /// invoke Only Data Pointer is TObject
     /// </summary>
     procedure FreeDataObject;
+
+    procedure FreeAll(DoFree: TBaseQueueFree);
 
     /// <summary>
     /// dispose all data
@@ -130,7 +134,7 @@ type
   public
     constructor Create(AMaxSize: Integer = 2048); overload;
     destructor Destroy; override;
-    procedure Push(pvQueueData: PQueueData);
+    procedure Push(var pvQueueData: PQueueData);
     function Pop: PQueueData;
     property Count: Integer read FCount;
     property Size: Integer read FSize write FSize;
@@ -202,6 +206,20 @@ begin
   end;
 end;
 
+procedure TBaseQueue.FreeAll(DoFree: TBaseQueueFree);
+var
+  lvData:Pointer;
+begin
+  while True do begin
+    lvData := nil;
+    if DeQueue(lvData) then begin
+      if lvData <> nil then
+        DoFree(lvData);
+    end else
+      Break;
+  end;
+end;
+
 procedure TBaseQueue.FreeDataObject;
 var
   lvData:Pointer;
@@ -246,7 +264,7 @@ begin
     Result := False;
 end;
 
-procedure TBaseQueue.EnQueue(AData: Pointer);
+procedure TBaseQueue.EnQueue(const AData: Pointer);
 var
   lvTemp:PQueueData;
 begin
@@ -275,7 +293,7 @@ begin
   FLocker.Leave;
 end;
 
-procedure TBaseQueue.InnerAddToTail(AData: PQueueData);
+procedure TBaseQueue.InnerAddToTail(var AData: PQueueData);
 begin
   AData.Next := nil;
   FLocker.Enter;
@@ -328,7 +346,7 @@ begin
   Result.Next := nil;
 end;
 
-procedure TQueueDataPool.Push(pvQueueData: PQueueData);
+procedure TQueueDataPool.Push(var pvQueueData: PQueueData);
 var
   ADoFree: Boolean;
 begin
