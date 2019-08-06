@@ -607,14 +607,18 @@ begin
 
     if not TIocpTcpCodecServer(Owner).DoDecodeData(Self, FStream, FRequest) then begin
       // 解码失败，如果不是在等待接收数据，则关闭连接
-      if not FStream.WaitRecv then        
-        CloseConnection;
+      if not FStream.WaitRecv then
+        CloseConnection
+      else
+        FStream.Position := Last;
       Exit;
     end;
 
     // 等待接收数据
-    if FStream.WaitRecv then
+    if FStream.WaitRecv then begin
+      FStream.Position := Last;
       Exit;
+    end;
 
     if FStream.GetPosition() = Last then
       Break;
