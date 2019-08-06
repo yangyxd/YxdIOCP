@@ -606,8 +606,9 @@ begin
     Last := FStream.GetPosition;
 
     if not TIocpTcpCodecServer(Owner).DoDecodeData(Self, FStream, FRequest) then begin
-      // 解码失败
-      CloseConnection;
+      // 解码失败，如果不是在等待接收数据，则关闭连接
+      if not FStream.WaitRecv then        
+        CloseConnection;
       Exit;
     end;
 
