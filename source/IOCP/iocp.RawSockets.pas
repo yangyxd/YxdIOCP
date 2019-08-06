@@ -251,7 +251,8 @@ begin
       if lvRet <= 0 then begin
         Result := False;  //连接超时
         //lvErr := WSAGetLastError;
-        closesocket(FSocketHandle);
+        CloseSocket(FSocketHandle);
+        FSocketHandle := INVALID_SOCKET;
         //Result := lvErr = 0;
       end else begin
         lvFlags := 0;  // 非阻塞模式
