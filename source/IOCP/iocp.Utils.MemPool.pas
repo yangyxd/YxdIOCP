@@ -32,6 +32,10 @@ type
 const
   MemoryDelta = $2000; { Must be a power of 2 }
   MaxListSize = MaxInt div 16;
+  MaxLineLength = 16 * 1024;
+  LF = #10;
+  CR = #13;
+  EOL = CR + LF;
 
 type
   MAddrList = array of Pointer;
@@ -156,7 +160,8 @@ type
     function GetPosition: Int64; inline;
     function Skip(ASize: Longint): Longint;
     function Read(var Buffer; Count: Longint): Longint; override;
-    function ReadString(ASize: Integer): string; 
+    function ReadLn(const ATerminator: string = ''; const AMaxLineLength: Integer = MaxLineLength): string;
+    function ReadString(ASize: Integer): string;
     function ReadBuffer(var Buffer; Count: Longint): Boolean; inline;
     // 写入数据，用户不要在外部调用
     function Write(const Buffer; Count: Longint): Longint; override;
@@ -520,7 +525,7 @@ var
   I: Integer;
 begin
   Result := 0;
-  if (Count < 1) or (not ReadData(Count)) then 
+  if (Count < 1) or (not ReadData(Count)) then
     Exit;
   Buf := Pointer(@Buffer);
   P := FCur.Data;
@@ -560,14 +565,124 @@ begin
     Result := True;
 end;
 
+function TIocpStream.ReadLn(const ATerminator: string; const AMaxLineLength: Integer): string;
+
+  function BinaryCmp(const p1, p2: Pointer; len: Integer): Integer;
+  var
+    b1, b2: PByte;
+  begin
+    if (len <= 0) or (p1 = p2) then
+      Result := 0
+    else begin
+      b1 := p1;
+      b2 := p2;
+      Result := 0;
+      while len > 0 do begin
+        if b1^ <> b2^ then begin
+          Result := b1^ - b2^;
+          Exit;
+        end;
+        Inc(b1);
+        Inc(b2);
+      end;
+    end;
+  end;
+
+  function MemScan(const S: Pointer; len_s: Integer; sub: Pointer; len_sub: Integer): Pointer;
+  var
+    pb_s, pb_sub, pc_sub, pc_s: PByte;
+    remain: Integer;
+  begin
+    if len_s > len_sub then begin
+      pb_s := S;
+      pb_sub := sub;
+      Result := nil;
+      while len_s >= len_sub do begin
+        if pb_s^ = pb_sub^ then begin
+          remain := len_sub - 1;
+          pc_sub := pb_sub;
+          pc_s := pb_s;
+          Inc(pc_s);
+          Inc(pc_sub);
+          if BinaryCmp(pc_s, pc_sub, remain) = 0 then begin
+            Result := pb_s;
+            Break;
+          end;
+        end;
+        Inc(pb_s);
+        Dec(len_s);
+      end;
+    end else if len_s = len_sub then begin
+      if CompareMem(S, sub, len_s) then
+        Result := S
+      else
+        Result := nil;
+    end else
+      Result := nil;
+  end;
+
+var
+  P, P1: PAnsiChar;
+  P2: Pointer;
+  I, LResult, LTL, Count: Integer;
+  LT: AnsiString;
+  LCur: PIocpLink;
+begin
+  Count := AMaxLineLength;
+  if Count < 0 then
+    Count := MaxLineLength;
+  if Count > Integer(UnReadSize) then
+    Count := Integer(UnReadSize);
+  LT := AnsiString(ATerminator);
+  if LT = '' then LT := LF;
+
+  LTL := Length(LT);
+  LCur := FCur;
+  P := LCur.Data;
+  P1 := FReadPos;
+  LResult := 0;
+  P2 := nil;
+
+  while Count > 0 do begin
+    I := FCunkSize - (P1 - P);
+    if I < Count then begin
+      P2 := MemScan(P1, I, PAnsiChar(LT), LTL);
+      if P2 <> nil then begin
+        Inc(LResult, P2 - P1 + LTL);
+        Break;
+      end else begin
+        LCur := LCur.Next;
+        P := LCur.Data;
+        P1 := P;
+        Inc(LResult, I);
+      end;
+    end else begin
+      P2 := MemScan(P1, Count, PAnsiChar(LT), LTL);
+      if P2 <> nil then
+        Inc(LResult, P2 - P1 + LTL);
+      Break;
+    end;
+  end;
+
+  if P2 <> nil then
+    Result := ReadString(LResult)
+  else begin
+    FWaitRecv := True;
+    Result := '';
+  end;
+end;
+
 function TIocpStream.ReadString(ASize: Integer): string;
+var
+  LData: AnsiString;
 begin
   if (ASize < 1) or (not ReadData(ASize)) then begin
     Result := '';
     Exit;
   end;
-  SetLength(Result, ASize);
-  Read(Result[1], ASize);
+  SetLength(LData, ASize);
+  Read(LData[1], ASize);
+  Result := string(LData);
 end;
 
 function TIocpStream.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
