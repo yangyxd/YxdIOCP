@@ -886,7 +886,7 @@ resourcestring
   SNetHttpRequestRemoveHeaderError = 'Error removing header: (%d) %s';
   SNetHttpClientSendError = 'Error sending data: (%d) %s';
   SNetHttpMaxRedirections = 'Maximum number of redirections (%d) exceeded';
-  SNetHttpClientUnknownError = 'Execution of request terminated with unknown error';
+  SNetHttpClientUnknownError = 'Execution of request terminated with unknown error(%d)';
   SNetHttpInvalidServerCertificate = 'Server Certificate Invalid or not present';
   SNetHttpUnspecifiedCertificate = 'Unspecified certificate from client';
 
@@ -2692,7 +2692,7 @@ begin
             raise EHTTPException.CreateRes(@SNetHttpUnspecifiedCertificate);
           end
         else
-          raise EHTTPException.CreateRes(@SNetHttpClientUnknownError);
+          raise EHTTPException.CreateResFmt(@SNetHttpClientUnknownError, [ARequest.LastError]);
       end;  
       
     end;
