@@ -229,6 +229,7 @@ type
     FWebBasePath: string;
     FGzipFileTypes: string;
     FDefaultPage: string;
+    FAutoDoownloadFileTypes: string;
     FCurrentDefaultPage: string;
     FCharset, FContentLanguage: StringA;
     FAccessControlAllow: TIocpHttpAccessControlAllow;
@@ -241,7 +242,8 @@ type
     procedure SetGzipFileTypes(const Value: string);
     function GetWebBasePath: string;
     procedure SetWebBasePath(const Value: string);
-    function GetCurrentDefaultPage: string;  protected
+    function GetCurrentDefaultPage: string;
+    procedure SetAutoDoownloadFileTypes(const Value: string);  protected
     procedure FreeSessionList;
     procedure DoFreeHashItem(Item: PHashItem);
   protected
@@ -302,6 +304,10 @@ type
     /// 如：'.htm;.html;.css;.js;'
     /// </summary>
     property GzipFileTypes: string read FGzipFileTypes write SetGzipFileTypes;
+    /// <summary>
+    /// 自动使用下载文件发送文件的文件类型. (以";"进行分隔)
+    /// </summary>
+    property DoownloadFileTypes: string read FAutoDoownloadFileTypes write SetAutoDoownloadFileTypes;
     /// <summary>
     /// 是否自动解析POST参数
     /// </summary>
@@ -2991,6 +2997,7 @@ begin
   FWebBasePath := AppPath + 'Web\';
   FDefaultPage := 'index.html;index.htm;default.html;default.htm';
   GzipFileTypes := '.htm;.html;.css;.js;.txt;.xml;.csv;.ics;.sgml;.c;.h;.pas;.cpp;.java;';
+  DoownloadFileTypes := '.zip;.rar;.7z;.iso;.apk;.msi;.cab;.gz;.ace;.lz;.zipx;.bin;.bak;.exe;.dll;.so;.mp3;.ape;.wav;.res;.pdf;';
   SetCurrentDefaultPage;
 end;
 
@@ -3186,6 +3193,11 @@ end;
 procedure TIocpHttpServer.SetGzipFileTypes(const Value: string);
 begin
   FGzipFileTypes := LowerCase(Value);
+end;
+
+procedure TIocpHttpServer.SetAutoDoownloadFileTypes(const Value: string);
+begin
+  FAutoDoownloadFileTypes := LowerCase(Value);
 end;
 
 procedure TIocpHttpServer.SetWebBasePath(const Value: string);
@@ -3828,18 +3840,23 @@ procedure TIocpHttpResponse.SendFile(const FileName, AContentType: string;
   procedure SendData(S: TStream; const FileExt: string; const Last: TDateTime);
   var
     I: Integer;
+    AIsDownFile: Boolean;
   begin
     FCharset := '';
+    AIsDownFile := IsDownFile;
     if Length(AContentType) = 0 then begin
       I := -1;
-      if ParserContentType then
+      if ParserContentType then begin
         I := MimeMap.ValueOf(FileExt);
+        if (not AIsDownFile) and (Pos(FileExt + ';', Request.FOwner.DoownloadFileTypes) > 0) then
+          AIsDownFile := True;
+      end;
       if I < 0 then
-        SendStream(S, IsDownFile, StringA(FileName), HTTPCTTypeStream, Last)
+        SendStream(S, AIsDownFile, StringA(FileName), HTTPCTTypeStream, Last)
       else
-        SendStream(S, IsDownFile, StringA(FileName), StringA(MimeTypes[I].Value), Last);
+        SendStream(S, AIsDownFile, StringA(FileName), StringA(MimeTypes[I].Value), Last);
     end else
-      SendStream(S, IsDownFile, StringA(FileName), StringA(AContentType), Last);
+      SendStream(S, AIsDownFile, StringA(FileName), StringA(AContentType), Last);
   end;
 
 var

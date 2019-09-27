@@ -104,6 +104,7 @@ type
     FOwner: TIocpCustom;
     FActive: Boolean;
     FSending: Boolean;
+    FSendStreaming: Integer;
 
     FRawSocket: TRawSocket;
     FSocketHandle: TSocket;
@@ -1575,6 +1576,7 @@ end;
 procedure TIocpCustomContext.DoConnected;
 begin
   FRequestDisconnect := 0;
+  FSendStreaming := 0;
   FLastActive := GetTimestamp;
   FLastActivity := FLastActive;
   Assert(FOwner <> nil);
@@ -1994,62 +1996,67 @@ begin
     else
       lvLen := ASize;
 
-    lvBuffSize := Owner.SendBufferSize;
-    while lvLen > 0 do begin
-      if lvLen > lvBuffSize then
-        lvL := lvBuffSize
-      else
-        lvL := lvLen;
-      {$IFDEF UseSendMemPool}
-      lvBuf := FOwner.PopMem;
-      lvFreeType := dtMemPool;
-      {$ELSE}
-      GetMem(lvBuf, lvL);
-      lvFreeType := dtFreeMem;
-      {$ENDIF}
-
-      lvL := Stream.Read(lvBuf^, lvL);
-      if (lvL = 0) then
-        Break;
-
-      Result := False;
-      lvRequest := GetSendRequest;
-      lvRequest.SetBuffer(lvBuf, lvL, lvFreeType);
-      lvRequest.Tag := 0;
-      lvRequest.Data := nil;
-      repeat
-        if IncReferenceCounter(Self, 'SendStream') then begin
-          try
-            Result := InnerPostSendRequestAndCheckStart(lvRequest);
-            if not Result then begin
-              {$IFDEF MSWINDOWS}
-              SwitchToThread;
-              {$ELSE}
-              TThread.Yield;
-              {$ENDIF}
-              Sleep(50);
-            end;
-          finally
-            decReferenceCounter(self, 'SendStream');
-          end;
-        end else
-          Break;
-      until (Result);
-
-      if not Result then begin
-        lvRequest.UnBindingSendBuffer;
-        lvRequest.CancelRequest;
-        FOwner.ReleaseSendRequest(lvRequest);
-
+    try
+      AtomicIncrement(FSendStreaming);   // 发送流计数器加1,防止自动断线
+      lvBuffSize := Owner.SendBufferSize;
+      while lvLen > 0 do begin
+        if lvLen > lvBuffSize then
+          lvL := lvBuffSize
+        else
+          lvL := lvLen;
         {$IFDEF UseSendMemPool}
-        FOwner.PushMem(lvBuf);
+        lvBuf := FOwner.PopMem;
+        lvFreeType := dtMemPool;
         {$ELSE}
-        FreeMem(lvBuf);
+        GetMem(lvBuf, lvL);
+        lvFreeType := dtFreeMem;
         {$ENDIF}
-        Break;
-      end;
 
-      Dec(lvLen, lvL);
+        lvL := Stream.Read(lvBuf^, lvL);
+        if (lvL = 0) then
+          Break;
+
+        Result := False;
+        lvRequest := GetSendRequest;
+        lvRequest.SetBuffer(lvBuf, lvL, lvFreeType);
+        lvRequest.Tag := 0;
+        lvRequest.Data := nil;
+        repeat
+          if IncReferenceCounter(Self, 'SendStream') then begin
+            try
+              Result := InnerPostSendRequestAndCheckStart(lvRequest);
+              if not Result then begin
+                {$IFDEF MSWINDOWS}
+                SwitchToThread;
+                {$ELSE}
+                TThread.Yield;
+                {$ENDIF}
+                Sleep(50);
+              end;
+            finally
+              decReferenceCounter(self, 'SendStream');
+            end;
+          end else
+            Break;
+        until (Result);
+
+        if not Result then begin
+          lvRequest.UnBindingSendBuffer;
+          lvRequest.CancelRequest;
+          FOwner.ReleaseSendRequest(lvRequest);
+
+          {$IFDEF UseSendMemPool}
+          FOwner.PushMem(lvBuf);
+          {$ELSE}
+          FreeMem(lvBuf);
+          {$ENDIF}
+          Break;
+        end;
+
+        Dec(lvLen, lvL);
+      end;
+    finally
+      AtomicDecrement(FSendStreaming);  // 发送流计数器减1
     end;
   end;
 end;
@@ -4197,7 +4204,7 @@ begin
             (lvContext.FAlive) and
             (lvContext.FLastActivity <> 0) then
           begin
-            if lvNowTickCount - lvContext.FLastActivity > pvTimeOut then
+            if (lvNowTickCount - lvContext.FLastActivity > pvTimeOut) and (AtomicIncrement(lvContext.FSendStreaming, 0) <= 0) then
               List.Add(lvContext);
           end;
         end;

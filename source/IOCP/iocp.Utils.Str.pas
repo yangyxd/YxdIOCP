@@ -1483,7 +1483,7 @@ begin
         I := WideCharToMultiByte(CP_ACP, 0, Sp, 1, @Buf[0], 4, nil, nil);
         for J := 0 to I - 1 do begin
           P := HTTP_CONVERT[Buf[J]];
-          PInt64(Rp)^ := PInt64(P)^;
+          CopyMemory(Rp, P, 8);
           Inc(Rp, 3);
         end;
         Inc(Sp);
@@ -1535,14 +1535,16 @@ var
   I: Integer;
 begin
   if Len > 0 then begin
-    SetLength(Result, Len * 3);
     {$IFDEF UNICODE}
+    SetLength(Result, Len * 8);
     I := UrlEncodeW(AStr, @Result[1], Len, ASpacesAsPlus);
     {$ELSE}
+    SetLength(Result, Len * 3);
     I := UrlEncodeA(AStr, @Result[1], Len, ASpacesAsPlus);
     {$ENDIF}
-    if Length(Result) <> I then
+    if Length(Result) <> I then begin
       SetLength(Result, I);
+    end;
   end else
     Result := '';
 end;
