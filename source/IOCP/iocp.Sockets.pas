@@ -2479,6 +2479,7 @@ begin
     FIocpEngine.Start;
   except
     FActive := False;
+    raise;
   end;
 end;
 
@@ -4242,6 +4243,7 @@ begin
   except
     FActive := False;
     FListenSocket.Close;
+    raise;
   end;
 end;
 
@@ -4893,6 +4895,7 @@ begin
   except
     FActive := False;
     FListenSocket.Close;
+    raise;
   end;
 end;
 
