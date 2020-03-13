@@ -1288,7 +1288,7 @@ begin
 
   i := Pos('?', LURI);
   if i > 0 then
-    j := RPosStr('/', LURI, i)
+    j := RPosStr('/', LURI, Length(LURI) - I) - 1
   else begin
     i := Pos('=', LURI);    {Do not Localize}
     if i > 0 then
