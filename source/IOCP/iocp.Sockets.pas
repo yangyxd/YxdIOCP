@@ -1292,7 +1292,7 @@ type
     /// <summary>
     /// 添加一个连接对象
     /// </summary>
-    function Add: TIocpRemoteContext;
+    function Add: TIocpRemoteContext; virtual;
 
     
     /// <summary>
