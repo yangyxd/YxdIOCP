@@ -1,33 +1,33 @@
 {*******************************************************}
 {                                                       }
-{       IOCP Sockets »ù´¡µ¥Ôª   (»ùÓÚDIOCPĞŞ¸Ä°æ±¾)     }
+{       IOCP Sockets åŸºç¡€å•å…ƒ   (åŸºäºDIOCPä¿®æ”¹ç‰ˆæœ¬)     }
 {                                                       }
-{       °æÈ¨ËùÓĞ (C) 2015 YangYxd                       }
+{       ç‰ˆæƒæ‰€æœ‰ (C) 2015 YangYxd                       }
 {                                                       }
 {*******************************************************}
 {
-  ±¾µ¥Ôª»ùÓÚDIOCPĞŞ¸Ä£¬´ó²¿·Ö´úÂë¶¼ÊÇÏàÍ¬µÄ¡£ÒÆ³ıÁËÈÕÖ¾
-  ÏµÍ³£¬¸ÄÓÉÍ³Ò»µÄStateMsgÊÂ¼şÏòÉÏ²ãÊä³öĞÅÏ¢¡£
+  æœ¬å•å…ƒåŸºäºDIOCPä¿®æ”¹ï¼Œå¤§éƒ¨åˆ†ä»£ç éƒ½æ˜¯ç›¸åŒçš„ã€‚ç§»é™¤äº†æ—¥å¿—
+  ç³»ç»Ÿï¼Œæ”¹ç”±ç»Ÿä¸€çš„StateMsgäº‹ä»¶å‘ä¸Šå±‚è¾“å‡ºä¿¡æ¯ã€‚
 
-  ¸ĞĞ»Ô­DIOCP×÷Õß£¨ÌìµØÏÒ£©£¡±¾Ô´ÂëÊÜÔ­×÷Õß½ÚÖÆ£¬Äã¿ÉÒÔÈÎ
-  Òâ¸´ÖÆ¡¢ĞŞ¸Ä¡¢Ê¹ÓÃ£¬Èç·¢ÏÖBUGÇë±¨¸æ¸øÎÒÃÇ¡£
-  ÎªÁË³«µ¼¿ªÔ´£¬ÄãµÄÒ»ÇĞĞŞ¸Ä°æ±¾£¬ÎÒÃÇÏ£ÍûÒ²ÄÜ¿ªÔ´¡£
+  æ„Ÿè°¢åŸDIOCPä½œè€…ï¼ˆå¤©åœ°å¼¦ï¼‰ï¼æœ¬æºç å—åŸä½œè€…èŠ‚åˆ¶ï¼Œä½ å¯ä»¥ä»»
+  æ„å¤åˆ¶ã€ä¿®æ”¹ã€ä½¿ç”¨ï¼Œå¦‚å‘ç°BUGè¯·æŠ¥å‘Šç»™æˆ‘ä»¬ã€‚
+  ä¸ºäº†å€¡å¯¼å¼€æºï¼Œä½ çš„ä¸€åˆ‡ä¿®æ”¹ç‰ˆæœ¬ï¼Œæˆ‘ä»¬å¸Œæœ›ä¹Ÿèƒ½å¼€æºã€‚
 
-  Ê¹ÓÃ×¢Òâ£º ËùÓĞint64ÀàĞÍ±íÊ¾µÄÊ±¼äµã£¬¾ùĞèÍ¨¹ı
-  TimestampToDatetime º¯Êı²ÅÄÜ×ª»¯Îª TDateTime.
+  ä½¿ç”¨æ³¨æ„ï¼š æ‰€æœ‰int64ç±»å‹è¡¨ç¤ºçš„æ—¶é—´ç‚¹ï¼Œå‡éœ€é€šè¿‡
+  TimestampToDatetime å‡½æ•°æ‰èƒ½è½¬åŒ–ä¸º TDateTime.
 }
 
 unit iocp.Sockets;
 
 {$I 'iocp.inc'}
-// Êä³öÈÕÖ¾¼ÇÂ¼±àÒë¿ª¹Ø
+// è¾“å‡ºæ—¥å¿—è®°å½•ç¼–è¯‘å¼€å…³
 {$DEFINE WRITE_LOG}
 
-// ÊÇ·ñÊä³ö¶îÍâµÄµ÷ÊÔĞÅÏ¢£¬¿ªÆôºó½«½µµÍ²¿·ÖĞÔÄÜ
+// æ˜¯å¦è¾“å‡ºé¢å¤–çš„è°ƒè¯•ä¿¡æ¯ï¼Œå¼€å¯åå°†é™ä½éƒ¨åˆ†æ€§èƒ½
 
 {.$DEFINE DEBUGINFO}
 
-// ·¢ËÍÊı¾İÊ±£¬Ê¹ÓÃ Iocp ·şÎñµÄSendBufferÄÚ´æ³Ø
+// å‘é€æ•°æ®æ—¶ï¼Œä½¿ç”¨ Iocp æœåŠ¡çš„SendBufferå†…å­˜æ± 
 
 {$DEFINE UseSendMemPool}
 
@@ -49,13 +49,13 @@ const
 
 type
   /// <summary>
-  /// Êı¾İÊÍ·Å·½Ê½
+  /// æ•°æ®é‡Šæ”¾æ–¹å¼
   /// </summary>
   TDataReleaseType = (
-    dtNone {²»×Ô¶¯ÊÍ·Å},
-    dtFreeMem {µ÷ÓÃFreeMemÊÍ·ÅÄÚ´æ},
-    dtDispose {µ÷ÓÃDisposeÊÍ·ÅÊı¾İ£¬ÊÊÓÃÓÚNew·ÖÅäµÄÊı¾İ},
-    dtMemPool {Ê¹ÓÃÄÚ´æ³Ø});
+    dtNone {ä¸è‡ªåŠ¨é‡Šæ”¾},
+    dtFreeMem {è°ƒç”¨FreeMemé‡Šæ”¾å†…å­˜},
+    dtDispose {è°ƒç”¨Disposeé‡Šæ”¾æ•°æ®ï¼Œé€‚ç”¨äºNewåˆ†é…çš„æ•°æ®},
+    dtMemPool {ä½¿ç”¨å†…å­˜æ± });
 
 type
   TIocpCustom = class;
@@ -73,10 +73,10 @@ type
   TIocpContextClass = class of TIocpCustomContext;
 
   TIocpStateMsgType = (
-    iocp_mt_Info {ÏûÏ¢},
-    iocp_mt_Debug {µ÷ÊÔĞÅÏ¢},
-    iocp_mt_Warning {¾¯¸æ},
-    iocp_mt_Error {´íÎó});
+    iocp_mt_Info {æ¶ˆæ¯},
+    iocp_mt_Debug {è°ƒè¯•ä¿¡æ¯},
+    iocp_mt_Warning {è­¦å‘Š},
+    iocp_mt_Error {é”™è¯¯});
 
   TNotifyContextEvent = procedure(const Context: TIocpCustomContext) of object;
   TOnStateMsgEvent = procedure(Sender: TObject; MsgType: TIocpStateMsgType;
@@ -95,7 +95,7 @@ type
   end;
 
   /// <summary>
-  /// ¿Í»§(Client)¶ÔÏó
+  /// å®¢æˆ·(Client)å¯¹è±¡
   /// </summary>
   TIocpCustomContext = class(TObject)
   private
@@ -122,39 +122,39 @@ type
     FLastErrorCode: Integer;
 
     FRefCount: Integer;
-    // ×îºó½»»¥µÄÊ±¼ä
+    // æœ€åäº¤äº’çš„æ—¶é—´
     FLastActivity: Int64;
 
     function GetSocketHandle: TSocket;
 
-    // ÄÚ²¿·¢ËÍÊı¾İ
+    // å†…éƒ¨å‘é€æ•°æ®
     function InnerSendData(buf: Pointer; len: Cardinal;
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
       pvTagData: Pointer = nil): Boolean;
   private
-    // ÊÍ·Å¿Í»§Á¬½Ó
+    // é‡Šæ”¾å®¢æˆ·è¿æ¥
     procedure ReleaseClientContext(); virtual;
     /// <example>
-    /// ÊÍ·Å´ı·¢ËÍ¶ÓÁĞÖĞµÄ·¢ËÍÇëÇó(TSendRequest)
+    /// é‡Šæ”¾å¾…å‘é€é˜Ÿåˆ—ä¸­çš„å‘é€è¯·æ±‚(TSendRequest)
     /// </example>
     procedure CheckReleaseRes;
     /// <summary>
-    /// ÏìÓ¦ RecvRequest
+    /// å“åº” RecvRequest
     /// </summary>
     procedure DoReceiveData;
     /// <summary>
-    /// ¼ì²é²¢Í¶µİÏÂÒ»¸ö·¢ËÍÇëÇó
+    /// æ£€æŸ¥å¹¶æŠ•é€’ä¸‹ä¸€ä¸ªå‘é€è¯·æ±‚
     /// </summary>
     function CheckNextSendRequest: Boolean;
     /// <summary>
-    /// ¶Ï¿ªÁ¬½ÓÇëÇó
+    /// æ–­å¼€è¿æ¥è¯·æ±‚
     /// </summary>
     procedure RequestDisconnect(pvObj: TObject = nil; const pvDebugInfo: string = '');
     function GetIsDisconnect: Boolean;
     procedure SetOwner(const Value: TIocpCustom);
   protected
-    FAlive: Boolean;  // ÊÇ·ñÕıÔÚÊ¹ÓÃ
-    FRequestDisconnect: Integer; // ÇëÇó¶Ï¿ªÁ¬½Ó
+    FAlive: Boolean;  // æ˜¯å¦æ­£åœ¨ä½¿ç”¨
+    FRequestDisconnect: Integer; // è¯·æ±‚æ–­å¼€è¿æ¥
     FContextLocker: TIocpLocker;
     FCloseRequest: TIocpActionRequest;
 
@@ -175,16 +175,16 @@ type
     function GetSendRequest: TIocpSendRequest; virtual;
 
     /// <summary>
-    /// Í¶µİµÄ·¢ËÍÇëÇóÏìÓ¦Ê±Ö´ĞĞ£¬Ò»ÏìÓ¦£¬ÂíÉÏÖ´ĞĞ£¬Errcode <> 0Ò²»áÏìÓ¦
+    /// æŠ•é€’çš„å‘é€è¯·æ±‚å“åº”æ—¶æ‰§è¡Œï¼Œä¸€å“åº”ï¼Œé©¬ä¸Šæ‰§è¡Œï¼ŒErrcode <> 0ä¹Ÿä¼šå“åº”
     /// </summary>
     procedure DoSendRequestRespnonse(pvRequest: TIocpSendRequest); virtual;
     /// <summary>
-    /// ÏìÓ¦ SendRequest
+    /// å“åº” SendRequest
     /// </summary>
     procedure DoSendRequestCompleted(pvRequest: TIocpSendRequest); virtual;
 
     /// <summary>
-    /// ÇëÇó½ÓÊÕÊı¾İ
+    /// è¯·æ±‚æ¥æ”¶æ•°æ®
     /// </summary>
     procedure PostWSARecvRequest(); virtual;
     procedure PostNextSendRequest; virtual;
@@ -192,8 +192,8 @@ type
     procedure InnerCloseContext;
 
     /// <summary>
-    /// 1. Í¶µİ·¢ËÍÇëÇóµ½¶ÓÁĞÖĞ, Èç¹û·¢ËÍ¶ÓÁĞÒÑÂú·µ»Ø False
-    /// 2. ¼ì²é sending ±êÖ¾, Èç¹û sending ÊÇ False ²Å¿ªÊ¼
+    /// 1. æŠ•é€’å‘é€è¯·æ±‚åˆ°é˜Ÿåˆ—ä¸­, å¦‚æœå‘é€é˜Ÿåˆ—å·²æ»¡è¿”å› False
+    /// 2. æ£€æŸ¥ sending æ ‡å¿—, å¦‚æœ sending æ˜¯ False æ‰å¼€å§‹
     /// </summary>
     function InnerPostSendRequestAndCheckStart(pvSendRequest: TIocpSendRequest): Boolean;
 
@@ -208,18 +208,18 @@ type
     procedure UnLock;
 
     /// <summary>
-    /// ¶Ï¿ªÁ¬½Ó
+    /// æ–­å¼€è¿æ¥
     /// </summary>
     procedure Disconnect; virtual;
     procedure Close; virtual;
 
     /// <summary>
-    /// ¹Ø±ÕÁ¬½Ó, Òì²½Ä£Ê½£¬±£Ö¤ÕıÔÚ·¢ËÍµÄÊı¾İ¿ÉÒÔ·¢ËÍÍê³É
+    /// å…³é—­è¿æ¥, å¼‚æ­¥æ¨¡å¼ï¼Œä¿è¯æ­£åœ¨å‘é€çš„æ•°æ®å¯ä»¥å‘é€å®Œæˆ
     /// </summary>
     procedure CloseConnection;
 
     /// <summary>
-    /// ·¢ËÍÊı¾İ (Òì²½) , ³É¹¦·µ»Ø True.
+    /// å‘é€æ•°æ® (å¼‚æ­¥) , æˆåŠŸè¿”å› True.
     /// </summary>
     function Send(buf: Pointer; len: Cardinal; CopyBuf: Boolean = True): Boolean; overload;
     function Send(buf: Pointer; len: Cardinal; BufReleaseType: TDataReleaseType): Boolean; overload;
@@ -232,25 +232,25 @@ type
     function SendStream(Stream: TStream; ASize: Int64): Boolean; overload;
 
     /// <summary>
-    /// Í¶µİÒ»¸ö·¢ËÍÇëÇóµ½Iocp¶ÓÁĞÖĞ, ³É¹¦·µ»Ø True.
-    /// Èç¹ûÇëÇóÍê³É, ½«µ÷ÓÃ DoSendRequestCompleted ¹ı³Ì
+    /// æŠ•é€’ä¸€ä¸ªå‘é€è¯·æ±‚åˆ°Iocpé˜Ÿåˆ—ä¸­, æˆåŠŸè¿”å› True.
+    /// å¦‚æœè¯·æ±‚å®Œæˆ, å°†è°ƒç”¨ DoSendRequestCompleted è¿‡ç¨‹
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
       pvCopyBuf: Boolean = True): Boolean; overload; 
     /// <summary>
-    /// Í¶µİÒ»¸ö·¢ËÍÇëÇóµ½Iocp¶ÓÁĞÖĞ, ³É¹¦·µ»Ø True.
-    /// Èç¹ûÇëÇóÍê³É, ½«µ÷ÓÃ DoSendRequestCompleted ¹ı³Ì
+    /// æŠ•é€’ä¸€ä¸ªå‘é€è¯·æ±‚åˆ°Iocpé˜Ÿåˆ—ä¸­, æˆåŠŸè¿”å› True.
+    /// å¦‚æœè¯·æ±‚å®Œæˆ, å°†è°ƒç”¨ DoSendRequestCompleted è¿‡ç¨‹
     /// </summary>
     function PostWSASendRequest(buf: Pointer; len: Cardinal;
       pvBufReleaseType: TDataReleaseType; pvTag: Integer = 0;
       pvTagData: Pointer = nil): Boolean; overload; virtual;
     /// <summary>
-    /// ·¢ËÍÁ÷
+    /// å‘é€æµ
     /// </summary>
     function PostWSASendStream(Stream: TStream; ASize: Int64): Boolean; virtual;
 
     /// <summary>
-    /// ÉèÖÃ·¢ËÍ¶ÓÁĞÉÏÏŞ´óĞ¡
+    /// è®¾ç½®å‘é€é˜Ÿåˆ—ä¸Šé™å¤§å°
     /// </summary>
     procedure SetMaxSendingQueueSize(pvSize: Integer);
 
@@ -265,24 +265,24 @@ type
     property SendRequest: TIocpSendRequest read FSendRequest;
 
     /// <summary>
-    /// ×îºó½»»¥Êı¾İµÄÊ±¼ä
+    /// æœ€åäº¤äº’æ•°æ®çš„æ—¶é—´
     /// </summary>
     property LastActive: Int64 read FLastActive;
-    // ¸½¼ÓÊı¾İ
+    // é™„åŠ æ•°æ®
     property Data: Pointer read FData write FData;
 
     property Prev: TIocpCustomContext read FPrev;
     property Next: TIocpCustomContext read FNext;
-    // ×îºó½»»¥Ê±¼ä
+    // æœ€åäº¤äº’æ—¶é—´
     property LastActivity: Int64 read FLastActivity write FLastActivity;
-    // Á¬½Ó¾ä±ú£¬ÓÃÓÚÒì²½ÈÎÎñÊ±Ê¶±ğÁ¬½Ó
+    // è¿æ¥å¥æŸ„ï¼Œç”¨äºå¼‚æ­¥ä»»åŠ¡æ—¶è¯†åˆ«è¿æ¥
     property Handle: Cardinal read FHandle;
     /// <summary>
-    /// Á¬½ÓÍê³É´¥·¢µÄÊÂ¼ş
+    /// è¿æ¥å®Œæˆè§¦å‘çš„äº‹ä»¶
     /// </summary>
     property OnConnectedEvent: TNotifyContextEvent read FOnConnectedEvent write FOnConnectedEvent;
     /// <summary>
-    /// Socket×´Ì¬¸Ä±ä´¥·¢µÄÊÂ¼ş
+    /// SocketçŠ¶æ€æ”¹å˜è§¦å‘çš„äº‹ä»¶
     /// </summary>
     property OnSocketStateChanged: TNotifyEvent read FOnSocketStateChanged write FOnSocketStateChanged;
   end;
@@ -324,78 +324,78 @@ type
     procedure PushMem(const V: Pointer);
 
     /// <summary>
-    /// ´´½¨Êı¾İ¼à¿ØÖĞĞÄÊµÀı
+    /// åˆ›å»ºæ•°æ®ç›‘æ§ä¸­å¿ƒå®ä¾‹
     /// </summary>
     procedure CreateDataMonitor;
 
     /// <summary>
-    /// Í£Ö¹IOCPÏß³Ì£¬µÈ´ıËùÓĞÏß³ÌÊÍ·Å
+    /// åœæ­¢IOCPçº¿ç¨‹ï¼Œç­‰å¾…æ‰€æœ‰çº¿ç¨‹é‡Šæ”¾
     /// </summary>
     procedure Close; virtual; abstract;
 
     /// <summary>
-    /// ¿ªÊ¼¹¤×÷
+    /// å¼€å§‹å·¥ä½œ
     /// </summary>
     procedure Open; virtual; abstract;
 
     /// <summary>
-    /// ÊÇ·ñÕıÔÚÊÍ·Å
+    /// æ˜¯å¦æ­£åœ¨é‡Šæ”¾
     /// </summary>
     function IsDestroying: Boolean;
 
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsg(Sender: TObject; MsgType: TIocpStateMsgType;
       const Msg: string);
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgD(Sender: TObject; const Msg: string); overload;
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgD(Sender: TObject; const MsgFormat: string; const Params: array of const); overload;
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgE(Sender: TObject; const Msg: string); overload;
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgE(Sender: TObject; E: Exception); overload;
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgE(Sender: TObject; const MsgFormat: string; E: Exception); overload;
-    // ×´Ì¬ÏûÏ¢
+    // çŠ¶æ€æ¶ˆæ¯
     procedure DoStateMsgE(Sender: TObject; const MsgFormat: string; const Params: array of const); overload;
 
     property Active: Boolean read FActive write SetActive;
     /// <summary>
-    /// ½ÓÊÕÊı¾İÇëÇó¿é´óĞ¡(Ä¬ÈÏ4k)
+    /// æ¥æ”¶æ•°æ®è¯·æ±‚å—å¤§å°(é»˜è®¤4k)
     /// </summary>
     property RecvBufferSize: Cardinal read FWSARecvBufferSize write SetWSARecvBufferSize;
     /// <summary>
-    /// µ¥´Î·¢ËÍÊı¾İ×î´ó×Ö½ÚÊı (Ä¬ÈÏ8k)
+    /// å•æ¬¡å‘é€æ•°æ®æœ€å¤§å­—èŠ‚æ•° (é»˜è®¤8k)
     /// </summary>
     property SendBufferSize: Cardinal read FWSASendBufferSize write SetWSASendBufferSize;
     /// <summary>
-    /// ¹¤×÷Ïß³ÌÊıÁ¿
+    /// å·¥ä½œçº¿ç¨‹æ•°é‡
     /// </summary>
     property WorkerCount: Integer read GetWorkerCount write SetWorkerCount;
     /// <summary>
-    /// ×î´ó¹¤×÷Ïß³ÌÊıÁ¿
+    /// æœ€å¤§å·¥ä½œçº¿ç¨‹æ•°é‡
     /// </summary>
     property MaxWorkerCount: Integer read GetMaxWorkerCount write SetMaxWorkerCount;
 
     property Locker: TIocpLocker read FLocker;
     /// <summary>
-    /// ×´Ì¬¼àÊÓÆ÷
+    /// çŠ¶æ€ç›‘è§†å™¨
     /// </summary>
     property Moniter: TIocpDataMonitor read FDataMoniter;
     /// <summary>
-    /// IOCPÒıÇæ
+    /// IOCPå¼•æ“
     /// </summary>
     property Engine: TIocpEngine read FIocpEngine;
     /// <summary>
-    /// °ó¶¨µØÖ·
+    /// ç»‘å®šåœ°å€
     /// </summary>
     property BindAddr: AnsiString read FBindAddr write SetBindAddr;
     /// <summary>
-    /// µ±Ò»¸öÒì²½·¢ËÍÇëÇóÏìÓ¦Ê±´¥·¢
+    /// å½“ä¸€ä¸ªå¼‚æ­¥å‘é€è¯·æ±‚å“åº”æ—¶è§¦å‘
     /// </summary>
     property OnSendRequestResponse: TOnSendRequestResponse read FOnSendRequestResponse write FOnSendRequestResponse;
     /// <summary>
-    /// ×´Ì¬ĞÅÏ¢Êä³ö½Ó¿Ú
+    /// çŠ¶æ€ä¿¡æ¯è¾“å‡ºæ¥å£
     /// </summary>
     property OnStateInfo: TOnStateMsgEvent read FOnStateMsg write FOnStateMsg;
   end;
@@ -417,53 +417,53 @@ type
     function RequestContextHandle: Integer;
 
     /// <summary>
-    /// ½ÓÊÕÊı¾İ
+    /// æ¥æ”¶æ•°æ®
     /// </summary>
     procedure DoReceiveData(const pvContext: TIocpCustomContext;
       pvRequest: TIocpRecvRequest);
 
     /// <summary>
-    /// Á¬½Ó·¢Éú´íÎó
+    /// è¿æ¥å‘ç”Ÿé”™è¯¯
     /// </summary>
     procedure DoClientContextError(const pvClientContext: TIocpCustomContext;
       pvErrorCode: Integer);
 
     /// <summary>
-    ///  Ìí¼Óµ½ÔÚÏßÁĞ±íÖĞ
+    ///  æ·»åŠ åˆ°åœ¨çº¿åˆ—è¡¨ä¸­
     /// </summary>
     procedure AddToOnlineList(const pvObject: TIocpCustomContext);
     /// <summary>
-    /// ´ÓÔÚÏßÁĞ±íÖĞÒÆ³ı
+    /// ä»åœ¨çº¿åˆ—è¡¨ä¸­ç§»é™¤
     /// </summary>
     procedure RemoveFromOnlineList(const pvObject: TIocpCustomContext); virtual;
 
     procedure DoAcceptExResponse(pvRequest: TIocpAcceptExRequest); virtual;
 
     /// <summary>
-    /// »ñÈ¡Ò»¸öSendRequest¶ÔÏó£¬Êµ¼ÊÉÏÊÇ´Ó³ØÖĞµ¯³ö
+    /// è·å–ä¸€ä¸ªSendRequestå¯¹è±¡ï¼Œå®é™…ä¸Šæ˜¯ä»æ± ä¸­å¼¹å‡º
     /// </summary>
     function GetSendRequest: TIocpSendRequest;
     /// <summary>
-    /// »ñÈ¡Ò»¸öRecvRequest¶ÔÏó
+    /// è·å–ä¸€ä¸ªRecvRequestå¯¹è±¡
     /// </summary>
     function GetRecvRequest: TIocpRecvRequest;
     /// <summary>
-    /// ÊÍ·ÅSendRequest£¬»¹»Ø³ØÖĞ
+    /// é‡Šæ”¾SendRequestï¼Œè¿˜å›æ± ä¸­
     /// </summary>
     function ReleaseSendRequest(pvObject: TIocpSendRequest): Boolean;
     /// <summary>
-    /// µÈ´ıËùÓĞÁ¬½Ó¹Ø±Õ
+    /// ç­‰å¾…æ‰€æœ‰è¿æ¥å…³é—­
     /// </summary>
     function WaitForContext(pvTimeOut: Cardinal = 30000): Boolean;
 
     /// <summary>
-    /// ´´½¨Ò»¸öÁ¬½ÓÊµÀı
-    /// Í¨¹ı×¢²áµÄContextClass½øĞĞ´´½¨ÊµÀı
+    /// åˆ›å»ºä¸€ä¸ªè¿æ¥å®ä¾‹
+    /// é€šè¿‡æ³¨å†Œçš„ContextClassè¿›è¡Œåˆ›å»ºå®ä¾‹
     /// </summary>
     function CreateContext: TIocpCustomContext; virtual;
     procedure OnCreateContext(const Context: TIocpCustomContext); virtual;
     /// <summary>
-    /// ÊÍ·ÅÁ¬½Ó¶ÔÏó£¬¹é»¹µ½¶ÔÏó³Ø
+    /// é‡Šæ”¾è¿æ¥å¯¹è±¡ï¼Œå½’è¿˜åˆ°å¯¹è±¡æ± 
     /// </summary>
     function ReleaseClientContext(const pvObject: TIocpCustomContext): Boolean; virtual;
 
@@ -474,53 +474,58 @@ type
     destructor Destroy; override;
 
     /// <summary>
-    /// Í£Ö¹IOCPÏß³Ì£¬µÈ´ıËùÓĞÏß³ÌÊÍ·Å
+    /// åœæ­¢IOCPçº¿ç¨‹ï¼Œç­‰å¾…æ‰€æœ‰çº¿ç¨‹é‡Šæ”¾
     /// </summary>
     procedure Close; override;
 
     /// <summary>
-    /// ÇëÇó¶Ï¿ªËùÓĞÁ¬½Ó£¬»áÁ¢¿Ì·µ»Ø¡£
+    /// è¯·æ±‚æ–­å¼€æ‰€æœ‰è¿æ¥ï¼Œä¼šç«‹åˆ»è¿”å›ã€‚
     /// </summary>
     procedure DisconnectAll;
 
     /// <summary>
-    /// ¿ªÊ¼¹¤×÷
+    /// å¼€å§‹å·¥ä½œ
     /// </summary>
     procedure Open; override;
 
     /// <summary>
-    /// »ñÈ¡Ò»¸öÁ¬½Ó¶ÔÏó£¬Èç¹û¶ÔÏó³ØÖĞÃ»ÓĞ£¬Ôò»á´´½¨Ò»¸öĞÂµÄÊµÀı
+    /// è·å–ä¸€ä¸ªè¿æ¥å¯¹è±¡ï¼Œå¦‚æœå¯¹è±¡æ± ä¸­æ²¡æœ‰ï¼Œåˆ™ä¼šåˆ›å»ºä¸€ä¸ªæ–°çš„å®ä¾‹
     /// </summary>
     function GetClientContext: TIocpCustomContext; virtual;
 
     /// <summary>
-    /// »ñÈ¡ÔÚÏß¿Í»§ÁĞ±í
+    /// è·å–åœ¨çº¿å®¢æˆ·åˆ—è¡¨
     /// </summary>
     procedure GetOnlineContextList(pvList: TList);
 
     /// <summary>
-    /// ¼ì²é¿Í»§Á¬½Ó¶ÔÏóÊÇ·ñÓĞĞ§
+    /// æ£€æŸ¥å®¢æˆ·è¿æ¥å¯¹è±¡æ˜¯å¦æœ‰æ•ˆ
     /// </summary>
     function CheckClientContextValid(const ClientContext: TIocpCustomContext): Boolean;
+    
+    /// <summary>
+    /// å½“å‰è¿æ¥åˆ—è¡¨
+    /// </summary>
+    property OnlineContextList: TIntHash read FOnlineContextList;
 
     /// <summary>
-    /// µ±Ç°Á¬½ÓÊı
+    /// å½“å‰è¿æ¥æ•°
     /// </summary>
     property OnlineContextCount: Integer read GetOnlineContextCount;
     /// <summary>
-    /// ·¢ÉúÔÚÍ¶µİÇëÇó»òIocp¹¤×÷Ïß³ÌÖĞµÄ´íÎóÊÂ¼ş
+    /// å‘ç”Ÿåœ¨æŠ•é€’è¯·æ±‚æˆ–Iocpå·¥ä½œçº¿ç¨‹ä¸­çš„é”™è¯¯äº‹ä»¶
     /// </summary>
     property OnContextError: TOnContextError read FOnContextError write FOnContextError;
     /// <summary>
-    /// ¿Í»§Á¬½Óºó½ÓÊÕµ½Êı¾İÊ±²úÉú´ËÊÂ¼ş£¬ÓÉIocp¹¤×÷Ïß³Ì´¥·¢
+    /// å®¢æˆ·è¿æ¥åæ¥æ”¶åˆ°æ•°æ®æ—¶äº§ç”Ÿæ­¤äº‹ä»¶ï¼Œç”±Iocpå·¥ä½œçº¿ç¨‹è§¦å‘
     /// </summary>
     property OnDataReceived: TOnBufferReceived read FOnReceivedBuffer write FOnReceivedBuffer;
     /// <summary>
-    /// µ±Á¬½Ó½¨Á¢³É¹¦Ê±´¥·¢ÊÂ¼ş
+    /// å½“è¿æ¥å»ºç«‹æˆåŠŸæ—¶è§¦å‘äº‹ä»¶
     /// </summary>
     property OnContextConnected: TNotifyContextEvent read FOnContextConnected write FOnContextConnected;
     /// <summary>
-    /// µ±Á¬½Ó¶Ï¿ªÊ±´¥·¢ÊÂ¼ş
+    /// å½“è¿æ¥æ–­å¼€æ—¶è§¦å‘äº‹ä»¶
     /// </summary>
     property OnContextDisconnected: TNotifyContextEvent read FOnContextDisconnected write FOnContextDisconnected;
   end;
@@ -533,7 +538,7 @@ type
   end;
 
   /// <summary>
-  /// Êı¾İ½ÓÊÕÇëÇó
+  /// æ•°æ®æ¥æ”¶è¯·æ±‚
   /// </summary>
   TIocpRecvRequest = class(TIocpRequestEx)
   private
@@ -555,7 +560,7 @@ type
   end;
 
   /// <summary>
-  /// ·¢ËÍÊı¾İÇëÇó
+  /// å‘é€æ•°æ®è¯·æ±‚
   /// </summary>
   TIocpSendRequest = class(TIocpRequestEx)
   private
@@ -593,7 +598,7 @@ type
   end;
 
   /// <summary>
-  /// IOÁ¬½ÓÇëÇó
+  /// IOè¿æ¥è¯·æ±‚
   /// </summary>
   TIocpConnectExRequest = class(TIocpRequestEx)
   private
@@ -605,7 +610,7 @@ type
   end;
 
   /// <summary>
-  /// ¶Ï¿ªÁ¬½ÓÇëÇó
+  /// æ–­å¼€è¿æ¥è¯·æ±‚
   /// </summary>
   TIocpDisconnectExRequest = class(TIocpRequestEx)
   private
@@ -619,7 +624,7 @@ type
   end;
 
   /// <summary>
-  /// ½ÓÊÜÁ¬½ÓÇëÇó
+  /// æ¥å—è¿æ¥è¯·æ±‚
   /// </summary>
   TIocpAcceptExRequest = class(TIocpRequestEx)
   private
@@ -648,7 +653,7 @@ type
   end;
 
   /// <summary>
-  /// Á¬½ÓÇëÇó½ÓÊÜ¹ÜÀíÆ÷
+  /// è¿æ¥è¯·æ±‚æ¥å—ç®¡ç†å™¨
   /// </summary>
   TIocpAcceptorMgr = class(TObject)
   private
@@ -661,7 +666,7 @@ type
     FAcceptExRequestPool: TBaseQueue;
   protected
     /// <summary>
-    /// ¼ì²âÊÇ·ñĞèÒªÍ¶µİAcceptEx
+    /// æ£€æµ‹æ˜¯å¦éœ€è¦æŠ•é€’AcceptEx
     /// </summary>
     procedure PostAcceptExRequest; overload;
   public
@@ -670,14 +675,14 @@ type
     procedure Release(Request: TIocpAcceptExRequest);
 
     /// <summary>
-    /// ¼ì²âÊÇ·ñĞèÒªÍ¶µİAcceptEx
+    /// æ£€æµ‹æ˜¯å¦éœ€è¦æŠ•é€’AcceptEx
     /// </summary>
     procedure CheckAcceptExRequest();
 
     procedure ReleaseRequestObject(pvRequest: TIocpAcceptExRequest);
     function GetRequestObject: TIocpAcceptExRequest;
     /// <summary>
-    /// µÈ´ıËùÓĞÁ¬½Ó¹Ø±Õ
+    /// ç­‰å¾…æ‰€æœ‰è¿æ¥å…³é—­
     /// </summary>
     function WaitForCancel(pvTimeOut: Cardinal): Boolean;
     property MaxRequest: Integer read FMaxRequest write FMaxRequest;
@@ -685,7 +690,7 @@ type
   end;
 
   /// <summary>
-  /// ×èÈûÊ½TCP¿Í»§¶Ë
+  /// é˜»å¡å¼TCPå®¢æˆ·ç«¯
   /// </summary>
   TIocpCustomBlockTcpSocket = class(TComponent)
   private
@@ -740,8 +745,8 @@ type
     function ReadSmallInt: SmallInt;
     function ReadString(const ABytes: Integer = -1): AnsiString;
     /// <summary>
-    /// ½ÓÊÕÊı¾İµ½Á÷ÖĞ
-    /// <param name="WaitRecvLen">µÈ´ı½ÓÊÕÖ¸¶¨³¤¶ÈµÄÊı¾İÖ±½ÓÁ¬½Ó¶Ï¿ª(Len´óÓÚ1Ê±ÓĞĞ§£©</param>
+    /// æ¥æ”¶æ•°æ®åˆ°æµä¸­
+    /// <param name="WaitRecvLen">ç­‰å¾…æ¥æ”¶æŒ‡å®šé•¿åº¦çš„æ•°æ®ç›´æ¥è¿æ¥æ–­å¼€(Lenå¤§äº1æ—¶æœ‰æ•ˆï¼‰</param>
     /// </summary>
     function ReadStream(OutStream: TStream; Len: Integer; WaitRecvLen: Boolean = False): Integer;
     function ReadBytes(var Buffer: TBytes; AByteCount: Integer; AAppend: Boolean = True): Integer;
@@ -762,7 +767,7 @@ type
   end;
 
   /// <summary>
-  /// ×èÈûÊ½TCP¿Í»§¶Ë
+  /// é˜»å¡å¼TCPå®¢æˆ·ç«¯
   /// </summary>
   TIocpCustomBlockUdpSocket = class(TIocpCustomBlockTcpSocket)
   protected
@@ -777,7 +782,7 @@ type
   end;
   
   /// <summary>
-  /// ×èÈûÊ½¿Í»§¶ËSocketÁ÷
+  /// é˜»å¡å¼å®¢æˆ·ç«¯Socketæµ
   /// </summary>
   TIocpBlockSocketStream = class(TStream)
   protected
@@ -793,7 +798,7 @@ type
   end;
 
   /// <summary>
-  /// IOCP Êı¾İ¼àÊÓÆ÷
+  /// IOCP æ•°æ®ç›‘è§†å™¨
   /// </summary>
   TIocpDataMonitor = class(TObject)
   private
@@ -903,7 +908,7 @@ type
       var AllowAccept: Boolean) of object;
 
   /// <summary>
-  /// Ô¶³ÌÁ¬½ÓÀà, ¶ÔÓ¦¿Í»§¶ËµÄÒ»¸öÁ¬½Ó
+  /// è¿œç¨‹è¿æ¥ç±», å¯¹åº”å®¢æˆ·ç«¯çš„ä¸€ä¸ªè¿æ¥
   /// </summary>
   TIocpClientContext = class(TIocpCustomContext)
   private
@@ -930,7 +935,7 @@ type
   end;
 
   /// <summary>
-  /// IOCP ·şÎñ¶Ë
+  /// IOCP æœåŠ¡ç«¯
   /// </summary>
   TIocpCustomTcpServer = class(TIocpCustom)
   private
@@ -951,11 +956,11 @@ type
   protected
     procedure CreateSocket; virtual;
     /// <summary>
-    /// ¶¨Ê±ÇåÀí³¬Ê±Á´½Ó
+    /// å®šæ—¶æ¸…ç†è¶…æ—¶é“¾æ¥
     /// </summary>
     procedure DoKickOutTimer(Sender: TObject);
     /// <summary>
-    /// ÔÚÍ¶µİµÄAcceptExÇëÇóÏìÓ¦Ê±ÖĞµ÷ÓÃ
+    /// åœ¨æŠ•é€’çš„AcceptExè¯·æ±‚å“åº”æ—¶ä¸­è°ƒç”¨
     /// </summary>
     procedure DoAcceptExResponse(pvRequest: TIocpAcceptExRequest); override;
   public
@@ -971,18 +976,18 @@ type
     function ReleaseClientContext(const pvObject: TIocpCustomContext): Boolean; override;
 
     /// <summary>
-    /// ÉèÖÃÔÊĞíÃ¿¸öÁ¬½ÓÔÊĞí×î´ó·¢ËÍ¶ÓÁĞ£¬³¬¹ıºó²»ÔÊĞíÔÙ½øĞĞÍ¶µİ
+    /// è®¾ç½®å…è®¸æ¯ä¸ªè¿æ¥å…è®¸æœ€å¤§å‘é€é˜Ÿåˆ—ï¼Œè¶…è¿‡åä¸å…è®¸å†è¿›è¡ŒæŠ•é€’
     /// </summary>
     procedure SetMaxSendingQueueSize(pvSize: Integer);
 
     /// <summary>
-    /// ¸ù¾İContextHandleÔÚÔÚÏßÁĞ±íÖĞ²éÕÒ¶ÔÓ¦µÄContextÊµÀı
+    /// æ ¹æ®ContextHandleåœ¨åœ¨çº¿åˆ—è¡¨ä¸­æŸ¥æ‰¾å¯¹åº”çš„Contextå®ä¾‹
     /// </summary>
     function FindContext(ContextHandle: Cardinal): TIocpClientContext;
 
     /// <summary>
-    /// ³¬Ê±¼ì²â, Èç¹û³¬¹ıTimeoutÖ¸¶¨µÄÊ±¼ä»¹Ã»ÓĞÈÎºÎÊı¾İ½»»»Êı¾İ¼ÇÂ¼£¬
-    /// ¾Í½øĞĞ¹Ø±ÕÁ¬½Ó, Ê¹ÓÃÑ­»·¼ì²â
+    /// è¶…æ—¶æ£€æµ‹, å¦‚æœè¶…è¿‡TimeoutæŒ‡å®šçš„æ—¶é—´è¿˜æ²¡æœ‰ä»»ä½•æ•°æ®äº¤æ¢æ•°æ®è®°å½•ï¼Œ
+    /// å°±è¿›è¡Œå…³é—­è¿æ¥, ä½¿ç”¨å¾ªç¯æ£€æµ‹
     /// </summary>
     procedure KickOut(pvTimeOut:Cardinal = 60000);
 
@@ -992,11 +997,11 @@ type
     procedure Start;
     procedure Stop;
 
-    // µ±Ç°¿Í»§¶ËÊıÁ¿
+    // å½“å‰å®¢æˆ·ç«¯æ•°é‡
     property ClientCount: Integer read GetClientCount;
-    // ½ÓÊÜÁ¬½Ó¹ÜÀíÆ÷
+    // æ¥å—è¿æ¥ç®¡ç†å™¨
     property IocpAcceptorMgr: TIocpAcceptorMgr read FIocpAcceptorMgr;
-    // Ã¿¸öÁ¬½Ó×î´ó·¢ËÍ¶ÓÁĞ
+    // æ¯ä¸ªè¿æ¥æœ€å¤§å‘é€é˜Ÿåˆ—
     property MaxSendingQueueSize: Integer read FMaxSendingQueueSize;
   published
     property Active default False;
@@ -1007,43 +1012,43 @@ type
     property SendBufferSize;
 
     /// <summary>
-    /// Ä¬ÈÏÕìÌıµÄ¶Ë¿Ú
+    /// é»˜è®¤ä¾¦å¬çš„ç«¯å£
     /// </summary>
     property ListenPort: Word read FPort write FPort default 9000;
     /// <summary>
-    /// ×î´óÈÎÎñ×÷ÒµÏß³ÌÊıÁ¿
+    /// æœ€å¤§ä»»åŠ¡ä½œä¸šçº¿ç¨‹æ•°é‡
     /// </summary>
     property MaxTaskWorker: Integer read GetMaxTaskWorker write SetMaxTaskWorker;
     /// <summary>
-    /// Á¬½Ó³Ø×î´ó´óĞ¡ (Ğ¡ÓÚ1Ê±£¬ÎŞÏŞ´óĞ¡)
+    /// è¿æ¥æ± æœ€å¤§å¤§å° (å°äº1æ—¶ï¼Œæ— é™å¤§å°)
     /// </summary>
     property MaxContextPoolSize: Integer read FMaxContextPoolSize write FMaxContextPoolSize;
     /// <summary>
-    /// Á¬½Ó×Ô¶¯³¬Ê±Ìß³ı¼ä¸ôÊ±¼ä (×¢Òâ£¬ÎªÁË²»Ó°ÏìĞÔÄÜ£¬Ã¿10ÃëÖ´ĞĞÒ»´Î×Ô¶¯Ìß³ıº¯Êı£¬ËùÒÔÕâ¸öÖµÖ»ÊÇ¸ö²Î¿¼)
+    /// è¿æ¥è‡ªåŠ¨è¶…æ—¶è¸¢é™¤é—´éš”æ—¶é—´ (æ³¨æ„ï¼Œä¸ºäº†ä¸å½±å“æ€§èƒ½ï¼Œæ¯10ç§’æ‰§è¡Œä¸€æ¬¡è‡ªåŠ¨è¸¢é™¤å‡½æ•°ï¼Œæ‰€ä»¥è¿™ä¸ªå€¼åªæ˜¯ä¸ªå‚è€ƒ)
     /// </summary>
     property KickOutInterval: Integer read FKickOutInterval write FKickOutInterval default 30000;
     /// <summary>
-    /// µ±½ÓÊÜÁ¬½ÓÊ±´¥·¢ÊÂ¼ş (²¢ĞĞÖ´ĞĞ)
+    /// å½“æ¥å—è¿æ¥æ—¶è§¦å‘äº‹ä»¶ (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnContextAccept: TOnContextAcceptEvent read FOnContextAccept write FOnContextAccept;
     /// <summary>
-    /// Á¬½Ó½¨Á¢Íê³ÉÊ±´¥·¢ÊÂ¼ş (²¢ĞĞÖ´ĞĞ)
+    /// è¿æ¥å»ºç«‹å®Œæˆæ—¶è§¦å‘äº‹ä»¶ (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnContextConnected;
     /// <summary>
-    /// Á¬½Ó¶Ï¿ªºó´¥·¢ÊÂ¼ş  (²¢ĞĞÖ´ĞĞ)
+    /// è¿æ¥æ–­å¼€åè§¦å‘äº‹ä»¶  (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnContextDisconnected;
     /// <summary>
-    /// ·¢Éú´íÎóÊ±´¥·¢ÊÂ¼ş (²¢ĞĞÖ´ĞĞ)
+    /// å‘ç”Ÿé”™è¯¯æ—¶è§¦å‘äº‹ä»¶ (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnContextError;
     /// <summary>
-    /// ½ÓÊÕÊı¾İÊÂ¼ş (²¢ĞĞÖ´ĞĞ)
+    /// æ¥æ”¶æ•°æ®äº‹ä»¶ (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnDataReceived;
     /// <summary>
-    /// ÄÚ²¿×´Ì¬ĞÅÏ¢ÊäÈë½Ó¿Ú (²¢ĞĞÖ´ĞĞ)
+    /// å†…éƒ¨çŠ¶æ€ä¿¡æ¯è¾“å…¥æ¥å£ (å¹¶è¡Œæ‰§è¡Œ)
     /// </summary>
     property OnStateInfo;
   end;
@@ -1058,7 +1063,7 @@ type
   TOnUdpBufferReceived = procedure(Request: TIocpUdpRequest; buf: Pointer; len: Cardinal) of object;
 
   /// <summary>
-  /// UDP Êı¾İ½ÓÊÕÇëÇó
+  /// UDP æ•°æ®æ¥æ”¶è¯·æ±‚
   /// </summary>
   TIocpUdpRecvRequest = class(TIocpRequest)
   private
@@ -1094,7 +1099,7 @@ type
   end;
 
   /// <summary>
-  /// UDP Send ÇëÇó
+  /// UDP Send è¯·æ±‚
   /// </summary>
   TIocpUdpSendRequest = class(TIocpRequest)
   private
@@ -1126,7 +1131,7 @@ type
   end;
 
   /// <summary>
-  /// IOCP UDP ·şÎñ¶Ë
+  /// IOCP UDP æœåŠ¡ç«¯
   /// </summary>
   {$IFDEF SupportEx}[ComponentPlatformsAttribute(pidWin32 or pidWin64)]{$ENDIF}
   TIocpUdpServer = class(TIocpBase)
@@ -1147,20 +1152,20 @@ type
     procedure DoReceiveData(Sender: TIocpUdpRequest); virtual;
     function WaitFor(pvTimeOut: Cardinal = 30000): Boolean;
     /// <summary>
-    /// ¼ì²é²¢Í¶µİÏÂÒ»¸ö·¢ËÍÇëÇó
+    /// æ£€æŸ¥å¹¶æŠ•é€’ä¸‹ä¸€ä¸ªå‘é€è¯·æ±‚
     /// </summary>
     function CheckNextSendRequest: Boolean;
     /// <summary>
-    /// »ñÈ¡Ò»¸öSendRequest¶ÔÏó£¬Êµ¼ÊÉÏÊÇ´Ó³ØÖĞµ¯³ö
+    /// è·å–ä¸€ä¸ªSendRequestå¯¹è±¡ï¼Œå®é™…ä¸Šæ˜¯ä»æ± ä¸­å¼¹å‡º
     /// </summary>
     function GetSendRequest: TIocpUdpSendRequest;
     /// <summary>
-    /// ÊÍ·ÅSendRequest£¬»¹»Ø³ØÖĞ
+    /// é‡Šæ”¾SendRequestï¼Œè¿˜å›æ± ä¸­
     /// </summary>
     function ReleaseSendRequest(pvObject: TIocpUdpSendRequest): Boolean;
     /// <summary>
-    /// 1. Í¶µİ·¢ËÍÇëÇóµ½¶ÓÁĞÖĞ, Èç¹û·¢ËÍ¶ÓÁĞÒÑÂú·µ»Ø False
-    /// 2. ¼ì²é sending ±êÖ¾, Èç¹û sending ÊÇ False ²Å¿ªÊ¼
+    /// 1. æŠ•é€’å‘é€è¯·æ±‚åˆ°é˜Ÿåˆ—ä¸­, å¦‚æœå‘é€é˜Ÿåˆ—å·²æ»¡è¿”å› False
+    /// 2. æ£€æŸ¥ sending æ ‡å¿—, å¦‚æœ sending æ˜¯ False æ‰å¼€å§‹
     /// </summary>
     function InnerPostSendRequestAndCheckStart(pvSendRequest: TIocpUdpSendRequest): Boolean;
     function InnerSendData(const Dest: TSockAddrin; buf: Pointer; len: Cardinal;
@@ -1173,7 +1178,7 @@ type
 
     procedure RegisterSendRequestClass(pvClass: TIocpUdpSendRequestClass);
     /// <summary>
-    /// ÉèÖÃ·¢ËÍ¶ÓÁĞÉÏÏŞ´óĞ¡
+    /// è®¾ç½®å‘é€é˜Ÿåˆ—ä¸Šé™å¤§å°
     /// </summary>
     procedure SetMaxSendingQueueSize(pvSize: Integer);
 
@@ -1187,11 +1192,11 @@ type
   published
     property Active;
     /// <summary>
-    /// Ä¬ÈÏÕìÌıµÄ¶Ë¿Ú
+    /// é»˜è®¤ä¾¦å¬çš„ç«¯å£
     /// </summary>
     property ListenPort: Word read FPort write FPort default 9000;
     /// <summary>
-    /// Êı¾İ½ÓÊÕÊÂ¼ş
+    /// æ•°æ®æ¥æ”¶äº‹ä»¶
     /// </summary>
     property OnDataReceived: TOnUdpBufferReceived read FOnReceivedBuffer write FOnReceivedBuffer;
     property OnStateInfo;
@@ -1199,7 +1204,7 @@ type
 
 type
   /// <summary>
-  /// Ô¶³ÌÁ¬½ÓÀà£¬¶ÔÓ¦Óë·şÎñÆ÷µÄÃ¿¸öÁ¬½Ó
+  /// è¿œç¨‹è¿æ¥ç±»ï¼Œå¯¹åº”ä¸æœåŠ¡å™¨çš„æ¯ä¸ªè¿æ¥
   /// </summary>
   TIocpRemoteContext = class(TIocpCustomContext)
   private
@@ -1225,21 +1230,21 @@ type
     constructor Create(AOwner: TIocpCustom); override;
     destructor Destroy; override;
     /// <summary>
-    /// ½¨Á¢Á¬½Ó£¨Async ÊÇ·ñÊ¹ÓÃÒì²½£©
-    /// <param name="ASync">ÊÇ·ñÊ¹ÓÃÒì²½</param>
-    /// <param name="pvTimeOut">³¬Ê±Öµ£¬µ±AsyncÎªFalseÊ±£¬> 0 Ê±³¬Ê±ÓĞĞ§¡£Ä¬ÈÏÎª -1£¬ÎŞ³¬Ê±ÉèÖÃ¡£</param>
+    /// å»ºç«‹è¿æ¥ï¼ˆAsync æ˜¯å¦ä½¿ç”¨å¼‚æ­¥ï¼‰
+    /// <param name="ASync">æ˜¯å¦ä½¿ç”¨å¼‚æ­¥</param>
+    /// <param name="pvTimeOut">è¶…æ—¶å€¼ï¼Œå½“Asyncä¸ºFalseæ—¶ï¼Œ> 0 æ—¶è¶…æ—¶æœ‰æ•ˆã€‚é»˜è®¤ä¸º -1ï¼Œæ— è¶…æ—¶è®¾ç½®ã€‚</param>
     /// </summary>
     procedure Connect(ASync: Boolean = False; pvTimeOut: Integer = -1); overload;
     /// <summary>
-    /// ½¨Á¢Á¬½Ó£¨Async ÊÇ·ñÊ¹ÓÃÒì²½£©
-    /// <param name="ASync">ÊÇ·ñÊ¹ÓÃÒì²½</param>
-    /// <param name="pvTimeOut">³¬Ê±Öµ£¬µ±AsyncÎªFalseÊ±£¬> 0 Ê±³¬Ê±ÓĞĞ§¡£Ä¬ÈÏÎª -1£¬ÎŞ³¬Ê±ÉèÖÃ¡£</param>
+    /// å»ºç«‹è¿æ¥ï¼ˆAsync æ˜¯å¦ä½¿ç”¨å¼‚æ­¥ï¼‰
+    /// <param name="ASync">æ˜¯å¦ä½¿ç”¨å¼‚æ­¥</param>
+    /// <param name="pvTimeOut">è¶…æ—¶å€¼ï¼Œå½“Asyncä¸ºFalseæ—¶ï¼Œ> 0 æ—¶è¶…æ—¶æœ‰æ•ˆã€‚é»˜è®¤ä¸º -1ï¼Œæ— è¶…æ—¶è®¾ç½®ã€‚</param>
     /// </summary>
     procedure Connect(const AHost: AnsiString; APort: Word; ASync: Boolean = False;
       pvTimeOut: Integer = -1); overload;
 
     /// <summary>
-    /// ÉèÖÃ¸ÃÁ¬½Ó¶ÔÏóµÄ×Ô¶¯ÖØÁ¬ÊôĞÔ
+    /// è®¾ç½®è¯¥è¿æ¥å¯¹è±¡çš„è‡ªåŠ¨é‡è¿å±æ€§
     /// </summary>
     property AutoReConnect: Boolean read FAutoReConnect write FAutoReConnect;
 
@@ -1249,7 +1254,7 @@ type
   end;
 
   /// <summary>
-  /// IOCP TCP ¿Í»§¶Ë
+  /// IOCP TCP å®¢æˆ·ç«¯
   /// </summary>
   TIocpCustomTcpClient = class(TIocpCustom)
   private
@@ -1266,15 +1271,15 @@ type
     FList: TObjectList;
     {$ENDIF}
     /// <summary>
-    /// ÏìÓ¦Íê³É£¬¹é»¹ÇëÇó¶ÔÏóµ½³Ø
+    /// å“åº”å®Œæˆï¼Œå½’è¿˜è¯·æ±‚å¯¹è±¡åˆ°æ± 
     /// </summary>
     procedure OnReconnectRequestResponseDone(pvObject: TObject);
     /// <summary>
-    /// ÏìÓ¦ÖØÁ¬ÇëÇóRequest
+    /// å“åº”é‡è¿è¯·æ±‚Request
     /// </summary>
     procedure OnReconnectRequestResponse(pvObject: TObject);
     /// <summary>
-    /// Í¶µİÖØÁ¬ÇëÇóÊÂ¼ş
+    /// æŠ•é€’é‡è¿è¯·æ±‚äº‹ä»¶
     /// </summary>
     procedure PostReconnectRequestEvent(const pvContext: TIocpRemoteContext);
 
@@ -1285,66 +1290,66 @@ type
     function CreateContext: TIocpCustomContext; override;
 
     /// <summary>
-    /// ×¢²áÒ»¸ö×Ô¶¨ÒåµÄÁ¬½ÓÀà
+    /// æ³¨å†Œä¸€ä¸ªè‡ªå®šä¹‰çš„è¿æ¥ç±»
     /// </summary>
     procedure RegisterContextClass(pvContextClass: TIocpContextClass);
 
     /// <summary>
-    /// Ìí¼ÓÒ»¸öÁ¬½Ó¶ÔÏó
+    /// æ·»åŠ ä¸€ä¸ªè¿æ¥å¯¹è±¡
     /// </summary>
     function Add: TIocpRemoteContext; virtual;
 
     
     /// <summary>
-    /// ½¨Á¢Ò»¸öĞÂÁ¬½Ó
+    /// å»ºç«‹ä¸€ä¸ªæ–°è¿æ¥
     /// </summary>
     function Connect(const Host: AnsiString; Port: Word;
       AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext; overload;
     
     /// <summary>
-    /// ½¨Á¢Ò»¸öĞÂÁ¬½Ó
+    /// å»ºç«‹ä¸€ä¸ªæ–°è¿æ¥
     /// </summary>
     function Connect(const Host: AnsiString; Port: Word; const BindAddr: AnsiString;
       AutoReConnect: Boolean = False; ASync: Boolean = True): TIocpRemoteContext; overload;
 
     /// <summary>
-    /// É¾³ıÒ»¸öÁ¬½Ó
+    /// åˆ é™¤ä¸€ä¸ªè¿æ¥
     /// </summary>
     procedure Remove(const Value: TIocpRemoteContext);
 
     /// <summary>
-    /// É¾³ıÖ¸¶¨Ë÷ÒıÁ¬½Ó
+    /// åˆ é™¤æŒ‡å®šç´¢å¼•è¿æ¥
     /// </summary>
     procedure Delete(Index: Integer); overload;
 
     /// <summary>
-    /// Ö±½ÓÉ¾³ıÒ»¸öÁ¬½Ó£¬²»¹ÜÊÇ·ñ¶Ï¿ªÁ¬½Ó£¬Ê¹ÓÃÊ±×¢Òâ (²Ö¾®ºÜ¿Õ  ~)
+    /// ç›´æ¥åˆ é™¤ä¸€ä¸ªè¿æ¥ï¼Œä¸ç®¡æ˜¯å¦æ–­å¼€è¿æ¥ï¼Œä½¿ç”¨æ—¶æ³¨æ„ (ä»“äº•å¾ˆç©º  ~)
     /// </summary>
     function Delete(const pvContext: TIocpCustomContext): Integer; overload;
 
     /// <summary>
-    /// É¾³ıÈ«²¿Á¬½Ó
+    /// åˆ é™¤å…¨éƒ¨è¿æ¥
     /// </summary>
     procedure RemoveAll();
 
 
     /// <summary>
-    /// ×ÜµÄÁ¬½Ó¶ÔÏóÊıÁ¿
+    /// æ€»çš„è¿æ¥å¯¹è±¡æ•°é‡
     /// </summary>
     property Count: Integer read GetCount;
     /// <summary>
-    /// Í¨¹ıÎ»ÖÃË÷Òı»ñÈ¡ÆäÖĞµÄÒ»¸öÁ¬½Ó
+    /// é€šè¿‡ä½ç½®ç´¢å¼•è·å–å…¶ä¸­çš„ä¸€ä¸ªè¿æ¥
     /// </summary>
     property Items[Index: Integer]: TIocpRemoteContext read GetItems; default;
   published
     property Active;
     /// <summary>
-    /// ½ûÖ¹ËùÓĞÁ¬½Ó¶ÔÏó×Ô¶¯ÖØÁ¬
+    /// ç¦æ­¢æ‰€æœ‰è¿æ¥å¯¹è±¡è‡ªåŠ¨é‡è¿
     /// </summary>
     property DisableAutoConnect: Boolean read FDisableAutoConnect write FDisableAutoConnect;
 
     /// <summary>
-    /// Á¬½Ó³¬Ê±ÉèÖÃ, < 1 Ê±»òÊ¹ÓÃÒì²½Á¬½ÓÊ±£¬ÎŞĞ§ (ºÁÃëms)
+    /// è¿æ¥è¶…æ—¶è®¾ç½®, < 1 æ—¶æˆ–ä½¿ç”¨å¼‚æ­¥è¿æ¥æ—¶ï¼Œæ— æ•ˆ (æ¯«ç§’ms)
     /// </summary>
     property ConnectTimeOut: Integer read FConnectTimeOut write FConnectTimeOut default -1;
 
@@ -1372,7 +1377,7 @@ var
   StartRunTime: Int64 = 0;
 
 const
-  RECONNECT_INTERVAL = 1000; // ÖØÁ¬¼ä¸ô£¬±ÜÃâÁ¬½Ó¹ı¿ì£¬µ¼ÖÂOnDisconnected»¹Ã»ÓĞ´¦ÀíÍê³É, 1Ãë
+  RECONNECT_INTERVAL = 1000; // é‡è¿é—´éš”ï¼Œé¿å…è¿æ¥è¿‡å¿«ï¼Œå¯¼è‡´OnDisconnectedè¿˜æ²¡æœ‰å¤„ç†å®Œæˆ, 1ç§’
 const
   ADDRESS_LENGTH_EX = 18;
 
@@ -1460,7 +1465,7 @@ begin
       FOwner.DoStateMsgD(Self, '[0x%.4x] CheckNextSendRequest.ExecuteSend Return False',
          [SocketHandle]);
       {$ENDIF}
-      // ÇëÇó¶Ï¿ªÁ¬½Ó kick out the clientContext
+      // è¯·æ±‚æ–­å¼€è¿æ¥ kick out the clientContext
       RequestDisconnect(lvRequest);
       FOwner.ReleaseSendRequest(lvRequest);
     end;
@@ -1584,14 +1589,14 @@ begin
   if IncReferenceCounter(nil, 'OnConnected') then begin
     try
       if FActive then begin
-        // ÒÑ¾­¼¤»îµÄÁ¬½Ó£¬²»×öÈÎºÎ´¦Àí¡£
+        // å·²ç»æ¿€æ´»çš„è¿æ¥ï¼Œä¸åšä»»ä½•å¤„ç†ã€‚
         if IsDebugMode then
           Assert(not FActive);
         {$IFDEF DEBUG_ON}
         FOwner.DoStateMsgD(Self, strSocket_ConnActived);
         {$ENDIF}
       end else begin
-        FHandle := FOwner.RequestContextHandle; //ÇëÇóOwnerÎª×Ô¼º·ÖÅäÒ»¸öHandle
+        FHandle := FOwner.RequestContextHandle; //è¯·æ±‚Ownerä¸ºè‡ªå·±åˆ†é…ä¸€ä¸ªHandle
         FActive := True;
         FOwner.AddToOnlineList(Self);
         
@@ -1607,12 +1612,12 @@ begin
         end;
         if Assigned(FOnConnectedEvent) then
           FOnConnectedEvent(Self);
-        // ÉèÖÃÎªÁ¬½Ó³É¹¦×´Ì¬£¬²¢ÇëÇó½ÓÊÕÊı¾İ
+        // è®¾ç½®ä¸ºè¿æ¥æˆåŠŸçŠ¶æ€ï¼Œå¹¶è¯·æ±‚æ¥æ”¶æ•°æ®
         SetSocketState(ssConnected);
         if FActive then         
           PostWSARecvRequest
         else
-          RequestDisconnect(nil, '·şÎñÍ£Ö¹, ÇëÇó¶ÏÏß');
+          RequestDisconnect(nil, 'æœåŠ¡åœæ­¢, è¯·æ±‚æ–­çº¿');
       end;
     finally
       DecReferenceCounter(nil, 'OnConnected');  
@@ -1683,7 +1688,7 @@ begin
   if lvRefCount > 0 then
     Result := True
   else
-    AtomicDecrement(FRefCount); // Ò»°ã²»»áµ½ÕâÀï
+    AtomicDecrement(FRefCount); // ä¸€èˆ¬ä¸ä¼šåˆ°è¿™é‡Œ
   if Assigned(FOwner) and IsDebugMode then
     FOwner.DoStateMsgD(Self, strConn_CounterInc, [lvRefCount, IntPtr(pvObj), pvDebugInfo]);
 end;
@@ -1711,7 +1716,7 @@ begin
           FOwner.FOnContextDisconnected(Self);
         OnDisconnected;
       end;
-      // ÉèÖÃSocket×´Ì¬
+      // è®¾ç½®SocketçŠ¶æ€
       SetSocketState(ssDisconnected);
     except
       {$IFDEF DEBUG_ON}
@@ -1889,7 +1894,7 @@ end;
 function TIocpCustomContext.PostWSASendRequest(buf: Pointer; len: Cardinal;
   pvBufReleaseType: TDataReleaseType; pvTag: Integer; pvTagData: Pointer): Boolean;
 
-  // ·Ö¿éÍ¶µİ
+  // åˆ†å—æŠ•é€’
   function BlockSend(lvSrc: PAnsiChar; lvSrcLen: Cardinal; pvTag: Integer; pvTagData: Pointer): Boolean;
   var
     lvBuf: PAnsiChar;
@@ -1965,7 +1970,7 @@ begin
     if len <= Owner.SendBufferSize then
       Result := InnerSendData(buf, len, pvBufReleaseType, pvTag, pvTagData)
     else begin
-      // ´óÓÚ·¢ËÍ»º³åÇøÊ±£¬·Ö¿é·¢ËÍ
+      // å¤§äºå‘é€ç¼“å†²åŒºæ—¶ï¼Œåˆ†å—å‘é€
       try
         Result := BlockSend(buf, len, pvTag, pvTagData);
       finally
@@ -1997,7 +2002,7 @@ begin
       lvLen := ASize;
 
     try
-      AtomicIncrement(FSendStreaming);   // ·¢ËÍÁ÷¼ÆÊıÆ÷¼Ó1,·ÀÖ¹×Ô¶¯¶ÏÏß
+      AtomicIncrement(FSendStreaming);   // å‘é€æµè®¡æ•°å™¨åŠ 1,é˜²æ­¢è‡ªåŠ¨æ–­çº¿
       lvBuffSize := Owner.SendBufferSize;
       while lvLen > 0 do begin
         if lvLen > lvBuffSize then
@@ -2056,7 +2061,7 @@ begin
         Dec(lvLen, lvL);
       end;
     finally
-      AtomicDecrement(FSendStreaming);  // ·¢ËÍÁ÷¼ÆÊıÆ÷¼õ1
+      AtomicDecrement(FSendStreaming);  // å‘é€æµè®¡æ•°å™¨å‡1
     end;
   end;
 end;
@@ -2613,7 +2618,7 @@ begin
       FContext.RequestDisconnect(Self{$IFDEF DEBUGINFO}, Format(strRecv_EngineOff, [FContext.SocketHandle]){$ENDIF});
     end else if ErrorCode <> 0 then begin
       FContext.DoError(ErrorCode);
-      if ErrorCode <> ERROR_OPERATION_ABORTED then begin  // Òì²½ÈÎÎñµÈ´ıÊ±£¬±¾¶Ë¹Ø±ÕÌ×½Ó×Ö
+      if ErrorCode <> ERROR_OPERATION_ABORTED then begin  // å¼‚æ­¥ä»»åŠ¡ç­‰å¾…æ—¶ï¼Œæœ¬ç«¯å…³é—­å¥—æ¥å­—
         FOwner.DoStateMsgE(Self, strRecv_Error, [FContext.SocketHandle, ErrorCode]);
       end;
       if ErrorCode <> WSAESHUTDOWN then begin
@@ -2793,7 +2798,7 @@ begin
       lvContext.RequestDisconnect(Self,
          Format(strSend_Err, [lvContext.SocketHandle, ErrorCode]));
     end else begin
-      // ³É¹¦
+      // æˆåŠŸ
       lvContext.FLastActive := GetTimestamp;
       if Assigned(FOwner.FDataMoniter) then
         FOwner.FDataMoniter.incResponseSendObjectCounter;
@@ -2834,24 +2839,24 @@ begin
                   LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
                   nil);
     if lvRet = SOCKET_ERROR then begin
-      // Í¶µİÊ§°Ü
+      // æŠ•é€’å¤±è´¥
       lvErrorCode := WSAGetLastError;
       Result := lvErrorCode = WSA_IO_PENDING;
       if not Result then begin
-        //·¢ËÍ´íÎó£¬ÊÍ·Å¸ÃSOCKET¶ÔÓ¦µÄËùÓĞ×ÊÔ´
+        //å‘é€é”™è¯¯ï¼Œé‡Šæ”¾è¯¥SOCKETå¯¹åº”çš„æ‰€æœ‰èµ„æº
         FIsBusying := False;
         lvOwner.DoStateMsgE(Self, strSend_PostError, [lvContext.SocketHandle, lvErrorCode]);
         lvContext.RequestDisconnect(Self);
       end else begin
-        // ·¢ËÍ³É¹¦£¬µ«TCP/IP²ã»º³åÇøÒÑÂú£¬ÔÚTCP/IP²ã»º³åÇøÓĞ¿ÕÓàµÄµØ·½À´½ÓÊÜ
-        // ¿½±´ÎÒÃÇµÄ³ÌĞò»º³åÇøÊı¾İÊ±²Å»áÍê³É¿½±´£¬È»ºó½«¸øIOCPÒ»¸öÍê³ÉÏûÏ¢
+        // å‘é€æˆåŠŸï¼Œä½†TCP/IPå±‚ç¼“å†²åŒºå·²æ»¡ï¼Œåœ¨TCP/IPå±‚ç¼“å†²åŒºæœ‰ç©ºä½™çš„åœ°æ–¹æ¥æ¥å—
+        // æ‹·è´æˆ‘ä»¬çš„ç¨‹åºç¼“å†²åŒºæ•°æ®æ—¶æ‰ä¼šå®Œæˆæ‹·è´ï¼Œç„¶åå°†ç»™IOCPä¸€ä¸ªå®Œæˆæ¶ˆæ¯
         if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then begin
           lvOwner.FDataMoniter.incPostWSASendSize(len);
           lvOwner.FDataMoniter.incPostWSASendCounter;
         end;
       end;
     end else begin
-      // ·¢ËÍ³É¹¦£¬ÒÑ¾­½«Êı¾İ·ÅÈëTCP/IP²ã»º³åÇø
+      // å‘é€æˆåŠŸï¼Œå·²ç»å°†æ•°æ®æ”¾å…¥TCP/IPå±‚ç¼“å†²åŒº
       Result := True;
       if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then begin
         lvOwner.FDataMoniter.incPostWSASendSize(len);
@@ -2860,13 +2865,13 @@ begin
     end;
   finally
     if not Result then begin
-      // Í¶µİÊ§°ÜÖ±½Ó½«¼ÆÊıÆ÷¼õ1£¬Èç¹û¼ÆÊıÆ÷Îª0Ê±´ú±íÃ»ÓĞÈÎºÎÇëÇó£¬½«¹Ø±Õsocket
+      // æŠ•é€’å¤±è´¥ç›´æ¥å°†è®¡æ•°å™¨å‡1ï¼Œå¦‚æœè®¡æ•°å™¨ä¸º0æ—¶ä»£è¡¨æ²¡æœ‰ä»»ä½•è¯·æ±‚ï¼Œå°†å…³é—­socket
       if IsDebugMode then
         Assert(lvContext = FContext);
       lvContext.DecReferenceCounter(Self,
         Format('InnerPostRequest::WSASend_Fail, ErrorCode:%d', [lvErrorCode]));
     end;
-    // Èç¹û·µ»ØTrue£¬¿ÉÄÜ»áÔÚ HandleResponse ÖĞ dispose »ò·µ»Øµ½³ØÖĞ¡£
+    // å¦‚æœè¿”å›Trueï¼Œå¯èƒ½ä¼šåœ¨ HandleResponse ä¸­ dispose æˆ–è¿”å›åˆ°æ± ä¸­ã€‚
   end;
 end;
 
@@ -3259,7 +3264,7 @@ begin
       // post fail
       j := 100;
       try
-        // ³öÏÖÒì³££¬Ö±½ÓÊÍ·ÅContext
+        // å‡ºç°å¼‚å¸¸ï¼Œç›´æ¥é‡Šæ”¾Context
         lvRequest.FContext.Socket.Close;
         lvRequest.FContext.FAlive := False;
         lvRequest.FContext.Free;
@@ -3269,11 +3274,11 @@ begin
         OutputDebugString(PChar(Exception(ExceptObject).Message));
       end;
 
-      // ¹é»¹µ½¶ÔÏó³Ø
+      // å½’è¿˜åˆ°å¯¹è±¡æ± 
       j := 110;
       ReleaseRequestObject(lvRequest);
 
-      // ÏÔÊ¾ÈÕÖ¾
+      // æ˜¾ç¤ºæ—¥å¿—
       j := 111;
       FOwner.DoStateMsgE(Self, 'PostAcceptExRequest Failed.');
     end;
@@ -3298,7 +3303,7 @@ begin
   pvRequest.FContext := nil;
   pvRequest.FOnAcceptedEx := nil;
   FAcceptExRequestPool.EnQueue(pvRequest);
-  // ´Ë´¦ÔÙ´Î¼ì²âÊÇ·ñĞèÒªÍ¶µİ½ÓÊÕÇëÇó£¬¼õÉÙÒòÏµÍ³³ö´íÔì³ÉµÄÁ¬½Ó²»ÏìÓ¦ÎÊÌâ»úÂÊ
+  // æ­¤å¤„å†æ¬¡æ£€æµ‹æ˜¯å¦éœ€è¦æŠ•é€’æ¥æ”¶è¯·æ±‚ï¼Œå‡å°‘å› ç³»ç»Ÿå‡ºé”™é€ æˆçš„è¿æ¥ä¸å“åº”é—®é¢˜æœºç‡
   if InterlockedDecrement(FCount) < FMinRequest - 1 then
     CheckAcceptExRequest;
 end;
@@ -3519,15 +3524,15 @@ procedure TIocpCustomBlockTcpSocket.RaiseLastOSError(RaiseErr: Boolean);
 begin
   FRecvBufferSize := -1;
   FErrorCode := GetLastError;
-  if (FErrorCode = WSAENOTSOCK)         // ÃèÊö×Ö²»ÊÇÒ»¸öÌ×½Ó¿Ú¡£
-    or (FErrorCode = WSAECONNABORTED)   // ÓÉÓÚ³¬Ê±»òÆäËûÔ­Òò£¬ĞéµçÂ·Ê§Ğ§¡£
-    or (FErrorCode = WSAECONNRESET)     // Ô¶¶ËÇ¿ÖÆÖĞÖ¹ÁËĞéµçÂ·¡£
-    or (FErrorCode = WSAESHUTDOWN)      // Ì×½Ó¿ÚÒÑ±»¹Ø±Õ
-    or (FErrorCode = WSAEINVAL)         // Ì×½Ó¿ÚÎ´ÓÃbind()½øĞĞÀ¦°ó¡£
-    or (FErrorCode = WSAENOTCONN)       // Ì×½Ó¿ÚÎ´Á¬½Ó¡£
-    or (FErrorCode = WSAETIMEDOUT)      // Á¬½Ó³¬Ê± 2016.08.01
+  if (FErrorCode = WSAENOTSOCK)         // æè¿°å­—ä¸æ˜¯ä¸€ä¸ªå¥—æ¥å£ã€‚
+    or (FErrorCode = WSAECONNABORTED)   // ç”±äºè¶…æ—¶æˆ–å…¶ä»–åŸå› ï¼Œè™šç”µè·¯å¤±æ•ˆã€‚
+    or (FErrorCode = WSAECONNRESET)     // è¿œç«¯å¼ºåˆ¶ä¸­æ­¢äº†è™šç”µè·¯ã€‚
+    or (FErrorCode = WSAESHUTDOWN)      // å¥—æ¥å£å·²è¢«å…³é—­
+    or (FErrorCode = WSAEINVAL)         // å¥—æ¥å£æœªç”¨bind()è¿›è¡Œæ†ç»‘ã€‚
+    or (FErrorCode = WSAENOTCONN)       // å¥—æ¥å£æœªè¿æ¥ã€‚
+    or (FErrorCode = WSAETIMEDOUT)      // è¿æ¥è¶…æ—¶ 2016.08.01
   then begin
-    Disconnect; // Á¬½Ó¶Ï¿ª
+    Disconnect; // è¿æ¥æ–­å¼€
     if RaiseErr then
       SysUtils.RaiseLastOSError(FErrorCode);
   end else
@@ -3876,7 +3881,7 @@ begin
 
   try
     DisconnectAll;
-    // µÈ´ıËùÓĞµÄÍ¶µİµÄAcceptExÇëÇó»Ø¹é
+    // ç­‰å¾…æ‰€æœ‰çš„æŠ•é€’çš„AcceptExè¯·æ±‚å›å½’
     FIocpAcceptorMgr.WaitForCancel(12000);
     if not WaitForContext(120000) then begin
       Sleep(10);
@@ -3912,7 +3917,7 @@ constructor TIocpCustomTcpServer.Create(AOwner: TComponent);
 begin
   DoStateMsgD(Self, 'Server Create...');
   inherited Create(AOwner);
-  // Ä¬ÈÏ²»¿ªÆôĞÄÌøÑ¡Ïî
+  // é»˜è®¤ä¸å¼€å¯å¿ƒè·³é€‰é¡¹
   FKeepAlive := False;
   FPort := 9000;
   FMaxSendingQueueSize := 128;
@@ -3944,13 +3949,13 @@ end;
 procedure TIocpCustomTcpServer.CreateSocket;
 begin
   FListenSocket.CreateTcpSocket(True);
-  // °ó¶¨ÕìÌı¶Ë¿Ú
+  // ç»‘å®šä¾¦å¬ç«¯å£
   if not FListenSocket.Bind(FBindAddr, FPort) then
     RaiseLastOSError;
-  // ¿ªÆôÕìÌı
+  // å¼€å¯ä¾¦å¬
   if not FListenSocket.listen() then
     RaiseLastOSError;
-  // ½«ÕìÌıÌ×½Ó×Ö°ó¶¨µ½IOCP¾ä±ú
+  // å°†ä¾¦å¬å¥—æ¥å­—ç»‘å®šåˆ°IOCPå¥æŸ„
   FIocpEngine.IocpCore.Bind(FListenSocket.SocketHandle, 0);
   // post AcceptEx request
   FIocpAcceptorMgr.CheckAcceptExRequest;
@@ -4027,12 +4032,12 @@ begin
 
   end else begin
     pvRequest.FContext.FRawSocket.Close;
-    // ¹é»¹µ½Á¬½ÓÉÏÏÂÎÄ³Ø
+    // å½’è¿˜åˆ°è¿æ¥ä¸Šä¸‹æ–‡æ± 
     ReleaseClientContext(pvRequest.FContext);
     pvRequest.FContext := nil;
   end;
 
-  // Èç¹û»¹»î×Å£¬ÔòÖØĞÂÍ¶µİÒ»¸ö½ÓÊÕÇëÇó
+  // å¦‚æœè¿˜æ´»ç€ï¼Œåˆ™é‡æ–°æŠ•é€’ä¸€ä¸ªæ¥æ”¶è¯·æ±‚
   if FActive then
     FIocpAcceptorMgr.CheckAcceptExRequest;
 end;
@@ -4233,11 +4238,11 @@ begin
     if Assigned(FDataMoniter) then
       FDataMoniter.Clear;
     DoOpen;
-    // ¿ªÆôIOCPÒıÇæ
+    // å¼€å¯IOCPå¼•æ“
     FIocpEngine.Start;
-    // ´´½¨ÕìÌıµÄÌ×½Ó×Ö
+    // åˆ›å»ºä¾¦å¬çš„å¥—æ¥å­—
     CreateSocket;
-    // ÆôÓÃ³¬Ê±ÇåÀí¹¦ÄÜ
+    // å¯ç”¨è¶…æ—¶æ¸…ç†åŠŸèƒ½
     FTimeOutKickOut.Interval := FKickOutInterval;
     FTimeOutKickOut.Enabled := True;
   except
@@ -4263,7 +4268,7 @@ function TIocpCustomTcpServer.ReleaseClientContext(
   const pvObject: TIocpCustomContext): Boolean;
 begin
   if lock_cmp_exchange(True, False, pvObject.FAlive) = True then begin
-    // Èç¹û³¬³ö³Ø´óĞ¡Ê±£¬ÔòÖ±½ÓÊÍ·Å
+    // å¦‚æœè¶…å‡ºæ± å¤§å°æ—¶ï¼Œåˆ™ç›´æ¥é‡Šæ”¾
     if (FMaxContextPoolSize > 0) and (FContextPool.Size >= FMaxContextPoolSize) then begin
       pvObject.DoCleanUp;
       pvObject.Free;
@@ -4427,7 +4432,7 @@ end;
 procedure TIocpRemoteContext.OnConnected;
 begin
   inherited OnConnected;
-  FLastDisconnectTime := 0;  // ÖØÖÃ¶Ï¿ªÊ±¼ä
+  FLastDisconnectTime := 0;  // é‡ç½®æ–­å¼€æ—¶é—´
 end;
 
 procedure TIocpRemoteContext.OnConnecteExResponse(pvObject: TObject);
@@ -4505,7 +4510,7 @@ procedure TIocpRemoteContext.SetSocketState(pvState: TSocketState);
 begin
   inherited SetSocketState(pvState);
   if pvState = ssDisconnected then begin
-    // ¼ÇÂ¼×îºó¶Ï¿ªÊ±¼ä
+    // è®°å½•æœ€åæ–­å¼€æ—¶é—´
     FLastDisconnectTime := GetTimestamp;
     if CanAutoReConnect then
       TIocpCustomTcpClient(Owner).PostReconnectRequestEvent(Self);
@@ -4625,18 +4630,18 @@ var
   lvContext: TIocpRemoteContext;
   lvRequest: TIocpASyncRequest;
 begin
-  // ÍË³ö
+  // é€€å‡º
   if (not Self.Active) then Exit;
 
   lvRequest := TIocpASyncRequest(pvObject);
   lvContext := TIocpRemoteContext(lvRequest.Data);
 
   if GetTimestamp - lvContext.FLastDisconnectTime >= RECONNECT_INTERVAL then begin
-    // Í¶µİÕæÕıµÄÁ¬½ÓÇëÇó
+    // æŠ•é€’çœŸæ­£çš„è¿æ¥è¯·æ±‚
     lvContext.PostConnectRequest();
   end else begin
     Sleep(100);
-    // ÔÙ´ÎÍ¶µİÁ¬½ÓÇëÇó
+    // å†æ¬¡æŠ•é€’è¿æ¥è¯·æ±‚
     PostReconnectRequestEvent(lvContext);
   end;
 end;
@@ -4768,13 +4773,13 @@ var
   I: Integer;
 begin
   FListenSocket.CreateUdpSocket(True);
-  // °ó¶¨ÕìÌı¶Ë¿Ú
+  // ç»‘å®šä¾¦å¬ç«¯å£
   AAddr := GetSocketAddr(AnsiString(FBindAddr), FPort);
   if not FListenSocket.Bind(TSockAddr(AAddr)) then
     RaiseLastOSError;
-  // ½«ÕìÌıÌ×½Ó×Ö°ó¶¨µ½IOCP¾ä±ú
+  // å°†ä¾¦å¬å¥—æ¥å­—ç»‘å®šåˆ°IOCPå¥æŸ„
   FIocpEngine.IocpCore.Bind(FListenSocket.SocketHandle, DWORD(FListenSocket.SocketHandle));
-  // ¿ªÊ¼½ÓÊÕÊı¾İ
+  // å¼€å§‹æ¥æ”¶æ•°æ®
   SetLength(FRecvItems, FIocpEngine.MaxWorkerCount);
   //SetLength(FRecvItems, GetCPUCount shl 1);
   for I := 0 to High(FRecvItems) do begin
@@ -4888,9 +4893,9 @@ begin
   try
     if Assigned(FDataMoniter) then
       FDataMoniter.Clear;
-    // ¿ªÆôIOCPÒıÇæ
+    // å¼€å¯IOCPå¼•æ“
     FIocpEngine.Start;
-    // ´´½¨ÕìÌıµÄÌ×½Ó×Ö
+    // åˆ›å»ºä¾¦å¬çš„å¥—æ¥å­—
     CreateSocket;
   except
     FActive := False;
@@ -5047,7 +5052,7 @@ begin
       FOwner.FDataMoniter.incRecvdSize(FBytesTransferred);
     end;
     if ErrorCode <> 0 then begin
-      if ErrorCode <> ERROR_OPERATION_ABORTED then  // Òì²½ÈÎÎñµÈ´ıÊ±£¬±¾¶Ë¹Ø±ÕÌ×½Ó×Ö
+      if ErrorCode <> ERROR_OPERATION_ABORTED then  // å¼‚æ­¥ä»»åŠ¡ç­‰å¾…æ—¶ï¼Œæœ¬ç«¯å…³é—­å¥—æ¥å­—
         FOwner.DoStateMsgE(Self, strRecv_Error, [FOwner.SocketHandle, ErrorCode]);
       IsDisconnect := False;
     end else begin
@@ -5223,22 +5228,22 @@ begin
                 LPWSAOVERLAPPED(@FOverlapped),   // d7 need to cast
                 nil);
   if lvRet = SOCKET_ERROR then begin
-    // Í¶µİÊ§°Ü
+    // æŠ•é€’å¤±è´¥
     lvErrorCode := WSAGetLastError;
     Result := lvErrorCode = WSA_IO_PENDING;
     if not Result then begin
-      //·¢ËÍ´íÎó£¬ÊÍ·Å¸ÃSOCKET¶ÔÓ¦µÄËùÓĞ×ÊÔ´
+      //å‘é€é”™è¯¯ï¼Œé‡Šæ”¾è¯¥SOCKETå¯¹åº”çš„æ‰€æœ‰èµ„æº
       FIsBusying := False;
       lvOwner.DoStateMsgE(Self, strSend_PostError, [lvOwner.SocketHandle, lvErrorCode]);
     end else begin
-      // ·¢ËÍ³É¹¦
+      // å‘é€æˆåŠŸ
       if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then begin
         lvOwner.FDataMoniter.incPostWSASendSize(len);
         lvOwner.FDataMoniter.incPostWSASendCounter;
       end;
     end;
   end else begin
-    // ·¢ËÍ³É¹¦
+    // å‘é€æˆåŠŸ
     Result := True;
     if (lvOwner <> nil) and (lvOwner.FDataMoniter <> nil) then begin
       lvOwner.FDataMoniter.incPostWSASendSize(len);
